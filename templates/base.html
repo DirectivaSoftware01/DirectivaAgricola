@@ -1,0 +1,265 @@
+{% load static %}
+{% load cache_utils %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Directiva Agrícola{% endblock %}</title>
+    
+    <!-- Headers para evitar cache -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS con timestamp -->
+    <link href="{% static_with_timestamp 'css/style.css' %}" rel="stylesheet">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navbar superior -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <div class="container-fluid">
+            <!-- Logo de la empresa -->
+            <div class="navbar-brand d-flex align-items-center">
+                <img src="/static/images/LogoDirectiva.png" alt="Logo Directiva Agrícola" height="40" class="me-2">
+                <span class="fw-bold">Directiva Agrícola - Liquidaciones de producción</span>
+            </div>
+            
+            <!-- Menú de usuario -->
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle"></i> {{ user.nombre|default:user.username }}
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'core:configuracion' %}">
+                            <i class="bi bi-gear"></i> Configuración
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'core:logout' %}" id="logout-link">
+                            <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+            
+
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+                <div class="position-sticky pt-5">
+                    <div class="accordion" id="sidebarAccordion">
+                        <!-- Sección Catálogos -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="catalogosHeader">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#catalogosCollapse" aria-expanded="true" aria-controls="catalogosCollapse">
+                                    <i class="bi bi-book me-2"></i>
+                                    Catálogos
+                                </button>
+                            </h2>
+                            <div id="catalogosCollapse" class="accordion-collapse collapse show" aria-labelledby="catalogosHeader" data-bs-parent="#sidebarAccordion">
+                                <div class="accordion-body">
+                                    <ul class="nav flex-column">
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:cliente_list' %}">
+                                                <i class="bi bi-people"></i> Clientes
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:proveedor_list' %}">
+                                                <i class="bi bi-building"></i> Proveedores
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:producto_servicio_list' %}">
+                                                <i class="bi bi-box"></i> Productos y Servicios
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:centro_costo_list' %}">
+                                                <i class="bi bi-cash-stack"></i> Centros de Costos
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:clasificacion_gasto_list' %}">
+                                                <i class="bi bi-tags"></i> Clasificación de Gastos
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:lote_origen_list' %}">
+                                                <i class="bi bi-geo-alt"></i> Lotes - Origen
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:cultivo_list' %}">
+                                                <i class="bi bi-flower1"></i> Cultivos
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:transportista_list' %}">
+                                                <i class="bi bi-truck"></i> Transportistas
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección Preliquidaciones -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="preliquidacionesHeader">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#preliquidacionesCollapse" aria-expanded="false" aria-controls="preliquidacionesCollapse">
+                                    <i class="bi bi-calculator me-2"></i>
+                                    Preliquidaciones
+                                </button>
+                            </h2>
+                            <div id="preliquidacionesCollapse" class="accordion-collapse collapse" aria-labelledby="preliquidacionesHeader" data-bs-parent="#sidebarAccordion">
+                                <div class="accordion-body">
+                                    <ul class="nav flex-column">
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:remision_create' %}">
+                                                <i class="bi bi-file-earmark-text"></i> Remisiones
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:remision_list' %}">
+                                                <i class="bi bi-list-ul"></i> Listado de Remisiones
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:cobranza_list' %}">
+                                                <i class="bi bi-cash-coin"></i> Cobranza
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="#">
+                                                <i class="bi bi-calculator"></i> Preliquidación
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección Presupuestos -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="presupuestosHeader">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#presupuestosCollapse" aria-expanded="false" aria-controls="presupuestosCollapse">
+                                    <i class="bi bi-cash-stack me-2"></i>
+                                    Presupuestos
+                                </button>
+                            </h2>
+                            <div id="presupuestosCollapse" class="accordion-collapse collapse" aria-labelledby="presupuestosHeader" data-bs-parent="#sidebarAccordion">
+                                <div class="accordion-body">
+                                    <ul class="nav flex-column">
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="#">
+                                                <i class="bi bi-clipboard-data"></i> Definir Presupuesto
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="#">
+                                                <i class="bi bi-cash-coin"></i> Captura de Gastos
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="#">
+                                                <i class="bi bi-eye"></i> Revisión
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección Facturación -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="facturacionHeader">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#facturacionCollapse" aria-expanded="false" aria-controls="facturacionCollapse">
+                                    <i class="bi bi-receipt me-2"></i>
+                                    Facturación
+                                </button>
+                            </h2>
+                            <div id="facturacionCollapse" class="accordion-collapse collapse" aria-labelledby="facturacionHeader" data-bs-parent="#sidebarAccordion">
+                                <div class="accordion-body">
+                                    <ul class="nav flex-column">
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="#">
+                                                <i class="bi bi-building"></i> Emisores
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="#">
+                                                <i class="bi bi-file-earmark-text"></i> Facturación
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="#">
+                                                <i class="bi bi-credit-card"></i> Complemento de pago
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="#">
+                                                <i class="bi bi-graph-up"></i> Reporte
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sección Adicionales -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="adicionalesHeader">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adicionalesCollapse" aria-expanded="false" aria-controls="adicionalesCollapse">
+                                    <i class="bi bi-plus-circle me-2"></i>
+                                    Adicionales
+                                </button>
+                            </h2>
+                            <div id="adicionalesCollapse" class="accordion-collapse collapse" aria-labelledby="adicionalesHeader" data-bs-parent="#sidebarAccordion">
+                                <div class="accordion-body">
+                                    <ul class="nav flex-column">
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'core:configuracion_sistema' %}">
+                                                <i class="bi bi-gear"></i> Configuración
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Contenido principal -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="pt-5">
+                    {% block content %}{% endblock %}
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Form Utilities JS (antes que main.js) -->
+    <script src="{% static_with_timestamp 'js/form-utils.js' %}"></script>
+    <!-- Custom JS -->
+    <script src="{% static_with_timestamp 'js/main.js' %}"></script>
+    <!-- Cache Buster JS -->
+    <script src="{% static_with_timestamp 'js/cache-buster.js' %}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

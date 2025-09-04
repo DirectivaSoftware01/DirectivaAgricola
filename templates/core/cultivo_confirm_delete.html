@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - Directiva Agrícola{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-exclamation-triangle me-2 text-warning"></i>{{ title }}
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'core:cultivo_detail' object.pk %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Volver al Cultivo
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Confirmar Eliminación
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                </div>
+
+                <p class="lead">¿Está seguro de que desea eliminar el siguiente cultivo?</p>
+
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Código:</label>
+                                    <p class="form-control-plaintext">
+                                        <span class="badge bg-primary">{{ object.codigo }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Estado:</label>
+                                    <p class="form-control-plaintext">
+                                        {% if object.activo %}
+                                            <span class="badge bg-success">Activo</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactivo</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Nombre del Cultivo:</label>
+                                    <p class="form-control-plaintext fs-5">{{ object.nombre }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Variedad:</label>
+                                    <p class="form-control-plaintext fs-5">{{ object.variedad }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if object.observaciones %}
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Observaciones:</label>
+                                    <div class="form-control-plaintext bg-white p-3 rounded border">
+                                        {{ object.observaciones|linebreaks }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="alert alert-danger">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Información importante:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Esta acción eliminará permanentemente el cultivo del sistema.</li>
+                        <li>No se podrá recuperar la información una vez eliminada.</li>
+                        <li>Si el cultivo está siendo utilizado en otros módulos, puede causar inconsistencias.</li>
+                    </ul>
+                </div>
+
+                <form method="post" class="d-flex justify-content-between">
+                    {% csrf_token %}
+                    <a href="{% url 'core:cultivo_detail' object.pk %}" class="btn btn-secondary">
+                        <i class="bi bi-x-lg me-1"></i>Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>Eliminar Definitivamente
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

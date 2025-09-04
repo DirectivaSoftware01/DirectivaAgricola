@@ -1,0 +1,904 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if object %}Editar Remisión{% else %}Nueva Remisión{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alert-sm {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        border-radius: 0.375rem;
+    }
+    
+    .form-control.is-invalid {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .form-control.is-invalid:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .alert-danger {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+    }
+    
+    .alert-danger .bi {
+        color: #dc3545;
+    }
+    
+    .form-label .text-danger {
+        font-weight: bold;
+    }
+    
+    .form-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .field-group {
+        background-color: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .field-group h6 {
+        color: #495057;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-truck text-primary"></i>
+            {% if object %}Editar Remisión{% else %}Nueva Remisión{% endif %}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:remision_list' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a Remisiones
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario con Tabs -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        {% if object %}Editar Remisión{% else %}Nueva Remisión{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Nav tabs -->
+                    <ul class="nav nav-tabs" id="remisionTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab" aria-controls="info" aria-selected="true">
+                                <i class="bi bi-info-circle"></i> Información de la Remisión
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="detalles-tab" data-bs-toggle="tab" data-bs-target="#detalles" type="button" role="tab" aria-controls="detalles" aria-selected="false">
+                                <i class="bi bi-list-ul"></i> Detalles de la Remisión
+                                {% if object %}
+                                    <span class="badge bg-secondary ms-1">{{ object.detalles.count }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary ms-1">0</span>
+                                {% endif %}
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tab panes -->
+                    <div class="tab-content" id="remisionTabsContent">
+                        <!-- Tab 1: Información de la Remisión -->
+                        <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
+                            <div class="row mt-3">
+                                <div class="col-md-8">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Información General -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-info-circle"></i> Información General</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="{{ form.ciclo.id_for_label }}" class="form-label">
+                                            {{ form.ciclo.label }}
+                                        </label>
+                                        {{ form.ciclo }}
+                                        {% if form.ciclo.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.ciclo.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Se obtiene automáticamente de la configuración del sistema</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="{{ form.folio.id_for_label }}" class="form-label">
+                                            {{ form.folio.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.folio }}
+                                        {% if form.folio.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.folio.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Se genera automáticamente como el siguiente número consecutivo del ciclo actual</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="{{ form.fecha.id_for_label }}" class="form-label">
+                                            {{ form.fecha.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.fecha }}
+                                        {% if form.fecha.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.fecha.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información de la Remisión -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-truck"></i> Información de la Remisión</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.cliente.id_for_label }}" class="form-label">
+                                            {{ form.cliente.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.cliente }}
+                                        {% if form.cliente.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.cliente.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.lote_origen.id_for_label }}" class="form-label">
+                                            {{ form.lote_origen.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.lote_origen }}
+                                        {% if form.lote_origen.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.lote_origen.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.transportista.id_for_label }}" class="form-label">
+                                            {{ form.transportista.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.transportista }}
+                                        {% if form.transportista.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.transportista.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.costo_flete.id_for_label }}" class="form-label">
+                                            {{ form.costo_flete.label }}
+                                        </label>
+                                        {{ form.costo_flete }}
+                                        {% if form.costo_flete.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.costo_flete.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Costo del flete de transporte</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Observaciones -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-chat-text"></i> Observaciones</h6>
+                            <div class="mb-3">
+                                <label for="{{ form.observaciones.id_for_label }}" class="form-label">
+                                    {{ form.observaciones.label }}
+                                </label>
+                                {{ form.observaciones }}
+                                {% if form.observaciones.errors %}
+                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        {{ form.observaciones.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">
+                                    <small class="text-muted">Observaciones adicionales sobre la remisión (opcional)</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Errores generales del formulario -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                                    <!-- Campo oculto para contar detalles -->
+                                    <input type="hidden" name="detalles_count" id="detalles_count" value="{% if object %}{{ object.detalles.count }}{% else %}0{% endif %}">
+                                    <!-- Campo oculto para detalles temporales -->
+                                    <input type="hidden" name="detalles_temporales" id="detalles_temporales" value="[]">
+                                    
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <a href="{% url 'core:remision_list' %}" class="btn btn-secondary">Cancelar</a>
+                                        <button type="submit" class="btn btn-primary" id="submit-btn">
+                                            {% if object %}Actualizar Remisión{% else %}Crear Remisión{% endif %}
+                                        </button>
+                                    </div>
+                                </form>
+                                </div>
+                                
+                                <!-- Panel de ayuda -->
+                                <div class="col-md-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="card-title mb-0">
+                                                <i class="bi bi-info-circle"></i> Información
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <h6>Campos Requeridos:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><span class="badge bg-danger">*</span> Fecha</li>
+                                                <li><span class="badge bg-danger">*</span> Cliente</li>
+                                                <li><span class="badge bg-danger">*</span> Lote - Origen</li>
+                                                <li><span class="badge bg-danger">*</span> Transportista</li>
+                                            </ul>
+                                            
+                                            <h6 class="mt-3">Información del Sistema:</h6>
+                                            <ul class="small">
+                                                <li><strong>Ciclo:</strong> Se obtiene automáticamente de la configuración del sistema</li>
+                                                <li><strong>Folio:</strong> Se genera automáticamente como el siguiente número consecutivo del ciclo actual</li>
+                                                <li><strong>Costo de Flete:</strong> Valor por defecto $0.00</li>
+                                            </ul>
+                                            
+                                            <h6 class="mt-3">Validaciones:</h6>
+                                            <ul class="small">
+                                                <li>El folio debe ser un número positivo</li>
+                                                <li>La combinación Ciclo + Folio debe ser única</li>
+                                                <li>El costo de flete no puede ser negativo</li>
+                                                <li>Solo se muestran clientes, lotes y transportistas activos</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab 2: Detalles de la Remisión -->
+                        <div class="tab-pane fade" id="detalles" role="tabpanel" aria-labelledby="detalles-tab">
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-list-ul"></i> Detalles de la Remisión
+                                        {% if object %}
+                                            <span class="badge bg-secondary ms-2">{{ object.detalles.count }} detalle(s)</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary ms-2">0 detalle(s)</span>
+                                        {% endif %}
+                                    </h5>
+                                    {% if object %}
+                                        <a href="{% url 'core:remision_detalle_create' object.pk %}" class="btn btn-success">
+                                            <i class="bi bi-plus-circle"></i> Agregar Detalle
+                                        </a>
+                                    {% else %}
+                                        <button type="button" class="btn btn-success" id="add-detalle-btn" data-bs-toggle="modal" data-bs-target="#detalleModal">
+                                            <i class="bi bi-plus-circle"></i> Agregar Detalle
+                                        </button>
+                                    {% endif %}
+                                </div>
+                                {% if object and object.detalles.all %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Cultivo</th>
+                                                    <th>Calidad</th>
+                                                    <th>No Arps</th>
+                                                    <th>Kgs Enviados</th>
+                                                    <th>Merma/Arps</th>
+                                                    <th>Peso Promedio</th>
+                                                    <th>Kgs Liquidados</th>
+                                                    <th>Kgs Merma</th>
+                                                    <th>Precio</th>
+                                                    <th>Importe Liquidado</th>
+                                                    <th>Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for detalle in object.detalles.all %}
+                                                <tr>
+                                                    <td>
+                                                        <strong>{{ detalle.cultivo.nombre }}</strong><br>
+                                                        <small class="text-muted">{{ detalle.cultivo.variedad }}</small>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge bg-info">{{ detalle.calidad }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="fw-bold">{{ detalle.no_arps }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-primary fw-bold">{{ detalle.kgs_enviados|floatformat:2 }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-warning fw-bold">{{ detalle.merma_arps }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-success fw-bold">{{ detalle.peso_promedio|floatformat:2 }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-info fw-bold">{{ detalle.kgs_liquidados|floatformat:2 }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-danger fw-bold">{{ detalle.kgs_merma|floatformat:2 }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-success fw-bold">${{ detalle.precio|floatformat:2 }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-success fw-bold">${{ detalle.importe_liquidado|floatformat:2 }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <div class="btn-group" role="group">
+                                                            <a href="{% url 'core:remision_detalle_update' detalle.pk %}" 
+                                                               class="btn btn-sm btn-outline-warning" 
+                                                               title="Editar detalle">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </a>
+                                                            <a href="{% url 'core:remision_detalle_delete' detalle.pk %}" 
+                                                               class="btn btn-sm btn-outline-danger" 
+                                                               title="Eliminar detalle">
+                                                                <i class="bi bi-trash"></i>
+                                                            </a>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Resumen de Totales -->
+                                    <div class="row mt-4">
+                                        <div class="col-md-12">
+                                            <div class="card bg-light">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">Resumen de Totales</h6>
+                                                    <div class="row">
+                                                        <div class="col-md-3">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Arps</h6>
+                                                                <h4 class="text-primary">
+                                                                    {% for detalle in object.detalles.all %}
+                                                                        {% if forloop.first %}{{ detalle.no_arps }}{% else %}{{ total_arps|add:detalle.no_arps }}{% endif %}
+                                                                    {% endfor %}
+                                                                </h4>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Kgs Enviados</h6>
+                                                                <h4 class="text-primary">
+                                                                    {% for detalle in object.detalles.all %}
+                                                                        {% if forloop.first %}{{ detalle.kgs_enviados|floatformat:2 }}{% else %}{{ total_kgs_enviados|add:detalle.kgs_enviados|floatformat:2 }}{% endif %}
+                                                                    {% endfor %}
+                                                                </h4>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Kgs Liquidados</h6>
+                                                                <h4 class="text-info">
+                                                                    {% for detalle in object.detalles.all %}
+                                                                        {% if forloop.first %}{{ detalle.kgs_liquidados|floatformat:2 }}{% else %}{{ total_kgs_liquidados|add:detalle.kgs_liquidados|floatformat:2 }}{% endif %}
+                                                                    {% endfor %}
+                                                                </h4>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Importe</h6>
+                                                                <h4 class="text-success">
+                                                                    {% for detalle in object.detalles.all %}
+                                                                        {% if forloop.first %}${{ detalle.importe_liquidado|floatformat:2 }}{% else %}${{ total_importe|add:detalle.importe_liquidado|floatformat:2 }}{% endif %}
+                                                                    {% endfor %}
+                                                                </h4>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% elif not object %}
+                                    <!-- Tabla temporal para detalles de nueva remisión -->
+                                    <div class="table-responsive" id="detalles-temporales">
+                                        <table class="table table-hover" id="detalles-table">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Cultivo</th>
+                                                    <th>Calidad</th>
+                                                    <th>No Arps</th>
+                                                    <th>Kgs Enviados</th>
+                                                    <th>Merma/Arps</th>
+                                                    <th>Peso Promedio</th>
+                                                    <th>Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="detalles-tbody">
+                                                <!-- Los detalles temporales se agregarán aquí -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    <!-- Resumen de Totales Temporales -->
+                                    <div class="row mt-4" id="resumen-temporales">
+                                        <div class="col-md-12">
+                                            <div class="card bg-light">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">Resumen de Totales</h6>
+                                                    <div class="row">
+                                                        <div class="col-md-4">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Arps</h6>
+                                                                <h4 class="text-primary" id="total-arps">0</h4>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Kgs Enviados</h6>
+                                                                <h4 class="text-primary" id="total-kgs-enviados">0.00</h4>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Merma/Arps</h6>
+                                                                <h4 class="text-warning" id="total-merma-arps">0</h4>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="text-center py-5">
+                                        <i class="bi bi-list-ul text-muted" style="font-size: 4rem;"></i>
+                                        {% if object %}
+                                            <h4 class="text-muted mt-3">No hay detalles registrados</h4>
+                                            <p class="text-muted">Agrega los detalles de los productos enviados en esta remisión.</p>
+                                            <a href="{% url 'core:remision_detalle_create' object.pk %}" class="btn btn-primary">
+                                                <i class="bi bi-plus-circle"></i> Agregar Primer Detalle
+                                            </a>
+                                        {% else %}
+                                            <h4 class="text-muted mt-3">Detalles de la Remisión</h4>
+                                            <p class="text-muted">Primero guarda la remisión para poder agregar los detalles de los productos enviados.</p>
+                                            <button type="button" class="btn btn-primary" disabled>
+                                                <i class="bi bi-plus-circle"></i> Agregar Primer Detalle
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para agregar detalles temporales -->
+<div class="modal fade" id="detalleModal" tabindex="-1" aria-labelledby="detalleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalleModalLabel">
+                    <i class="bi bi-plus-circle"></i> Agregar Detalle
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="detalle-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cultivo-select" class="form-label">Cultivo <span class="text-danger">*</span></label>
+                                <select class="form-select" id="cultivo-select" required>
+                                    <option value="">Seleccionar cultivo...</option>
+                                    <!-- Se llenará con JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="calidad-select" class="form-label">Calidad <span class="text-danger">*</span></label>
+                                <select class="form-select" id="calidad-select" required>
+                                    <option value="">Seleccionar calidad...</option>
+                                    <option value="1ras/2das">1ras/2das</option>
+                                    <option value="3as">3as</option>
+                                    <option value="4as">4as</option>
+                                    <option value="Mixtas">Mixtas</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="no-arps" class="form-label">No Arps <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="no-arps" min="1" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="kgs-enviados" class="form-label">Kgs Enviados <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="kgs-enviados" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="merma-arps" class="form-label">Merma/Arps</label>
+                                <input type="number" class="form-control" id="merma-arps" min="0" value="0">
+                            </div>
+                        </div>
+                    </div>
+                                                    <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="mb-3">
+                                            <label class="form-label">Peso Promedio (Calculado)</label>
+                                            <input type="text" class="form-control" id="peso-promedio" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Nota:</strong> Los campos de liquidación (Kgs Liquidados, Kgs Merma, Precio, Importe Liquidado) se capturarán posteriormente en el proceso de liquidación.
+                                </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-detalle-btn">Agregar Detalle</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Establecer fecha actual por defecto si es nueva remisión
+    {% if not object %}
+    const fechaField = document.querySelector('input[name="fecha"]');
+    if (fechaField && !fechaField.value) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        fechaField.value = `${year}-${month}-${day}`;
+    }
+    {% endif %}
+    
+    // Formatear costo de flete
+    const costoFleteField = document.querySelector('input[name="costo_flete"]');
+    if (costoFleteField) {
+        costoFleteField.addEventListener('blur', function() {
+            if (this.value && !isNaN(this.value)) {
+                this.value = parseFloat(this.value).toFixed(2);
+            }
+        });
+    }
+    
+    // Funcionalidad de tabs
+    const tabTriggerList = [].slice.call(document.querySelectorAll('#remisionTabs button'));
+    tabTriggerList.forEach(function (tabTriggerEl) {
+        const tab = new bootstrap.Tab(tabTriggerEl);
+        tabTriggerEl.addEventListener('click', function (event) {
+            event.preventDefault();
+            tab.show();
+        });
+    });
+    
+    // Validación de detalles para nuevas remisiones
+    {% if not object %}
+    const submitBtn = document.getElementById('submit-btn');
+    const detallesCountField = document.getElementById('detalles_count');
+    
+    if (submitBtn && detallesCountField) {
+        submitBtn.addEventListener('click', function(e) {
+            const detallesCount = parseInt(detallesCountField.value) || 0;
+            
+            if (detallesCount === 0) {
+                e.preventDefault();
+                
+                // Mostrar mensaje de error
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'alert alert-danger alert-dismissible fade show mt-3';
+                errorDiv.innerHTML = `
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Error:</strong> No se puede crear una remisión sin detalles. 
+                    Por favor, agregue al menos un detalle en la pestaña "Detalles de la Remisión".
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                
+                // Insertar el mensaje antes del formulario
+                const form = document.querySelector('form');
+                if (form) {
+                    form.insertBefore(errorDiv, form.firstChild);
+                    
+                    // Cambiar a la pestaña de detalles
+                    const detallesTab = document.getElementById('detalles-tab');
+                    if (detallesTab) {
+                        const tab = new bootstrap.Tab(detallesTab);
+                        tab.show();
+                    }
+                    
+                    // Scroll al mensaje
+                    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                
+                return false;
+            }
+        });
+    }
+    {% endif %}
+    
+    // Actualizar contador de detalles en el tab cuando se agregan/eliminan
+    function updateDetallesCount() {
+        const detallesTab = document.getElementById('detalles-tab');
+        const badge = detallesTab.querySelector('.badge');
+        const detallesCountField = document.getElementById('detalles_count');
+        
+        if (badge && detallesCountField) {
+            // Aquí podrías hacer una llamada AJAX para obtener el conteo actual
+            // Por ahora mantenemos el valor del servidor
+            const currentCount = parseInt(detallesCountField.value) || 0;
+            badge.textContent = currentCount;
+        }
+    }
+    
+    // Funcionalidad para detalles temporales
+    {% if not object %}
+    let detallesTemporales = [];
+    
+    // Cargar cultivos en el modal
+    function loadCultivos() {
+        const cultivoSelect = document.getElementById('cultivo-select');
+        if (cultivoSelect) {
+            // Limpiar opciones existentes (excepto la primera)
+            cultivoSelect.innerHTML = '<option value="">Seleccionar cultivo...</option>';
+            
+            // Hacer llamada AJAX para obtener cultivos
+            fetch('/ajax/cultivos/')
+                .then(response => response.json())
+                .then(cultivos => {
+                    cultivos.forEach(cultivo => {
+                        const option = document.createElement('option');
+                        option.value = cultivo.id;
+                        option.textContent = `${cultivo.nombre} - ${cultivo.variedad}`;
+                        option.dataset.nombre = cultivo.nombre;
+                        option.dataset.variedad = cultivo.variedad;
+                        cultivoSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error cargando cultivos:', error);
+                    // En caso de error, agregar opciones de ejemplo
+                    const cultivosEjemplo = [
+                        {id: 1, nombre: 'Maíz', variedad: 'Híbrido'},
+                        {id: 2, nombre: 'Papas', variedad: 'Fianas'},
+                        {id: 3, nombre: 'Tomate', variedad: 'Cherry'}
+                    ];
+                    
+                    cultivosEjemplo.forEach(cultivo => {
+                        const option = document.createElement('option');
+                        option.value = cultivo.id;
+                        option.textContent = `${cultivo.nombre} - ${cultivo.variedad}`;
+                        option.dataset.nombre = cultivo.nombre;
+                        option.dataset.variedad = cultivo.variedad;
+                        cultivoSelect.appendChild(option);
+                    });
+                });
+        }
+    }
+    
+    // Calcular peso promedio automáticamente
+    function calcularPesoPromedio() {
+        const noArps = parseFloat(document.getElementById('no-arps').value) || 0;
+        const kgsEnviados = parseFloat(document.getElementById('kgs-enviados').value) || 0;
+        const pesoPromedioField = document.getElementById('peso-promedio');
+        
+        if (noArps > 0 && kgsEnviados > 0) {
+            const pesoPromedio = (kgsEnviados / noArps).toFixed(2);
+            pesoPromedioField.value = pesoPromedio;
+        } else {
+            pesoPromedioField.value = '0.00';
+        }
+    }
+    
+    // Event listeners para el modal
+    document.getElementById('no-arps').addEventListener('input', calcularPesoPromedio);
+    document.getElementById('kgs-enviados').addEventListener('input', calcularPesoPromedio);
+    
+    // Agregar detalle temporal
+    document.getElementById('save-detalle-btn').addEventListener('click', function() {
+        const cultivoSelect = document.getElementById('cultivo-select');
+        const calidadSelect = document.getElementById('calidad-select');
+        const noArps = document.getElementById('no-arps').value;
+        const kgsEnviados = document.getElementById('kgs-enviados').value;
+        const mermaArps = document.getElementById('merma-arps').value || 0;
+        // Los campos de liquidación se establecerán en 0 por defecto
+        const pesoPromedio = document.getElementById('peso-promedio').value || '0.00';
+        
+        // Validar campos requeridos
+        if (!cultivoSelect.value || !calidadSelect.value || !noArps || !kgsEnviados) {
+            alert('Por favor, complete todos los campos requeridos.');
+            return;
+        }
+        
+        // Crear objeto detalle
+        const detalle = {
+            id: Date.now(), // ID temporal
+            cultivo: {
+                id: cultivoSelect.value,
+                nombre: cultivoSelect.options[cultivoSelect.selectedIndex].dataset.nombre,
+                variedad: cultivoSelect.options[cultivoSelect.selectedIndex].dataset.variedad
+            },
+            calidad: calidadSelect.value,
+            no_arps: parseInt(noArps),
+            kgs_enviados: parseFloat(kgsEnviados),
+            merma_arps: parseInt(mermaArps),
+            kgs_liquidados: 0, // Valores por defecto para liquidación
+            kgs_merma: 0,
+            precio: 0,
+            importe_liquidado: 0,
+            peso_promedio: parseFloat(pesoPromedio)
+        };
+        
+        // Agregar a la lista temporal
+        detallesTemporales.push(detalle);
+        
+        // Actualizar la tabla
+        updateDetallesTable();
+        
+        // Actualizar contadores
+        updateDetallesCount();
+        updateTotales();
+        
+        // Limpiar formulario y cerrar modal
+        document.getElementById('detalle-form').reset();
+        document.getElementById('peso-promedio').value = '0.00';
+        bootstrap.Modal.getInstance(document.getElementById('detalleModal')).hide();
+    });
+    
+                    // Actualizar tabla de detalles
+                function updateDetallesTable() {
+                    const tbody = document.getElementById('detalles-tbody');
+                    tbody.innerHTML = '';
+                    
+                    detallesTemporales.forEach((detalle, index) => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>
+                                <strong>${detalle.cultivo.nombre}</strong><br>
+                                <small class="text-muted">${detalle.cultivo.variedad}</small>
+                            </td>
+                            <td><span class="badge bg-info">${detalle.calidad}</span></td>
+                            <td><span class="fw-bold">${detalle.no_arps}</span></td>
+                            <td><span class="text-primary fw-bold">${detalle.kgs_enviados.toFixed(2)}</span></td>
+                            <td><span class="text-warning fw-bold">${detalle.merma_arps}</span></td>
+                            <td><span class="text-success fw-bold">${detalle.peso_promedio.toFixed(2)}</span></td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeDetalle(${index})" title="Eliminar detalle">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+    
+    // Eliminar detalle temporal
+    window.removeDetalle = function(index) {
+        if (confirm('¿Está seguro de que desea eliminar este detalle?')) {
+            detallesTemporales.splice(index, 1);
+            updateDetallesTable();
+            updateDetallesCount();
+            updateTotales();
+        }
+    };
+    
+                    // Actualizar totales
+                function updateTotales() {
+                    const totalArps = detallesTemporales.reduce((sum, detalle) => sum + detalle.no_arps, 0);
+                    const totalKgsEnviados = detallesTemporales.reduce((sum, detalle) => sum + detalle.kgs_enviados, 0);
+                    const totalMermaArps = detallesTemporales.reduce((sum, detalle) => sum + detalle.merma_arps, 0);
+                    
+                    document.getElementById('total-arps').textContent = totalArps;
+                    document.getElementById('total-kgs-enviados').textContent = totalKgsEnviados.toFixed(2);
+                    document.getElementById('total-merma-arps').textContent = totalMermaArps;
+                    
+                    // Actualizar contador de detalles
+                    const detallesCountField = document.getElementById('detalles_count');
+                    const badge = document.querySelector('#detalles-tab .badge');
+                    if (detallesCountField) {
+                        detallesCountField.value = detallesTemporales.length;
+                    }
+                    if (badge) {
+                        badge.textContent = detallesTemporales.length;
+                    }
+                    
+                    // Actualizar campo oculto con detalles temporales
+                    const detallesTemporalesField = document.getElementById('detalles_temporales');
+                    if (detallesTemporalesField) {
+                        detallesTemporalesField.value = JSON.stringify(detallesTemporales);
+                    }
+                }
+    
+    // Cargar cultivos al inicializar
+    loadCultivos();
+    {% endif %}
+});
+</script>
+{% endblock %}

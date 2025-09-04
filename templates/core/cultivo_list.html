@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Cultivos - Directiva Agrícola{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-flower1 me-2"></i>Cultivos
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{% url 'core:cultivo_create' %}" class="btn btn-primary">
+                <i class="bi bi-flower1 me-1"></i>Nuevo Cultivo
+            </a>
+            <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Volver al Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Formulario de búsqueda -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-6">
+                        {{ search_form.search }}
+                    </div>
+                    <div class="col-md-4">
+                        {{ search_form.activo }}
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-outline-primary w-100">
+                            <i class="bi bi-search me-1"></i>Buscar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla de cultivos -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-ul me-2"></i>Lista de Cultivos
+                    <span class="badge bg-secondary ms-2">{{ cultivos|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if cultivos %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre del Cultivo</th>
+                                    <th>Variedad</th>
+                                    <th>Observaciones</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cultivo in cultivos %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-primary">{{ cultivo.codigo }}</span>
+                                    </td>
+                                    <td>
+                                        <strong>{{ cultivo.nombre }}</strong>
+                                    </td>
+                                    <td>{{ cultivo.variedad }}</td>
+                                    <td>
+                                        {% if cultivo.observaciones %}
+                                            <span class="text-muted">{{ cultivo.observaciones|truncatechars:50 }}</span>
+                                        {% else %}
+                                            <span class="text-muted">Sin observaciones</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if cultivo.activo %}
+                                            <span class="badge bg-success">Activo</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactivo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'core:cultivo_detail' cultivo.pk %}" class="btn btn-sm btn-outline-info" title="Ver detalles">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{% url 'core:cultivo_update' cultivo.pk %}" class="btn btn-sm btn-outline-warning" title="Editar">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <a href="{% url 'core:cultivo_delete' cultivo.pk %}" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    {% if is_paginated %}
+                        <nav aria-label="Paginación de cultivos">
+                            <ul class="pagination justify-content-center">
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.activo %}&activo={{ request.GET.activo }}{% endif %}">Primera</a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.activo %}&activo={{ request.GET.activo }}{% endif %}">Anterior</a>
+                                    </li>
+                                {% endif %}
+
+                                <li class="page-item active">
+                                    <span class="page-link">
+                                        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                    </span>
+                                </li>
+
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.activo %}&activo={{ request.GET.activo }}{% endif %}">Siguiente</a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.activo %}&activo={{ request.GET.activo }}{% endif %}">Última</a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-flower1 display-1 text-muted"></i>
+                        <h4 class="text-muted mt-3">No se encontraron cultivos</h4>
+                        <p class="text-muted">
+                            {% if request.GET.search or request.GET.activo %}
+                                No hay cultivos que coincidan con los criterios de búsqueda.
+                            {% else %}
+                                Aún no se han registrado cultivos en el sistema.
+                            {% endif %}
+                        </p>
+                        <a href="{% url 'core:cultivo_create' %}" class="btn btn-primary">
+                            <i class="bi bi-plus-lg me-1"></i>Crear Primer Cultivo
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

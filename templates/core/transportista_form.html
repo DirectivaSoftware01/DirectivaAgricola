@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-truck text-primary"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:transportista_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a la Lista
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        {% if object %}Editar información del transportista{% else %}Información del nuevo transportista{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Información Personal -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-person"></i> Información Personal</h6>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="{{ form.nombre_completo.id_for_label }}" class="form-label">
+                                            {{ form.nombre_completo.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.nombre_completo }}
+                                        {% if form.nombre_completo.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.nombre_completo.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="{{ form.activo.id_for_label }}" class="form-label">
+                                            {{ form.activo.label }}
+                                        </label>
+                                        <div class="form-check mt-2">
+                                            {{ form.activo }}
+                                            <label class="form-check-label" for="{{ form.activo.id_for_label }}">
+                                                Transportista activo
+                                            </label>
+                                            {% if form.activo.errors %}
+                                                <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                    {{ form.activo.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información de Licencia -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-card-text"></i> Información de Licencia</h6>
+                            <div class="mb-3">
+                                <label for="{{ form.licencia.id_for_label }}" class="form-label">
+                                    {{ form.licencia.label }} <span class="text-danger">*</span>
+                                </label>
+                                {{ form.licencia }}
+                                {% if form.licencia.errors %}
+                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        {{ form.licencia.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Información de Contacto -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-geo-alt"></i> Información de Contacto</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.telefono.id_for_label }}" class="form-label">
+                                            {{ form.telefono.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.telefono }}
+                                        {% if form.telefono.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.telefono.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.domicilio.id_for_label }}" class="form-label">
+                                    {{ form.domicilio.label }} <span class="text-danger">*</span>
+                                </label>
+                                {{ form.domicilio }}
+                                {% if form.domicilio.errors %}
+                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        {{ form.domicilio.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Información del Vehículo -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-truck"></i> Información del Vehículo</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.tipo_camion.id_for_label }}" class="form-label">
+                                            {{ form.tipo_camion.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.tipo_camion }}
+                                        {% if form.tipo_camion.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.tipo_camion.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.placas_unidad.id_for_label }}" class="form-label">
+                                            {{ form.placas_unidad.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.placas_unidad }}
+                                        {% if form.placas_unidad.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.placas_unidad.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.placas_remolque.id_for_label }}" class="form-label">
+                                            {{ form.placas_remolque.label }}
+                                        </label>
+                                        {{ form.placas_remolque }}
+                                        {% if form.placas_remolque.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.placas_remolque.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Opcional - Solo si el transportista maneja remolque</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Errores generales del formulario -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'core:transportista_list' %}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if object %}Actualizar Transportista{% else %}Crear Transportista{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel lateral -->
+        <div class="col-md-4">
+            <!-- Información del formulario -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información del Formulario
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>Campos requeridos:</strong>
+                    </p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Nombre completo</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Número de licencia</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Teléfono (mínimo 10 dígitos)</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Domicilio completo</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Tipo de camión</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Placas de unidad</li>
+                    </ul>
+                    <hr>
+                    <p class="card-text">
+                        <strong>Campos opcionales:</strong>
+                    </p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-dash-circle text-info me-2"></i>Placas de remolque</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Ayuda -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-question-circle"></i> Ayuda
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>Teléfono:</strong> Debe contener al menos 10 dígitos numéricos.
+                    </p>
+                    <p class="card-text">
+                        <strong>Placas:</strong> Se convertirán automáticamente a mayúsculas.
+                    </p>
+                    <p class="card-text">
+                        <strong>Estado:</strong> Los transportistas inactivos no aparecerán en las listas de selección.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.field-group {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.field-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.field-group h6 {
+    color: #495057;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.alert-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-formatear placas a mayúsculas
+    const placasFields = ['{{ form.placas_unidad.id_for_label }}', '{{ form.placas_remolque.id_for_label }}'];
+    placasFields.forEach(function(fieldId) {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('input', function() {
+                this.value = this.value.toUpperCase();
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

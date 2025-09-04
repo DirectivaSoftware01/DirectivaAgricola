@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Configuración del Sistema - Directiva Agrícola{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-gear me-2"></i>Configuración del Sistema
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Volver al Dashboard
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-sliders me-2"></i>Configuración General del Sistema
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if form %}
+                    <form method="post" enctype="multipart/form-data" id="configuracionForm">
+                        {% csrf_token %}
+                        
+                        <!-- Acordeón principal -->
+                        <div class="accordion" id="configuracionAccordion">
+                            
+                            <!-- Acordeón 1: Datos del ciclo de producción -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="cicloHeader">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#cicloCollapse" aria-expanded="true" aria-controls="cicloCollapse">
+                                        <i class="bi bi-calendar3 me-2"></i>
+                                        Datos del ciclo de producción
+                                    </button>
+                                </h2>
+                                <div id="cicloCollapse" class="accordion-collapse collapse show" aria-labelledby="cicloHeader" data-bs-parent="#configuracionAccordion">
+                                    <div class="accordion-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.ciclo_actual.id_for_label }}" class="form-label">
+                                                        {{ form.ciclo_actual.label }}
+                                                        {% if form.ciclo_actual.field.required %}<span class="text-danger">*</span>{% endif %}
+                                                    </label>
+                                                    {{ form.ciclo_actual }}
+                                                    {% if form.ciclo_actual.help_text %}
+                                                        <div class="form-text">{{ form.ciclo_actual.help_text }}</div>
+                                                    {% endif %}
+                                                    {% if form.ciclo_actual.errors %}
+                                                        <div class="text-danger">
+                                                            {% for error in form.ciclo_actual.errors %}
+                                                                <small>{{ error }}</small>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Acordeón 2: Configuración de timbrado -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="timbradoHeader">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#timbradoCollapse" aria-expanded="false" aria-controls="timbradoCollapse">
+                                        <i class="bi bi-receipt me-2"></i>
+                                        Configuración de timbrado
+                                    </button>
+                                </h2>
+                                <div id="timbradoCollapse" class="accordion-collapse collapse" aria-labelledby="timbradoHeader" data-bs-parent="#configuracionAccordion">
+                                    <div class="accordion-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.nombre_pac.id_for_label }}" class="form-label">
+                                                        {{ form.nombre_pac.label }}
+                                                        {% if form.nombre_pac.field.required %}<span class="text-danger">*</span>{% endif %}
+                                                    </label>
+                                                    {{ form.nombre_pac }}
+                                                    {% if form.nombre_pac.help_text %}
+                                                        <div class="form-text">{{ form.nombre_pac.help_text }}</div>
+                                                    {% endif %}
+                                                    {% if form.nombre_pac.errors %}
+                                                        <div class="text-danger">
+                                                            {% for error in form.nombre_pac.errors %}
+                                                                <small>{{ error }}</small>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.contrato.id_for_label }}" class="form-label">
+                                                        {{ form.contrato.label }}
+                                                        {% if form.contrato.field.required %}<span class="text-danger">*</span>{% endif %}
+                                                    </label>
+                                                    {{ form.contrato }}
+                                                    {% if form.contrato.help_text %}
+                                                        <div class="form-text">{{ form.contrato.help_text }}</div>
+                                                    {% endif %}
+                                                    {% if form.contrato.errors %}
+                                                        <div class="text-danger">
+                                                            {% for error in form.contrato.errors %}
+                                                                <small>{{ error }}</small>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.usuario_pac.id_for_label }}" class="form-label">
+                                                        {{ form.usuario_pac.label }}
+                                                        {% if form.usuario_pac.field.required %}<span class="text-danger">*</span>{% endif %}
+                                                    </label>
+                                                    {{ form.usuario_pac }}
+                                                    {% if form.usuario_pac.help_text %}
+                                                        <div class="form-text">{{ form.usuario_pac.help_text }}</div>
+                                                    {% endif %}
+                                                    {% if form.usuario_pac.errors %}
+                                                        <div class="text-danger">
+                                                            {% for error in form.usuario_pac.errors %}
+                                                                <small>{{ error }}</small>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.password_pac.id_for_label }}" class="form-label">
+                                                        {{ form.password_pac.label }}
+                                                        {% if form.password_pac.field.required %}<span class="text-danger">*</span>{% endif %}
+                                                    </label>
+                                                    {{ form.password_pac }}
+                                                    {% if form.password_pac.help_text %}
+                                                        <div class="form-text">{{ form.password_pac.help_text }}</div>
+                                                    {% endif %}
+                                                    {% if form.password_pac.errors %}
+                                                        <div class="text-danger">
+                                                            {% for error in form.password_pac.errors %}
+                                                                <small>{{ error }}</small>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Acordeón 3: Certificados -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="certificadosHeader">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#certificadosCollapse" aria-expanded="false" aria-controls="certificadosCollapse">
+                                        <i class="bi bi-shield-check me-2"></i>
+                                        Certificados
+                                    </button>
+                                </h2>
+                                <div id="certificadosCollapse" class="accordion-collapse collapse" aria-labelledby="certificadosHeader" data-bs-parent="#configuracionAccordion">
+                                    <div class="accordion-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.certificado_file.id_for_label }}" class="form-label">
+                                                        {{ form.certificado_file.label }}
+                                                        {% if form.certificado_file.field.required %}<span class="text-danger">*</span>{% endif %}
+                                                    </label>
+                                                    {{ form.certificado_file }}
+                                                    {% if form.certificado_file.help_text %}
+                                                        <div class="form-text">{{ form.certificado_file.help_text }}</div>
+                                                    {% endif %}
+                                                    {% if form.certificado_file.errors %}
+                                                        <div class="text-danger">
+                                                            {% for error in form.certificado_file.errors %}
+                                                                <small>{{ error }}</small>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.llave_file.id_for_label }}" class="form-label">
+                                                        {{ form.llave_file.label }}
+                                                        {% if form.llave_file.field.required %}<span class="text-danger">*</span>{% endif %}
+                                                    </label>
+                                                    {{ form.llave_file }}
+                                                    {% if form.llave_file.help_text %}
+                                                        <div class="form-text">{{ form.llave_file.help_text }}</div>
+                                                    {% endif %}
+                                                    {% if form.llave_file.errors %}
+                                                        <div class="text-danger">
+                                                            {% for error in form.llave_file.errors %}
+                                                                <small>{{ error }}</small>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.password_llave.id_for_label }}" class="form-label">
+                                                        {{ form.password_llave.label }}
+                                                        {% if form.password_llave.field.required %}<span class="text-danger">*</span>{% endif %}
+                                                    </label>
+                                                    {{ form.password_llave }}
+                                                    {% if form.password_llave.help_text %}
+                                                        <div class="form-text">{{ form.password_llave.help_text }}</div>
+                                                    {% endif %}
+                                                    {% if form.password_llave.errors %}
+                                                        <div class="text-danger">
+                                                            {% for error in form.password_llave.errors %}
+                                                                <small>{{ error }}</small>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botones de acción -->
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary" data-loading="true">
+                                <i class="bi bi-check-lg me-1"></i>Guardar Configuración
+                            </button>
+                            <a href="{% url 'core:dashboard' %}" class="btn btn-secondary">
+                                <i class="bi bi-x-lg me-1"></i>Cancelar
+                            </a>
+                        </div>
+                    </form>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        No se pudo cargar el formulario de configuración.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar el formulario
+    const form = document.getElementById('configuracionForm');
+    if (form) {
+        // Agregar validación de archivos
+        const certificadoFile = document.querySelector('input[name="certificado_file"]');
+        const llaveFile = document.querySelector('input[name="llave_file"]');
+        
+        if (certificadoFile) {
+            certificadoFile.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file && !file.name.endsWith('.cer')) {
+                    alert('El archivo de certificado debe tener extensión .cer');
+                    this.value = '';
+                }
+            });
+        }
+        
+        if (llaveFile) {
+            llaveFile.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file && !file.name.endsWith('.key')) {
+                    alert('El archivo de llave debe tener extensión .key');
+                    this.value = '';
+                }
+            });
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}Regímenes Fiscales{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-receipt text-primary"></i>
+            Regímenes Fiscales
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:regimen_fiscal_create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Nuevo Régimen
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Lista de regímenes fiscales -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-list-ul"></i> Catálogo de Regímenes Fiscales
+                <span class="badge bg-secondary ms-2">{{ regimenes|length }} régimen(es)</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if regimenes %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Estado</th>
+                                <th>Fecha Creación</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for regimen in regimenes %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary fs-6">{{ regimen.codigo }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ regimen.descripcion }}</strong>
+                                </td>
+                                <td>
+                                    {% if regimen.activo %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactivo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ regimen.fecha_creacion|date:"d/m/Y" }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'core:regimen_fiscal_update' regimen.pk %}" 
+                                           class="btn btn-sm btn-outline-warning" 
+                                           title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <a href="{% url 'core:regimen_fiscal_delete' regimen.pk %}" 
+                                           class="btn btn-sm btn-outline-danger" 
+                                           title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                {% if is_paginated %}
+                    <nav aria-label="Paginación de regímenes fiscales">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">
+                                        <i class="bi bi-chevron-double-left"></i>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">
+                                        <i class="bi bi-chevron-double-right"></i>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-receipt text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="text-muted mt-3">No hay regímenes fiscales registrados</h4>
+                    <p class="text-muted">Comienza agregando el primer régimen fiscal al sistema.</p>
+                    <a href="{% url 'core:regimen_fiscal_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Crear Primer Régimen
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Información adicional -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h6 class="card-title mb-0">
+                <i class="bi bi-info-circle"></i> Información
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Regímenes Activos:</h6>
+                    <p class="text-muted">Los regímenes activos están disponibles para seleccionar al crear o editar clientes.</p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Regímenes Inactivos:</h6>
+                    <p class="text-muted">Los regímenes inactivos no aparecerán en las listas de selección, pero los clientes existentes mantendrán su régimen asignado.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

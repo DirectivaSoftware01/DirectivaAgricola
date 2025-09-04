@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-box text-primary"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:producto_servicio_update' producto_servicio.pk %}" class="btn btn-warning">
+                    <i class="bi bi-pencil"></i> Editar Producto o Servicio
+                </a>
+                <a href="{% url 'core:producto_servicio_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a la Lista
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Contenido principal -->
+        <div class="col-md-8">
+            <!-- Información General -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información General
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Código:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-primary fs-6">{{ producto_servicio.codigo|stringformat:"06d" }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">SKU:</dt>
+                                <dd class="col-sm-8">
+                                    <strong>{{ producto_servicio.sku }}</strong>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Descripción:</dt>
+                                <dd class="col-sm-8">
+                                    <strong>{{ producto_servicio.descripcion }}</strong>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Tipo:</dt>
+                                <dd class="col-sm-8">
+                                    {% if producto_servicio.producto_servicio %}
+                                        <span class="badge bg-info">Producto</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Servicio</span>
+                                    {% endif %}
+                                </dd>
+                                
+                                <dt class="col-sm-4">Estado:</dt>
+                                <dd class="col-sm-8">
+                                    {% if producto_servicio.activo %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactivo</span>
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Creado por:</dt>
+                                <dd class="col-sm-8">{{ producto_servicio.usuario_creacion.nombre }}</dd>
+                                
+                                <dt class="col-sm-4">Fecha de creación:</dt>
+                                <dd class="col-sm-8">{{ producto_servicio.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+                                
+                                {% if producto_servicio.usuario_modificacion %}
+                                <dt class="col-sm-4">Modificado por:</dt>
+                                <dd class="col-sm-8">{{ producto_servicio.usuario_modificacion.nombre }}</dd>
+                                {% endif %}
+                                
+                                {% if producto_servicio.fecha_modificacion %}
+                                <dt class="col-sm-4">Última modificación:</dt>
+                                <dd class="col-sm-8">{{ producto_servicio.fecha_modificacion|date:"d/m/Y H:i" }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información SAT -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-building"></i> Información SAT
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Unidad de medida:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-secondary">{{ producto_servicio.unidad_medida }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Clave SAT:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-info">{{ producto_servicio.clave_sat }}</span>
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Impuesto:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-warning">{{ producto_servicio.impuesto_display }}</span>
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel lateral -->
+        <div class="col-md-4">
+            <!-- Estadísticas -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-graph-up"></i> Información del Registro
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h5 class="text-primary mb-1">{{ producto_servicio.fecha_creacion|date:"d" }}</h5>
+                                <small class="text-muted">{{ producto_servicio.fecha_creacion|date:"M Y" }}</small>
+                                <p class="mb-0"><small>Fecha de registro</small></p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-success mb-1">
+                                {% if producto_servicio.activo %}
+                                    <i class="bi bi-check-circle"></i>
+                                {% else %}
+                                    <i class="bi bi-x-circle"></i>
+                                {% endif %}
+                            </h5>
+                            <small class="text-muted">
+                                {% if producto_servicio.activo %}Activo{% else %}Inactivo{% endif %}
+                            </small>
+                            <p class="mb-0"><small>Estado actual</small></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información del tipo -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-tag"></i> Tipo de Registro
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    {% if producto_servicio.producto_servicio %}
+                        <h3 class="text-info mb-1"><i class="bi bi-box"></i></h3>
+                        <p class="mb-0"><small>Producto</small></p>
+                    {% else %}
+                        <h3 class="text-warning mb-1"><i class="bi bi-gear"></i></h3>
+                        <p class="mb-0"><small>Servicio</small></p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Información fiscal -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-receipt"></i> Información Fiscal
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h6 class="text-secondary mb-1">{{ producto_servicio.unidad_medida }}</h6>
+                                <p class="mb-0"><small>Unidad</small></p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-info mb-1">{{ producto_servicio.clave_sat }}</h6>
+                            <p class="mb-0"><small>Clave SAT</small></p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="text-center">
+                        <h6 class="text-warning mb-1">{{ producto_servicio.impuesto_display }}</h6>
+                        <p class="mb-0"><small>Impuesto aplicable</small></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acciones rápidas -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-lightning"></i> Acciones Rápidas
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'core:producto_servicio_update' producto_servicio.pk %}" class="btn btn-warning">
+                            <i class="bi bi-pencil"></i> Editar Producto o Servicio
+                        </a>
+                        <a href="{% url 'core:producto_servicio_delete' producto_servicio.pk %}" class="btn btn-outline-danger">
+                            <i class="bi bi-trash"></i> Eliminar Producto o Servicio
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

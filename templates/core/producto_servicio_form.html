@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-box text-primary"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:producto_servicio_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a la Lista
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        {% if object %}Editar información del producto o servicio{% else %}Información del nuevo producto o servicio{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Información General -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-info-circle"></i> Información General</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.sku.id_for_label }}" class="form-label">
+                                            {{ form.sku.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.sku }}
+                                        {% if form.sku.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.sku.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Clave alfanumérica única del producto o servicio</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.descripcion.id_for_label }}" class="form-label">
+                                            {{ form.descripcion.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.descripcion }}
+                                        {% if form.descripcion.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.descripcion.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.producto_servicio.id_for_label }}" class="form-label">
+                                            {{ form.producto_servicio.label }}
+                                        </label>
+                                        <div class="form-check mt-2">
+                                            {{ form.producto_servicio }}
+                                            <label class="form-check-label" for="{{ form.producto_servicio.id_for_label }}">
+                                                Es un producto (desmarcar si es servicio)
+                                            </label>
+                                            {% if form.producto_servicio.errors %}
+                                                <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                    {{ form.producto_servicio.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.activo.id_for_label }}" class="form-label">
+                                            {{ form.activo.label }}
+                                        </label>
+                                        <div class="form-check mt-2">
+                                            {{ form.activo }}
+                                            <label class="form-check-label" for="{{ form.activo.id_for_label }}">
+                                                Producto o servicio activo
+                                            </label>
+                                            {% if form.activo.errors %}
+                                                <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                    {{ form.activo.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información SAT -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-building"></i> Información SAT</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.unidad_medida.id_for_label }}" class="form-label">
+                                            {{ form.unidad_medida.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.unidad_medida }}
+                                        {% if form.unidad_medida.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.unidad_medida.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Unidad de medida del producto o servicio (ej: H87, E48, KGM, LTR, MTR)</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.clave_sat.id_for_label }}" class="form-label">
+                                            {{ form.clave_sat.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.clave_sat }}
+                                        {% if form.clave_sat.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.clave_sat.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Clave del catálogo ClaveProdServ del SAT</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.impuesto.id_for_label }}" class="form-label">
+                                            {{ form.impuesto.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.impuesto }}
+                                        {% if form.impuesto.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.impuesto.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Tipo de impuesto aplicable</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Errores generales del formulario -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'core:producto_servicio_list' %}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if object %}Actualizar Producto o Servicio{% else %}Crear Producto o Servicio{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel lateral -->
+        <div class="col-md-4">
+            <!-- Información del formulario -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información del Formulario
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>Campos requeridos:</strong>
+                    </p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check-circle text-success me-2"></i>SKU (único)</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Descripción</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Unidad de medida</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Clave SAT</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Impuesto</li>
+                    </ul>
+                    <hr>
+                    <p class="card-text">
+                        <strong>Campos opcionales:</strong>
+                    </p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-dash-circle text-info me-2"></i>Tipo (Producto/Servicio)</li>
+                        <li><i class="bi bi-dash-circle text-info me-2"></i>Estado activo</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Ayuda -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-question-circle"></i> Ayuda
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>SKU:</strong> Debe ser único en el sistema. Se convertirá automáticamente a mayúsculas.
+                    </p>
+                    <p class="card-text">
+                        <strong>Tipo:</strong> Marca si es un producto (físico) o servicio (intangible).
+                    </p>
+                    <p class="card-text">
+                        <strong>Unidad de medida:</strong> Código de la unidad según catálogo SAT (ej: H87, E48, KGM, LTR, MTR).
+                    </p>
+                    <p class="card-text">
+                        <strong>Clave SAT:</strong> Código del catálogo ClaveProdServ del SAT.
+                    </p>
+                    <p class="card-text">
+                        <strong>Impuesto:</strong> Tipo de IVA aplicable según legislación fiscal.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.field-group {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.field-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.field-group h6 {
+    color: #495057;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.alert-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %}

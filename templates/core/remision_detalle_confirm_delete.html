@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Detalle de Remisión{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-exclamation-triangle text-danger"></i>
+            Eliminar Detalle de Remisión
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:remision_detail' object.remision.pk %}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a la Remisión
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        Confirmar Eliminación
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            ¡Atención!
+                        </h6>
+                        <p class="mb-0">
+                            Está a punto de eliminar permanentemente el siguiente detalle de remisión. 
+                            Esta acción no se puede deshacer.
+                        </p>
+                    </div>
+
+                    <h6>Información del Detalle a Eliminar:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Remisión:</strong></td>
+                                <td><span class="badge bg-primary">{{ object.remision.ciclo }} - {{ object.remision.folio|stringformat:"06d" }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cultivo:</strong></td>
+                                <td>
+                                    <strong>{{ object.cultivo.nombre }}</strong><br>
+                                    <small class="text-muted">{{ object.cultivo.variedad }}</small>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Calidad:</strong></td>
+                                <td><span class="badge bg-info">{{ object.calidad }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>No Arps:</strong></td>
+                                <td><span class="fw-bold">{{ object.no_arps }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kgs Enviados:</strong></td>
+                                <td><span class="text-primary fw-bold">{{ object.kgs_enviados|floatformat:2 }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Merma/Arps:</strong></td>
+                                <td><span class="text-warning fw-bold">{{ object.merma_arps }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Peso Promedio:</strong></td>
+                                <td><span class="text-success fw-bold">{{ object.peso_promedio|floatformat:2 }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kgs Liquidados:</strong></td>
+                                <td><span class="text-info fw-bold">{{ object.kgs_liquidados|floatformat:2 }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kgs Merma:</strong></td>
+                                <td><span class="text-danger fw-bold">{{ object.kgs_merma|floatformat:2 }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Precio:</strong></td>
+                                <td><span class="text-success fw-bold">${{ object.precio|floatformat:2 }}</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Importe Liquidado:</strong></td>
+                                <td><span class="text-success fw-bold">${{ object.importe_liquidado|floatformat:2 }}</span></td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'core:remision_detail' object.remision.pk %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Eliminar Definitivamente
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

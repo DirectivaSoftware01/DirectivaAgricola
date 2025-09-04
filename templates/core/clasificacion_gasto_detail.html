@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-tags text-primary"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:clasificacion_gasto_update' clasificacion_gasto.pk %}" class="btn btn-warning">
+                    <i class="bi bi-pencil"></i> Editar Clasificación de Gasto
+                </a>
+                <a href="{% url 'core:clasificacion_gasto_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a la Lista
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Contenido principal -->
+        <div class="col-md-8">
+            <!-- Información General -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información General
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Código:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-primary fs-6">{{ clasificacion_gasto.codigo|stringformat:"06d" }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Descripción:</dt>
+                                <dd class="col-sm-8">
+                                    <strong>{{ clasificacion_gasto.descripcion }}</strong>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Estado:</dt>
+                                <dd class="col-sm-8">
+                                    {% if clasificacion_gasto.activo %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactivo</span>
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Creado por:</dt>
+                                <dd class="col-sm-8">{{ clasificacion_gasto.usuario_creacion.nombre }}</dd>
+                                
+                                <dt class="col-sm-4">Fecha de creación:</dt>
+                                <dd class="col-sm-8">{{ clasificacion_gasto.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+                                
+                                {% if clasificacion_gasto.usuario_modificacion %}
+                                <dt class="col-sm-4">Modificado por:</dt>
+                                <dd class="col-sm-8">{{ clasificacion_gasto.usuario_modificacion.nombre }}</dd>
+                                {% endif %}
+                                
+                                {% if clasificacion_gasto.fecha_modificacion %}
+                                <dt class="col-sm-4">Última modificación:</dt>
+                                <dd class="col-sm-8">{{ clasificacion_gasto.fecha_modificacion|date:"d/m/Y H:i" }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Observaciones -->
+            {% if clasificacion_gasto.observaciones %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-journal-text"></i> Observaciones
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12">
+                            <p class="mb-0">{{ clasificacion_gasto.observaciones|linebreaks }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Panel lateral -->
+        <div class="col-md-4">
+            <!-- Estadísticas -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-graph-up"></i> Información del Registro
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h5 class="text-primary mb-1">{{ clasificacion_gasto.fecha_creacion|date:"d" }}</h5>
+                                <small class="text-muted">{{ clasificacion_gasto.fecha_creacion|date:"M Y" }}</small>
+                                <p class="mb-0"><small>Fecha de registro</small></p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-success mb-1">
+                                {% if clasificacion_gasto.activo %}
+                                    <i class="bi bi-check-circle"></i>
+                                {% else %}
+                                    <i class="bi bi-x-circle"></i>
+                                {% endif %}
+                            </h5>
+                            <small class="text-muted">
+                                {% if clasificacion_gasto.activo %}Activo{% else %}Inactivo{% endif %}
+                            </small>
+                            <p class="mb-0"><small>Estado actual</small></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acciones rápidas -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-lightning"></i> Acciones Rápidas
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'core:clasificacion_gasto_update' clasificacion_gasto.pk %}" class="btn btn-warning">
+                            <i class="bi bi-pencil"></i> Editar Clasificación de Gasto
+                        </a>
+                        <a href="{% url 'core:clasificacion_gasto_delete' clasificacion_gasto.pk %}" class="btn btn-outline-danger">
+                            <i class="bi bi-trash"></i> Eliminar Clasificación de Gasto
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

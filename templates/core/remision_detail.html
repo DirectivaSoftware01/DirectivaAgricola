@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+
+{% block title %}Remisión: {{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-truck text-primary"></i>
+            Remisión: {{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                {% if user.is_staff %}
+                <a href="{% url 'core:remision_detalle_create' remision.pk %}" class="btn btn-success">
+                    <i class="bi bi-plus-circle"></i> Agregar Detalle
+                </a>
+                <a href="{% url 'core:remision_update' remision.pk %}" class="btn btn-warning">
+                    <i class="bi bi-pencil"></i> Editar
+                </a>
+                <a href="{% url 'core:remision_delete' remision.pk %}" class="btn btn-danger">
+                    <i class="bi bi-trash"></i> Eliminar
+                </a>
+                {% endif %}
+                <a href="{% url 'core:remision_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a Remisiones
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Información de la Remisión -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información de la Remisión
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Ciclo:</strong></td>
+                            <td><span class="badge bg-primary">{{ remision.ciclo }}</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Folio:</strong></td>
+                            <td><span class="badge bg-info">{{ remision.folio|stringformat:"06d" }}</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha:</strong></td>
+                            <td>{{ remision.fecha|date:"d/m/Y" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cliente:</strong></td>
+                            <td>
+                                <strong>{{ remision.cliente.razon_social }}</strong><br>
+                                <small class="text-muted">{{ remision.cliente.rfc }}</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Lote - Origen:</strong></td>
+                            <td><span class="badge bg-secondary">{{ remision.lote_origen.nombre }}</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Transportista:</strong></td>
+                            <td>
+                                <strong>{{ remision.transportista.nombre_completo }}</strong><br>
+                                <small class="text-muted">{{ remision.transportista.placas_unidad }}</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Costo de Flete:</strong></td>
+                            <td><span class="text-success fw-bold">${{ remision.costo_flete|floatformat:2 }}</span></td>
+                        </tr>
+                        {% if remision.observaciones %}
+                        <tr>
+                            <td><strong>Observaciones:</strong></td>
+                            <td>{{ remision.observaciones }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+
+            <!-- Información de Auditoría -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history"></i> Información de Auditoría
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Creado por:</strong></td>
+                            <td>{{ remision.usuario_creacion.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha de creación:</strong></td>
+                            <td>{{ remision.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% if remision.usuario_modificacion %}
+                        <tr>
+                            <td><strong>Modificado por:</strong></td>
+                            <td>{{ remision.usuario_modificacion.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha de modificación:</strong></td>
+                            <td>{{ remision.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if remision.cancelada %}
+                        <tr>
+                            <td><strong>Cancelada por:</strong></td>
+                            <td>{{ remision.usuario_cancelacion.nombre|default:"No disponible" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha de cancelación:</strong></td>
+                            <td>{{ remision.fecha_cancelacion|date:"d/m/Y H:i"|default:"No disponible" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Motivo de cancelación:</strong></td>
+                            <td>{{ remision.motivo_cancelacion|default:"No disponible" }}</td>
+                        </tr>
+                        {% if remision.folio_sustituto %}
+                        <tr>
+                            <td><strong>Folio que sustituye:</strong></td>
+                            <td>{{ remision.folio_sustituto }}</td>
+                        </tr>
+                        {% endif %}
+                        {% elif remision.esta_liquidada %}
+                        <tr>
+                            <td><strong>Preliquidado por:</strong></td>
+                            <td>
+                                {% for detalle in remision.detalles.all %}
+                                    {% if detalle.usuario_liquidacion %}
+                                        {{ detalle.usuario_liquidacion.nombre }}
+                                    {% endif %}
+                                {% empty %}
+                                    No disponible
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha de preliquidación:</strong></td>
+                            <td>
+                                {% for detalle in remision.detalles.all %}
+                                    {% if detalle.fecha_liquidacion %}
+                                        {{ detalle.fecha_liquidacion|date:"d/m/Y H:i" }}
+                                    {% endif %}
+                                {% empty %}
+                                    No disponible
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detalles de la Remisión -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list-ul"></i> Detalles de la Remisión
+                        <span class="badge bg-secondary ms-2">{{ detalles|length }} detalle(s)</span>
+                    </h5>
+                    {% if user.is_staff %}
+                    <a href="{% url 'core:remision_detalle_create' remision.pk %}" class="btn btn-sm btn-success">
+                        <i class="bi bi-plus-circle"></i> Agregar Detalle
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if detalles %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Cultivo</th>
+                                        <th>Calidad</th>
+                                        <th>No Arps</th>
+                                        <th>Kgs Enviados</th>
+                                        <th>Merma/Arps</th>
+                                        <th>Peso Promedio</th>
+                                        <th>Kgs Preliquidados</th>
+                                        <th>Kgs Merma</th>
+                                        <th>Precio</th>
+                                        <th>Importe Preliquidado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for detalle in detalles %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ detalle.cultivo.nombre }}</strong><br>
+                                            <small class="text-muted">{{ detalle.cultivo.variedad }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">{{ detalle.calidad }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="fw-bold">{{ detalle.no_arps }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-primary fw-bold">{{ detalle.kgs_enviados|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-warning fw-bold">{{ detalle.merma_arps }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-success fw-bold">{{ detalle.peso_promedio|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-info fw-bold">{{ detalle.kgs_liquidados|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-danger fw-bold">{{ detalle.kgs_merma|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-success fw-bold">${{ detalle.precio|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-success fw-bold">${{ detalle.importe_liquidado|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            {% if user.is_staff %}
+                                            <div class="btn-group" role="group">
+                                                <a href="{% url 'core:remision_detalle_update' detalle.pk %}" 
+                                                   class="btn btn-sm btn-outline-warning" 
+                                                   title="Editar detalle">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <a href="{% url 'core:remision_detalle_delete' detalle.pk %}" 
+                                                   class="btn btn-sm btn-outline-danger" 
+                                                   title="Eliminar detalle">
+                                                    <i class="bi bi-trash"></i>
+                                                </a>
+                                            </div>
+                                            {% else %}
+                                            <span class="text-muted">Sin permisos</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Resumen de Totales -->
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Resumen de Totales</h6>
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h6 class="text-muted">Total Arps</h6>
+                                                    <h4 class="text-primary">
+                                                        {% for detalle in detalles %}
+                                                            {% if forloop.first %}{{ detalle.no_arps }}{% else %}{{ total_arps|add:detalle.no_arps }}{% endif %}
+                                                        {% endfor %}
+                                                    </h4>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h6 class="text-muted">Total Kgs Enviados</h6>
+                                                    <h4 class="text-primary">
+                                                        {% for detalle in detalles %}
+                                                            {% if forloop.first %}{{ detalle.kgs_enviados|floatformat:2 }}{% else %}{{ total_kgs_enviados|add:detalle.kgs_enviados|floatformat:2 }}{% endif %}
+                                                        {% endfor %}
+                                                    </h4>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h6 class="text-muted">Total Kgs Preliquidados</h6>
+                                                    <h4 class="text-info">
+                                                        {% for detalle in detalles %}
+                                                            {% if forloop.first %}{{ detalle.kgs_liquidados|floatformat:2 }}{% else %}{{ total_kgs_liquidados|add:detalle.kgs_liquidados|floatformat:2 }}{% endif %}
+                                                        {% endfor %}
+                                                    </h4>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h6 class="text-muted">Total Importe</h6>
+                                                    <h4 class="text-success">
+                                                        {% for detalle in detalles %}
+                                                            {% if forloop.first %}${{ detalle.importe_liquidado|floatformat:2 }}{% else %}${{ total_importe|add:detalle.importe_liquidado|floatformat:2 }}{% endif %}
+                                                        {% endfor %}
+                                                    </h4>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-list-ul text-muted" style="font-size: 4rem;"></i>
+                            <h4 class="text-muted mt-3">No hay detalles registrados</h4>
+                            <p class="text-muted">Agrega los detalles de los productos enviados en esta remisión.</p>
+                            <a href="{% url 'core:remision_detalle_create' remision.pk %}" class="btn btn-primary">
+                                <i class="bi bi-plus-circle"></i> Agregar Primer Detalle
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

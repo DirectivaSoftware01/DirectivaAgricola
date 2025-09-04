@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - Directiva Agrícola{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-flower1 me-2"></i>{{ title }}
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'core:cultivo_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Volver a Cultivos
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-info-circle me-2"></i>Información del Cultivo
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post" id="cultivoForm">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.nombre.id_for_label }}" class="form-label">
+                                    {{ form.nombre.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.nombre }}
+                                {% if form.nombre.help_text %}
+                                    <div class="form-text">{{ form.nombre.help_text }}</div>
+                                {% endif %}
+                                {% if form.nombre.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.nombre.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.variedad.id_for_label }}" class="form-label">
+                                    {{ form.variedad.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.variedad }}
+                                {% if form.variedad.help_text %}
+                                    <div class="form-text">{{ form.variedad.help_text }}</div>
+                                {% endif %}
+                                {% if form.variedad.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.variedad.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label for="{{ form.observaciones.id_for_label }}" class="form-label">
+                                    {{ form.observaciones.label }}
+                                </label>
+                                {{ form.observaciones }}
+                                {% if form.observaciones.help_text %}
+                                    <div class="form-text">{{ form.observaciones.help_text }}</div>
+                                {% endif %}
+                                {% if form.observaciones.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.observaciones.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    {{ form.activo }}
+                                    <label class="form-check-label" for="{{ form.activo.id_for_label }}">
+                                        {{ form.activo.label }}
+                                    </label>
+                                </div>
+                                {% if form.activo.help_text %}
+                                    <div class="form-text">{{ form.activo.help_text }}</div>
+                                {% endif %}
+                                {% if form.activo.errors %}
+                                    <div class="text-danger">
+                                        {% for error in form.activo.errors %}
+                                            <small>{{ error }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botones de acción -->
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'core:cultivo_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-x-lg me-1"></i>Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary" data-loading="true">
+                            <i class="bi bi-check-lg me-1"></i>
+                            {% if is_edit %}Actualizar{% else %}Crear{% endif %} Cultivo
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-info-circle me-2"></i>Información
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-lightbulb me-2"></i>
+                    <strong>Consejos:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>El nombre del cultivo debe ser descriptivo y claro.</li>
+                        <li>La variedad ayuda a identificar características específicas.</li>
+                        <li>Las observaciones son opcionales pero útiles para detalles adicionales.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

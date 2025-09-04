@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+
+{% block title %}Cliente: {{ cliente.razon_social }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-person-fill text-primary"></i>
+            Cliente: {{ cliente.razon_social }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:cliente_list' %}" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Volver a Clientes
+            </a>
+            <a href="{% url 'core:cliente_update' cliente.pk %}" class="btn btn-sm btn-warning me-2">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            <a href="{% url 'core:cliente_delete' cliente.pk %}" class="btn btn-sm btn-danger">
+                <i class="bi bi-trash"></i> Eliminar
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Información Principal -->
+        <div class="col-md-8">
+            <!-- Información General -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información General
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Código:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-primary fs-6">{{ cliente.codigo|stringformat:"06d" }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Razón Social:</dt>
+                                <dd class="col-sm-8">
+                                    <strong>{{ cliente.razon_social }}</strong>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Estado:</dt>
+                                <dd class="col-sm-8">
+                                    {% if cliente.activo %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactivo</span>
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Fecha Creación:</dt>
+                                <dd class="col-sm-8">{{ cliente.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+                                
+                                <dt class="col-sm-4">Última Modificación:</dt>
+                                <dd class="col-sm-8">{{ cliente.fecha_modificacion|date:"d/m/Y H:i" }}</dd>
+                                
+                                <dt class="col-sm-4">Creado por:</dt>
+                                <dd class="col-sm-8">{{ cliente.usuario_creacion.nombre }}</dd>
+                                
+                                {% if cliente.usuario_modificacion %}
+                                <dt class="col-sm-4">Modificado por:</dt>
+                                <dd class="col-sm-8">{{ cliente.usuario_modificacion.nombre }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información Fiscal -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-receipt"></i> Información Fiscal
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">RFC:</dt>
+                                <dd class="col-sm-8">
+                                    <code class="fs-6">{{ cliente.rfc }}</code>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Régimen Fiscal:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-info">{{ cliente.regimen_fiscal.codigo }}</span>
+                                    <br><small class="text-muted">{{ cliente.regimen_fiscal.descripcion }}</small>
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Código Postal:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-secondary">{{ cliente.codigo_postal }}</span>
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información de Contacto -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-geo-alt"></i> Información de Contacto
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12">
+                            <dl class="row">
+                                <dt class="col-sm-2">Domicilio:</dt>
+                                <dd class="col-sm-10">
+                                    <address class="mb-0">{{ cliente.domicilio }}</address>
+                                </dd>
+                                
+                                <dt class="col-sm-2">Teléfono:</dt>
+                                <dd class="col-sm-10">
+                                    <a href="tel:{{ cliente.telefono }}" class="text-decoration-none">
+                                        <i class="bi bi-telephone"></i> {{ cliente.telefono }}
+                                    </a>
+                                </dd>
+                                
+                                <dt class="col-sm-2">Email Principal:</dt>
+                                <dd class="col-sm-10">
+                                    <a href="mailto:{{ cliente.email_principal }}" class="text-decoration-none">
+                                        <i class="bi bi-envelope"></i> {{ cliente.email_principal }}
+                                    </a>
+                                </dd>
+                                
+                                {% if cliente.email_alterno %}
+                                <dt class="col-sm-2">Email Alterno:</dt>
+                                <dd class="col-sm-10">
+                                    <a href="mailto:{{ cliente.email_alterno }}" class="text-decoration-none">
+                                        <i class="bi bi-envelope"></i> {{ cliente.email_alterno }}
+                                    </a>
+                                </dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información de Entrega -->
+            {% if cliente.direccion_entrega or cliente.numero_bodega or cliente.telefono_bodega or cliente.ciudad or cliente.estado %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-truck"></i> Información de Entrega
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12">
+                            <dl class="row">
+                                {% if cliente.direccion_entrega %}
+                                <dt class="col-sm-2">Dirección de Entrega:</dt>
+                                <dd class="col-sm-10">
+                                    <address class="mb-0">{{ cliente.direccion_entrega }}</address>
+                                </dd>
+                                {% endif %}
+                                
+                                {% if cliente.numero_bodega %}
+                                <dt class="col-sm-2">Número de Bodega:</dt>
+                                <dd class="col-sm-10">
+                                    <span class="badge bg-primary">{{ cliente.numero_bodega }}</span>
+                                </dd>
+                                {% endif %}
+                                
+                                {% if cliente.telefono_bodega %}
+                                <dt class="col-sm-2">Teléfono de Bodega:</dt>
+                                <dd class="col-sm-10">
+                                    <a href="tel:{{ cliente.telefono_bodega }}" class="text-decoration-none">
+                                        <i class="bi bi-telephone"></i> {{ cliente.telefono_bodega }}
+                                    </a>
+                                </dd>
+                                {% endif %}
+                                
+                                {% if cliente.ciudad or cliente.estado %}
+                                <dt class="col-sm-2">Ubicación:</dt>
+                                <dd class="col-sm-10">
+                                    {% if cliente.ciudad and cliente.estado %}
+                                        {{ cliente.ciudad }}, {{ cliente.estado }}
+                                    {% elif cliente.ciudad %}
+                                        {{ cliente.ciudad }}
+                                    {% elif cliente.estado %}
+                                        {{ cliente.estado }}
+                                    {% endif %}
+                                </dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Panel lateral -->
+        <div class="col-md-4">
+            <!-- Información del régimen fiscal -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-receipt"></i> Régimen Fiscal
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <h6>{{ cliente.regimen_fiscal.codigo }}</h6>
+                    <p class="text-muted mb-0">{{ cliente.regimen_fiscal.descripcion }}</p>
+                    {% if cliente.regimen_fiscal.activo %}
+                        <span class="badge bg-success mt-2">Activo</span>
+                    {% else %}
+                        <span class="badge bg-danger mt-2">Inactivo</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Estadísticas -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-graph-up"></i> Información del Registro
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h5 class="text-primary mb-0">{{ cliente.fecha_creacion|timesince }}</h5>
+                                <small class="text-muted">Creado hace</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-success mb-0">{{ cliente.fecha_modificacion|timesince }}</h5>
+                            <small class="text-muted">Modificado hace</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

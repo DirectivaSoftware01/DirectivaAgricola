@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - Directiva Agrícola{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-flower1 me-2"></i>{{ title }}
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'core:cultivo_list' %}" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-arrow-left me-1"></i>Volver a Cultivos
+        </a>
+        <a href="{% url 'core:cultivo_update' cultivo.pk %}" class="btn btn-warning me-2">
+            <i class="bi bi-pencil me-1"></i>Editar
+        </a>
+        <a href="{% url 'core:cultivo_delete' cultivo.pk %}" class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Eliminar
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-info-circle me-2"></i>Información del Cultivo
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Código:</label>
+                            <p class="form-control-plaintext">
+                                <span class="badge bg-primary fs-6">{{ cultivo.codigo }}</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Estado:</label>
+                            <p class="form-control-plaintext">
+                                {% if cultivo.activo %}
+                                    <span class="badge bg-success fs-6">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-secondary fs-6">Inactivo</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Nombre del Cultivo:</label>
+                            <p class="form-control-plaintext fs-5">{{ cultivo.nombre }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Variedad:</label>
+                            <p class="form-control-plaintext fs-5">{{ cultivo.variedad }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {% if cultivo.observaciones %}
+                <div class="row">
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Observaciones:</label>
+                            <div class="form-control-plaintext bg-light p-3 rounded">
+                                {{ cultivo.observaciones|linebreaks }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-clock-history me-2"></i>Información de Auditoría
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Fecha de Creación:</label>
+                    <p class="form-control-plaintext">
+                        <i class="bi bi-calendar-plus me-1"></i>
+                        {{ cultivo.fecha_creacion|date:"d/m/Y H:i" }}
+                    </p>
+                </div>
+
+                {% if cultivo.usuario_creacion %}
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Creado por:</label>
+                    <p class="form-control-plaintext">
+                        <i class="bi bi-person me-1"></i>
+                        {{ cultivo.usuario_creacion.nombre }}
+                    </p>
+                </div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Última Modificación:</label>
+                    <p class="form-control-plaintext">
+                        <i class="bi bi-calendar-check me-1"></i>
+                        {{ cultivo.fecha_modificacion|date:"d/m/Y H:i" }}
+                    </p>
+                </div>
+
+                {% if cultivo.usuario_modificacion %}
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Modificado por:</label>
+                    <p class="form-control-plaintext">
+                        <i class="bi bi-person-check me-1"></i>
+                        {{ cultivo.usuario_modificacion.nombre }}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning me-2"></i>Acciones Rápidas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'core:cultivo_update' cultivo.pk %}" class="btn btn-warning">
+                        <i class="bi bi-pencil me-1"></i>Editar Cultivo
+                    </a>
+                    <a href="{% url 'core:cultivo_delete' cultivo.pk %}" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>Eliminar Cultivo
+                    </a>
+                    <a href="{% url 'core:cultivo_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-list me-1"></i>Ver Todos los Cultivos
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

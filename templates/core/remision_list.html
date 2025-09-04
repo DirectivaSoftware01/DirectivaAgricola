@@ -1,0 +1,433 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestión de Remisiones{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-truck text-primary"></i>
+            Gestión de Remisiones
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:remision_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Nueva Remisión
+                </a>
+                <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver al Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Filtros de búsqueda -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-search"></i> Buscar y Filtrar Remisiones
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    {{ search_form.busqueda.label_tag }}
+                    {{ search_form.busqueda }}
+                </div>
+                <div class="col-md-2">
+                    {{ search_form.cliente.label_tag }}
+                    {{ search_form.cliente }}
+                </div>
+                <div class="col-md-2">
+                    {{ search_form.lote_origen.label_tag }}
+                    {{ search_form.lote_origen }}
+                </div>
+                <div class="col-md-2">
+                    {{ search_form.transportista.label_tag }}
+                    {{ search_form.transportista }}
+                </div>
+                <div class="col-md-1">
+                    {{ search_form.fecha_desde.label_tag }}
+                    {{ search_form.fecha_desde }}
+                </div>
+                <div class="col-md-1">
+                    {{ search_form.fecha_hasta.label_tag }}
+                    {{ search_form.fecha_hasta }}
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary me-2">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                    <a href="{% url 'core:remision_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de remisiones -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-list-ul"></i> Lista de Remisiones
+                <span class="badge bg-secondary ms-2">{{ remisiones|length }} remisión(es)</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if remisiones %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Ciclo - Folio</th>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Lote - Origen</th>
+                                <th>Transportista</th>
+                                <th>Costo Flete</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for remision in remisiones %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary">{{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ remision.fecha|date:"d/m/Y" }}</strong>
+                                </td>
+                                <td>
+                                    <strong>{{ remision.cliente.razon_social }}</strong>
+                                    <br><small class="text-muted">{{ remision.cliente.rfc }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ remision.lote_origen.nombre }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ remision.transportista.nombre_completo }}</strong>
+                                    <br><small class="text-muted">{{ remision.transportista.placas_unidad }}</small>
+                                </td>
+                                <td>
+                                    <span class="text-success fw-bold">${{ remision.costo_flete|floatformat:2 }}</span>
+                                </td>
+                                <td>
+                                    {% if remision.cancelada %}
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-x-circle"></i> Cancelada
+                                        </span>
+                                    {% elif remision.esta_liquidada %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Preliquidada
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-clock"></i> Pendiente
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <!-- 1. Ver detalles -->
+                                        <a href="{% url 'core:remision_detail' remision.pk %}" 
+                                           class="btn btn-sm btn-outline-info" 
+                                           title="Ver detalles">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        
+                                        <!-- 2. Editar -->
+                                        {% if user.is_staff and not remision.cancelada %}
+                                        <a href="{% url 'core:remision_update' remision.pk %}" 
+                                           class="btn btn-sm btn-outline-warning" 
+                                           title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        {% endif %}
+                                        
+                                        <!-- 3. Preliquidar -->
+                                        {% if not remision.esta_liquidada and not remision.cancelada %}
+                                        <a href="{% url 'core:remision_liquidar' remision.pk %}" 
+                                           class="btn btn-sm btn-outline-success" 
+                                           title="Preliquidar">
+                                            <i class="bi bi-cash-coin"></i>
+                                        </a>
+                                        {% endif %}
+                                        
+                                        <!-- 4. Cancelar remisión -->
+                                        {% if user.is_staff and not remision.cancelada %}
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-danger" 
+                                                title="Cancelar remisión"
+                                                onclick="mostrarModalCancelacion({{ remision.pk }}, '{{ remision.ciclo }}', {{ remision.folio }})">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <!-- 5. Eliminar remisión -->
+                                        {% if user.is_staff and not remision.cancelada %}
+                                        <a href="{% url 'core:remision_delete' remision.pk %}" 
+                                           class="btn btn-sm btn-outline-danger" 
+                                           title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                {% if is_paginated %}
+                    <nav aria-label="Paginación de remisiones">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if request.GET.busqueda %}&busqueda={{ request.GET.busqueda }}{% endif %}{% if request.GET.cliente %}&cliente={{ request.GET.cliente }}{% endif %}{% if request.GET.lote_origen %}&lote_origen={{ request.GET.lote_origen }}{% endif %}{% if request.GET.transportista %}&transportista={{ request.GET.transportista }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                                        <i class="bi bi-chevron-double-left"></i>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.busqueda %}&busqueda={{ request.GET.busqueda }}{% endif %}{% if request.GET.cliente %}&cliente={{ request.GET.cliente }}{% endif %}{% if request.GET.lote_origen %}&lote_origen={{ request.GET.lote_origen }}{% endif %}{% if request.GET.transportista %}&transportista={{ request.GET.transportista }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.busqueda %}&busqueda={{ request.GET.busqueda }}{% endif %}{% if request.GET.cliente %}&cliente={{ request.GET.cliente }}{% endif %}{% if request.GET.lote_origen %}&lote_origen={{ request.GET.lote_origen }}{% endif %}{% if request.GET.transportista %}&transportista={{ request.GET.transportista }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.busqueda %}&busqueda={{ request.GET.busqueda }}{% endif %}{% if request.GET.cliente %}&cliente={{ request.GET.cliente }}{% endif %}{% if request.GET.lote_origen %}&lote_origen={{ request.GET.lote_origen }}{% endif %}{% if request.GET.transportista %}&transportista={{ request.GET.transportista }}{% endif %}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}">
+                                        <i class="bi bi-chevron-double-right"></i>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-truck text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="text-muted mt-3">No hay remisiones registradas</h4>
+                    <p class="text-muted">Comienza agregando tu primera remisión al sistema.</p>
+                    <a href="{% url 'core:remision_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Crear Primera Remisión
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cancelación de Remisión -->
+<div class="modal fade" id="modalCancelacion" tabindex="-1" aria-labelledby="modalCancelacionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="modalCancelacionLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Cancelar Remisión
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formCancelacion">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Advertencia:</strong> Esta acción cancelará permanentemente la remisión seleccionada.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Remisión a cancelar:</label>
+                        <p class="form-control-plaintext" id="remisionInfo"></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="motivo_cancelacion" class="form-label">
+                            Motivo de cancelación <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="motivo_cancelacion" name="motivo_cancelacion" 
+                                  rows="4" placeholder="Ingrese el motivo de la cancelación..." required></textarea>
+                        <div class="form-text">Campo obligatorio. Describa el motivo por el cual se cancela esta remisión.</div>
+                        <div class="invalid-feedback" id="error_motivo_cancelacion"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="folio_sustituto" class="form-label">Folio que sustituye</label>
+                        <input type="text" class="form-control" id="folio_sustituto" name="folio_sustituto" 
+                               placeholder="Ej: 2024-2025-000123 (opcional)">
+                        <div class="form-text">Campo opcional. Si esta remisión es sustituida por otra, indique el folio de la nueva remisión.</div>
+                        <div class="invalid-feedback" id="error_folio_sustituto"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-danger" id="btnConfirmarCancelacion">
+                        <i class="bi bi-check-circle"></i> Confirmar Cancelación
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let remisionActualId = null;
+
+function mostrarModalCancelacion(remisionId, ciclo, folio) {
+    remisionActualId = remisionId;
+    document.getElementById('remisionInfo').textContent = `${ciclo} - ${folio.toString().padStart(6, '0')}`;
+    
+    // Limpiar formulario
+    document.getElementById('formCancelacion').reset();
+    document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('modalCancelacion'));
+    modal.show();
+}
+
+document.getElementById('formCancelacion').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!remisionActualId) {
+        alert('Error: No se ha seleccionado una remisión válida.');
+        return;
+    }
+    
+    const formData = new FormData(this);
+    const btnConfirmar = document.getElementById('btnConfirmarCancelacion');
+    
+    // Validar que el motivo no esté vacío
+    const motivo = formData.get('motivo_cancelacion');
+    if (!motivo || motivo.trim().length < 10) {
+        alert('El motivo de cancelación es obligatorio y debe tener al menos 10 caracteres.');
+        return;
+    }
+    
+    // Deshabilitar botón y mostrar loading
+    btnConfirmar.disabled = true;
+    btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
+    
+    // Limpiar errores previos
+    document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+    
+    // Debug: mostrar datos del formulario
+    console.log('Enviando datos:', Object.fromEntries(formData));
+    console.log('ID de remisión:', remisionActualId);
+    console.log('URL de destino:', `/ajax/remisiones/${remisionActualId}/cancelar/`);
+    
+    // Obtener token CSRF
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!csrfToken) {
+        alert('Error: No se encontró el token de seguridad. Por favor, recargue la página.');
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar Cancelación';
+        return;
+    }
+    
+    // Crear objeto de datos para enviar
+    const dataToSend = {
+        'motivo_cancelacion': motivo.trim(),
+        'folio_sustituto': formData.get('folio_sustituto') || '',
+        'csrfmiddlewaretoken': csrfToken.value
+    };
+    
+    console.log('Datos a enviar:', dataToSend);
+    
+    fetch(`/ajax/remisiones/${remisionActualId}/cancelar/`, {
+        method: 'POST',
+        body: new URLSearchParams(dataToSend),
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken.value
+        }
+    })
+    .then(response => {
+        console.log('Respuesta del servidor:', response.status, response.statusText);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Datos recibidos:', data);
+        
+        if (data.success) {
+            // Mostrar mensaje de éxito
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <i class="bi bi-check-circle"></i> ${data.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.container-fluid').firstChild);
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalCancelacion'));
+            modal.hide();
+            
+            // Recargar la página para mostrar los cambios
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            // Mostrar errores de validación
+            if (data.errors) {
+                console.log('Errores de validación:', data.errors);
+                Object.keys(data.errors).forEach(field => {
+                    const input = document.getElementById(field);
+                    const errorDiv = document.getElementById(`error_${field}`);
+                    if (input && errorDiv) {
+                        input.classList.add('is-invalid');
+                        errorDiv.textContent = data.errors[field];
+                    }
+                });
+            } else {
+                console.error('Error del servidor:', data.error);
+                alert('Error: ' + (data.error || 'Error desconocido'));
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error de conexión:', error);
+        alert('Error de conexión. Por favor, intente nuevamente. Error: ' + error.message);
+    })
+    .finally(() => {
+        // Restaurar botón
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar Cancelación';
+    });
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,12 @@
+# Configuración de la base de datos SQL Server
+DB_ENGINE=mssql
+DB_NAME=directiva_agricola
+DB_USER=dssupervisor
+DB_PASSWORD=DSBASM790803
+DB_HOST=directivaservices.cnvvqxmyayiq.us-west-2.rds.amazonaws.com
+DB_PORT=1433
+
+# Configuración de Django
+SECRET_KEY=your-secret-key-here
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1

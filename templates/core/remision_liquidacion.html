@@ -1,0 +1,307 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    Preliquidar Remisión
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-cash-coin text-success"></i>
+            Preliquidar Remisión
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:remision_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver al Listado
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Información de la Remisión -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información de la Remisión
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Ciclo:</strong> {{ remision.ciclo }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Folio:</strong> {{ remision.folio|stringformat:"06d" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Fecha:</strong> {{ remision.fecha|date:"d/m/Y" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Cliente:</strong> {{ remision.cliente }}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-4">
+                            <strong>Lote - Origen:</strong> {{ remision.lote_origen }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Transportista:</strong> {{ remision.transportista }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Costo de Flete:</strong> ${{ remision.costo_flete|floatformat:2 }}
+                        </div>
+                    </div>
+                    {% if remision.observaciones %}
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <strong>Observaciones:</strong> {{ remision.observaciones }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario de Liquidación -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-calculator"></i> Liquidación de Detalles
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if detalles %}
+                        <form method="post">
+                            {% csrf_token %}
+                            
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Cultivo</th>
+                                            <th>Calidad</th>
+                                            <th>No Arps</th>
+                                            <th>Kgs Enviados</th>
+                                            <th>Merma/Arps</th>
+                                            <th>Peso Promedio</th>
+                                            <th>Kgs Liquidados</th>
+                                            <th>Kgs Merma</th>
+                                            <th>Precio por Kg</th>
+                                            <th>Importe Liquidado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for detalle in detalles %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ detalle.cultivo.nombre }}</strong><br>
+                                                <small class="text-muted">{{ detalle.cultivo.variedad }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">{{ detalle.calidad }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="fw-bold">{{ detalle.no_arps }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="text-primary fw-bold">{{ detalle.kgs_enviados|floatformat:2 }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="text-warning fw-bold">{{ detalle.merma_arps }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="text-success fw-bold">{{ detalle.peso_promedio|floatformat:2 }}</span>
+                                            </td>
+                                            <td>
+                                                <input type="number" 
+                                                       class="form-control form-control-sm" 
+                                                       name="kgs_liquidados_{{ detalle.pk }}" 
+                                                       value="{{ detalle.kgs_liquidados|floatformat:2 }}"
+                                                       step="0.01" 
+                                                       min="0" 
+                                                       placeholder="0.00">
+                                            </td>
+                                            <td>
+                                                <input type="number" 
+                                                       class="form-control form-control-sm" 
+                                                       name="kgs_merma_{{ detalle.pk }}" 
+                                                       value="{{ detalle.kgs_merma|floatformat:2 }}"
+                                                       step="0.01" 
+                                                       min="0" 
+                                                       placeholder="0.00">
+                                            </td>
+                                            <td>
+                                                <input type="number" 
+                                                       class="form-control form-control-sm" 
+                                                       name="precio_{{ detalle.pk }}" 
+                                                       value="{{ detalle.precio|floatformat:2 }}"
+                                                       step="0.01" 
+                                                       min="0" 
+                                                       placeholder="0.00">
+                                            </td>
+                                            <td>
+                                                <input type="number" 
+                                                       class="form-control form-control-sm" 
+                                                       name="importe_liquidado_{{ detalle.pk }}" 
+                                                       value="{{ detalle.importe_liquidado|floatformat:2 }}"
+                                                       step="0.01" 
+                                                       min="0" 
+                                                       placeholder="0.00">
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Resumen de Totales -->
+                            <div class="row mt-4">
+                                <div class="col-md-12">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">Resumen de Preliquidación</h6>
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <div class="text-center">
+                                                        <h6 class="text-muted">Total Kgs Preliquidados</h6>
+                                                        <h4 class="text-info" id="total-kgs-liquidados">0.00</h4>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="text-center">
+                                                        <h6 class="text-muted">Total Kgs Merma</h6>
+                                                        <h4 class="text-warning" id="total-kgs-merma">0.00</h4>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="text-center">
+                                                        <h6 class="text-muted">Precio Promedio</h6>
+                                                        <h4 class="text-primary" id="precio-promedio">$0.00</h4>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="text-center">
+                                                        <h6 class="text-muted">Total Importe</h6>
+                                                        <h4 class="text-success" id="total-importe">$0.00</h4>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Botones -->
+                            <div class="row mt-4">
+                                <div class="col-md-12">
+                                    <div class="d-flex justify-content-between">
+                                        <a href="{% url 'core:remision_list' %}" class="btn btn-secondary">
+                                            <i class="bi bi-arrow-left"></i> Cancelar
+                                        </a>
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="bi bi-check-circle"></i> Preliquidar Remisión
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-exclamation-triangle text-warning" style="font-size: 4rem;"></i>
+                            <h4 class="text-muted mt-3">No hay detalles para liquidar</h4>
+                            <p class="text-muted">Esta remisión no tiene detalles registrados.</p>
+                            <a href="{% url 'core:remision_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Volver al Listado
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Función para calcular totales
+    function calcularTotales() {
+        let totalKgsLiquidados = 0;
+        let totalKgsMerma = 0;
+        let totalImporte = 0;
+        let precios = [];
+        
+        // Recopilar todos los inputs
+        const inputs = document.querySelectorAll('input[type="number"]');
+        
+        inputs.forEach(input => {
+            const value = parseFloat(input.value) || 0;
+            
+            if (input.name.includes('kgs_liquidados_')) {
+                totalKgsLiquidados += value;
+            } else if (input.name.includes('kgs_merma_')) {
+                totalKgsMerma += value;
+            } else if (input.name.includes('precio_')) {
+                if (value > 0) precios.push(value);
+            } else if (input.name.includes('importe_liquidado_')) {
+                totalImporte += value;
+            }
+        });
+        
+        // Calcular precio promedio
+        const precioPromedio = precios.length > 0 ? precios.reduce((a, b) => a + b, 0) / precios.length : 0;
+        
+        // Actualizar la interfaz
+        document.getElementById('total-kgs-liquidados').textContent = totalKgsLiquidados.toFixed(2);
+        document.getElementById('total-kgs-merma').textContent = totalKgsMerma.toFixed(2);
+        document.getElementById('precio-promedio').textContent = '$' + precioPromedio.toFixed(2);
+        document.getElementById('total-importe').textContent = '$' + totalImporte.toFixed(2);
+    }
+    
+    // Función para calcular importe liquidado automáticamente
+    function calcularImporteLiquidado(detalleId) {
+        const kgsLiquidados = parseFloat(document.querySelector(`input[name="kgs_liquidados_${detalleId}"]`).value) || 0;
+        const precio = parseFloat(document.querySelector(`input[name="precio_${detalleId}"]`).value) || 0;
+        const importeLiquidado = kgsLiquidados * precio;
+        
+        const importeInput = document.querySelector(`input[name="importe_liquidado_${detalleId}"]`);
+        importeInput.value = importeLiquidado.toFixed(2);
+        
+        calcularTotales();
+    }
+    
+    // Agregar event listeners a todos los inputs
+    const inputs = document.querySelectorAll('input[type="number"]');
+    inputs.forEach(input => {
+        input.addEventListener('input', calcularTotales);
+        
+        // Calcular importe liquidado automáticamente cuando cambien kgs_liquidados o precio
+        if (input.name.includes('kgs_liquidados_') || input.name.includes('precio_')) {
+            const detalleId = input.name.split('_').pop();
+            input.addEventListener('input', () => calcularImporteLiquidado(detalleId));
+        }
+    });
+    
+    // Calcular totales iniciales
+    calcularTotales();
+});
+</script>
+{% endblock %}

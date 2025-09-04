@@ -1,0 +1,435 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if object %}Editar Cliente{% else %}Nuevo Cliente{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alert-sm {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        border-radius: 0.375rem;
+    }
+    
+    .form-control.is-invalid {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .form-control.is-invalid:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .alert-danger {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+    }
+    
+    .alert-danger .bi {
+        color: #dc3545;
+    }
+    
+    .form-label .text-danger {
+        font-weight: bold;
+    }
+    
+    .form-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .field-group {
+        background-color: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .field-group h6 {
+        color: #495057;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-person-fill text-primary"></i>
+            {% if object %}Editar Cliente{% else %}Nuevo Cliente{% endif %}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:cliente_list' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a Clientes
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        {% if object %}Editar información del cliente{% else %}Información del nuevo cliente{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Información General -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-info-circle"></i> Información General</h6>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="{{ form.razon_social.id_for_label }}" class="form-label">
+                                            {{ form.razon_social.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.razon_social }}
+                                        {% if form.razon_social.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.razon_social.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="{{ form.regimen_fiscal.id_for_label }}" class="form-label">
+                                            {{ form.regimen_fiscal.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.regimen_fiscal }}
+                                        {% if form.regimen_fiscal.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.regimen_fiscal.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información Fiscal -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-receipt"></i> Información Fiscal</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.rfc.id_for_label }}" class="form-label">
+                                            {{ form.rfc.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.rfc }}
+                                        {% if form.rfc.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.rfc.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">
+                                                <i class="bi bi-info-circle"></i>
+                                                Formato: XAXX010101000 (persona física) o ABC123456T1A (persona moral)
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.codigo_postal.id_for_label }}" class="form-label">
+                                            {{ form.codigo_postal.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.codigo_postal }}
+                                        {% if form.codigo_postal.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.codigo_postal.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información de Contacto -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-geo-alt"></i> Información de Contacto</h6>
+                            <div class="mb-3">
+                                <label for="{{ form.domicilio.id_for_label }}" class="form-label">
+                                    {{ form.domicilio.label }} <span class="text-danger">*</span>
+                                </label>
+                                {{ form.domicilio }}
+                                {% if form.domicilio.errors %}
+                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        {{ form.domicilio.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.telefono.id_for_label }}" class="form-label">
+                                            {{ form.telefono.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.telefono }}
+                                        {% if form.telefono.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.telefono.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.email_principal.id_for_label }}" class="form-label">
+                                            {{ form.email_principal.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.email_principal }}
+                                        {% if form.email_principal.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.email_principal.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.email_alterno.id_for_label }}" class="form-label">
+                                            {{ form.email_alterno.label }}
+                                        </label>
+                                        {{ form.email_alterno }}
+                                        {% if form.email_alterno.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.email_alterno.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Opcional</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check mt-4">
+                                            {{ form.activo }}
+                                            <label class="form-check-label" for="{{ form.activo.id_for_label }}">
+                                                {{ form.activo.label }}
+                                            </label>
+                                            {% if form.activo.errors %}
+                                                <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                    {{ form.activo.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información de Entrega -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-truck"></i> Información de Entrega</h6>
+                            <div class="mb-3">
+                                <label for="{{ form.direccion_entrega.id_for_label }}" class="form-label">
+                                    {{ form.direccion_entrega.label }}
+                                </label>
+                                {{ form.direccion_entrega }}
+                                {% if form.direccion_entrega.errors %}
+                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        {{ form.direccion_entrega.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">
+                                    <small class="text-muted">Opcional - Dirección específica para entregas</small>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.numero_bodega.id_for_label }}" class="form-label">
+                                            {{ form.numero_bodega.label }}
+                                        </label>
+                                        {{ form.numero_bodega }}
+                                        {% if form.numero_bodega.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.numero_bodega.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Opcional</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.telefono_bodega.id_for_label }}" class="form-label">
+                                            {{ form.telefono_bodega.label }}
+                                        </label>
+                                        {{ form.telefono_bodega }}
+                                        {% if form.telefono_bodega.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.telefono_bodega.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Opcional</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.ciudad.id_for_label }}" class="form-label">
+                                            {{ form.ciudad.label }}
+                                        </label>
+                                        {{ form.ciudad }}
+                                        {% if form.ciudad.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.ciudad.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Opcional</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.estado.id_for_label }}" class="form-label">
+                                            {{ form.estado.label }}
+                                        </label>
+                                        {{ form.estado }}
+                                        {% if form.estado.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.estado.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Opcional</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Errores generales del formulario -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'core:cliente_list' %}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if object %}Actualizar Cliente{% else %}Crear Cliente{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Panel de ayuda -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <h6>Campos Requeridos:</h6>
+                    <ul class="list-unstyled">
+                        <li><span class="badge bg-danger">*</span> Razón Social</li>
+                        <li><span class="badge bg-danger">*</span> Régimen Fiscal</li>
+                        <li><span class="badge bg-danger">*</span> RFC</li>
+                        <li><span class="badge bg-danger">*</span> Código Postal</li>
+                        <li><span class="badge bg-danger">*</span> Domicilio</li>
+                        <li><span class="badge bg-danger">*</span> Teléfono</li>
+                        <li><span class="badge bg-danger">*</span> Email Principal</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Validaciones RFC:</h6>
+                    <ul class="small">
+                        <li><strong>Persona Física:</strong> 13 caracteres (ej: XAXX010101000)</li>
+                        <li><strong>Persona Moral:</strong> 12 caracteres (ej: ABC123456T1A)</li>
+                        <li>El RFC debe ser único en el sistema</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Validaciones Generales:</h6>
+                    <ul class="small">
+                        <li>Código postal: exactamente 5 dígitos</li>
+                        <li>Teléfono: mínimo 10 dígitos</li>
+                        <li>Emails: formato válido y únicos</li>
+                        <li>Email alterno debe ser diferente al principal</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-formatear RFC a mayúsculas
+    const rfcField = document.querySelector('input[name="rfc"]');
+    if (rfcField) {
+        rfcField.addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
+    }
+    
+    // Auto-formatear código postal (solo números)
+    const cpField = document.querySelector('input[name="codigo_postal"]');
+    if (cpField) {
+        cpField.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+        });
+    }
+    
+    // Auto-formatear emails a minúsculas
+    const emailFields = document.querySelectorAll('input[type="email"]');
+    emailFields.forEach(field => {
+        field.addEventListener('input', function() {
+            this.value = this.value.toLowerCase();
+        });
+    });
+});
+</script>
+{% endblock %}

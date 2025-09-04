@@ -1,0 +1,396 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if object %}Editar Detalle de Remisión{% else %}Nuevo Detalle de Remisión{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alert-sm {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        border-radius: 0.375rem;
+    }
+    
+    .form-control.is-invalid {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .form-control.is-invalid:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .alert-danger {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+    }
+    
+    .alert-danger .bi {
+        color: #dc3545;
+    }
+    
+    .form-label .text-danger {
+        font-weight: bold;
+    }
+    
+    .form-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .field-group {
+        background-color: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .field-group h6 {
+        color: #495057;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-list-ul text-primary"></i>
+            {% if object %}Editar Detalle de Remisión{% else %}Nuevo Detalle de Remisión{% endif %}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:remision_detail' remision.pk %}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a la Remisión
+            </a>
+        </div>
+    </div>
+
+    <!-- Información de la Remisión -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="bi bi-truck"></i> Remisión: {{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Cliente:</strong> {{ remision.cliente.razon_social }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Fecha:</strong> {{ remision.fecha|date:"d/m/Y" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Lote - Origen:</strong> {{ remision.lote_origen.nombre }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Transportista:</strong> {{ remision.transportista.nombre_completo }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        {% if object %}Editar información del detalle{% else %}Información del nuevo detalle{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Información del Producto -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-seedling"></i> Información del Producto</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.cultivo.id_for_label }}" class="form-label">
+                                            {{ form.cultivo.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.cultivo }}
+                                        {% if form.cultivo.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.cultivo.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.calidad.id_for_label }}" class="form-label">
+                                            {{ form.calidad.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.calidad }}
+                                        {% if form.calidad.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.calidad.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información de Envío -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-box-seam"></i> Información de Envío</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="{{ form.no_arps.id_for_label }}" class="form-label">
+                                            {{ form.no_arps.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.no_arps }}
+                                        {% if form.no_arps.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.no_arps.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="{{ form.kgs_enviados.id_for_label }}" class="form-label">
+                                            {{ form.kgs_enviados.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.kgs_enviados }}
+                                        {% if form.kgs_enviados.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.kgs_enviados.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="{{ form.merma_arps.id_for_label }}" class="form-label">
+                                            {{ form.merma_arps.label }} <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.merma_arps }}
+                                        {% if form.merma_arps.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.merma_arps.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle"></i>
+                                        <strong>Peso Promedio:</strong> Se calcula automáticamente dividiendo los Kgs Enviados entre el No Arps.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información de Liquidación -->
+                        <div class="field-group">
+                            <h6><i class="bi bi-cash-coin"></i> Información de Liquidación</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="{{ form.kgs_liquidados.id_for_label }}" class="form-label">
+                                            {{ form.kgs_liquidados.label }}
+                                        </label>
+                                        {{ form.kgs_liquidados }}
+                                        {% if form.kgs_liquidados.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.kgs_liquidados.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Valor por defecto: 0.00</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="{{ form.kgs_merma.id_for_label }}" class="form-label">
+                                            {{ form.kgs_merma.label }}
+                                        </label>
+                                        {{ form.kgs_merma }}
+                                        {% if form.kgs_merma.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.kgs_merma.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Valor por defecto: 0.00</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="{{ form.precio.id_for_label }}" class="form-label">
+                                            {{ form.precio.label }}
+                                        </label>
+                                        {{ form.precio }}
+                                        {% if form.precio.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.precio.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Precio por kilogramo</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="{{ form.importe_liquidado.id_for_label }}" class="form-label">
+                                            {{ form.importe_liquidado.label }}
+                                        </label>
+                                        {{ form.importe_liquidado }}
+                                        {% if form.importe_liquidado.errors %}
+                                            <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                {{ form.importe_liquidado.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <small class="text-muted">Importe total liquidado</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Errores generales del formulario -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'core:remision_detail' remision.pk %}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if object %}Actualizar Detalle{% else %}Crear Detalle{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Panel de ayuda -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <h6>Campos Requeridos:</h6>
+                    <ul class="list-unstyled">
+                        <li><span class="badge bg-danger">*</span> Cultivo</li>
+                        <li><span class="badge bg-danger">*</span> Calidad</li>
+                        <li><span class="badge bg-danger">*</span> No Arps</li>
+                        <li><span class="badge bg-danger">*</span> Kgs Enviados</li>
+                        <li><span class="badge bg-danger">*</span> Merma/Arps</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Campos de Liquidación:</h6>
+                    <ul class="small">
+                        <li><strong>Kgs Liquidados:</strong> Kilogramos liquidados (por defecto: 0.00)</li>
+                        <li><strong>Kgs Merma:</strong> Kilogramos de merma (por defecto: 0.00)</li>
+                        <li><strong>Precio:</strong> Precio por kilogramo (por defecto: 0.00)</li>
+                        <li><strong>Importe Liquidado:</strong> Importe total liquidado (por defecto: 0.00)</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Cálculos Automáticos:</h6>
+                    <ul class="small">
+                        <li><strong>Peso Promedio:</strong> Kgs Enviados ÷ No Arps</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Validaciones:</h6>
+                    <ul class="small">
+                        <li>No Arps debe ser positivo</li>
+                        <li>Kgs Enviados debe ser positivo</li>
+                        <li>Merma/Arps no puede ser negativa</li>
+                        <li>Los campos de liquidación no pueden ser negativos</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Calcular peso promedio automáticamente
+    const noArpsField = document.querySelector('input[name="no_arps"]');
+    const kgsEnviadosField = document.querySelector('input[name="kgs_enviados"]');
+    
+    function calcularPesoPromedio() {
+        if (noArpsField && kgsEnviadosField && noArpsField.value && kgsEnviadosField.value) {
+            const noArps = parseFloat(noArpsField.value);
+            const kgsEnviados = parseFloat(kgsEnviadosField.value);
+            
+            if (noArps > 0) {
+                const pesoPromedio = kgsEnviados / noArps;
+                // Mostrar el cálculo en una alerta o campo de solo lectura
+                console.log('Peso Promedio calculado:', pesoPromedio.toFixed(2));
+            }
+        }
+    }
+    
+    if (noArpsField) {
+        noArpsField.addEventListener('blur', calcularPesoPromedio);
+    }
+    
+    if (kgsEnviadosField) {
+        kgsEnviadosField.addEventListener('blur', calcularPesoPromedio);
+    }
+    
+    // Formatear campos numéricos
+    const numericFields = document.querySelectorAll('input[type="number"]');
+    numericFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            if (this.value && !isNaN(this.value)) {
+                if (this.name.includes('precio') || this.name.includes('importe') || this.name.includes('kgs')) {
+                    this.value = parseFloat(this.value).toFixed(2);
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
