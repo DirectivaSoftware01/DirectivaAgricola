@@ -1,6 +1,6 @@
 # Directiva Agricola
 
-Proyecto web desarrollado con Django para la gestión de directivas agrícolas.
+Proyecto web desarrollado con Django para la Administración de Empresas Agrícolas.
 
 ## Tecnologías utilizadas
 

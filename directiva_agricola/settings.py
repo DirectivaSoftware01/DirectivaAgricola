@@ -75,34 +75,12 @@ WSGI_APPLICATION = 'directiva_agricola.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-# Configuración temporal para mostrar la interfaz - SQLite mínimo
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'temp_db.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
-# Configuración de SQL Server (comentada temporalmente por problemas de SSL)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'mssql',
-#         'NAME': 'directiva_agricola',
-#         'USER': 'dssupervisor',
-#         'PASSWORD': 'DSBASM790803',
-#         'HOST': 'directivaservices.cnvvqxmyayiq.us-west-2.rds.amazonaws.com',
-#         'PORT': '1433',
-#         'OPTIONS': {
-#             'driver': 'ODBC Driver 18 for SQL Server',
-#             'unicode_results': True,
-#             'TrustServerCertificate': 'yes',
-#             'Encrypt': 'no',
-#         },
-#     }
-# }
 
 
 # Password validation
