@@ -27,11 +27,6 @@ pip install -r requirements.txt
 
 ### 3. Configurar base de datos
 El proyecto está configurado para usar SQL Server con las siguientes credenciales:
-- **Host**: directivaservices.cnvvqxmyayiq.us-west-2.rds.amazonaws.com
-- **Puerto**: 1433
-- **Usuario**: dssupervisor
-- **Contraseña**: DSBASM790803
-- **Base de datos**: directiva_agricola
 
 ### 4. Ejecutar migraciones
 ```bash
