@@ -1,3 +1,4 @@
+{% load humanize %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -119,7 +120,7 @@
                 </div>
                 <div class="col-md-4 text-end">
                     <h3 class="mb-0 text-primary">
-                        ${{ total_general|floatformat:2 }}
+                        ${{ total_general|floatformat:2|intcomma }}
                     </h3>
                 </div>
             </div>
@@ -152,7 +153,7 @@
                                     Total Cliente
                                 </h6>
                                 <h4 class="mb-0 text-primary">
-                                    ${{ total_cliente|floatformat:2 }}
+                                    ${{ total_cliente|floatformat:2|intcomma }}
                                 </h4>
                             </div>
                         </div>
@@ -179,7 +180,7 @@
                                 </td>
                                 <td>{{ remision.fecha|date:"d/m/Y" }}</td>
                                 <td class="importe-cell">
-                                    ${{ importe_remision|floatformat:2 }}
+                                    ${{ importe_remision|floatformat:2|intcomma }}
                                 </td>
                                 <td>
                                     {% if remision.facturado %}
