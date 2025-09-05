@@ -1232,7 +1232,16 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
                 messages.success(request, 'Configuración guardada correctamente.')
                 return redirect('core:configuracion_sistema')
             else:
-                messages.error(request, 'Por favor, corrija los errores en el formulario.')
+                # Mostrar errores específicos del formulario
+                error_messages = []
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        error_messages.append(f"{form.fields[field].label}: {error}")
+                
+                if error_messages:
+                    messages.error(request, f'Errores en el formulario: {"; ".join(error_messages)}')
+                else:
+                    messages.error(request, 'Por favor, corrija los errores en el formulario.')
                 
         except Exception as e:
             messages.error(request, f'Error al guardar la configuración: {str(e)}')

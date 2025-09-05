@@ -871,8 +871,8 @@ class ConfiguracionSistema(models.Model):
         return f"Configuración - {self.ciclo_actual}"
     
     def save(self, *args, **kwargs):
-        """Guardar con validaciones"""
-        self.full_clean()
+        """Guardar configuración del sistema"""
+        # No hacer validaciones estrictas para permitir guardado parcial
         super().save(*args, **kwargs)
 
 

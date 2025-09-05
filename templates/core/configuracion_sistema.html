@@ -260,7 +260,44 @@
 
 {% block extra_js %}
 <script>
+// Función para mostrar notificación
+function showNotification(message, type = 'success', duration = 3000) {
+    // Crear elemento de notificación
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);';
+    
+    notification.innerHTML = `
+        <i class="bi bi-check-circle-fill me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Agregar al body
+    document.body.appendChild(notification);
+    
+    // Auto-ocultar después del tiempo especificado
+    setTimeout(() => {
+        if (notification && notification.parentNode) {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification && notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 150); // Tiempo para la animación de fade out
+        }
+    }, duration);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Verificar si hay mensajes de éxito para mostrar notificación
+    const successMessages = document.querySelectorAll('.alert-success');
+    successMessages.forEach(alert => {
+        if (alert.textContent.includes('Configuración guardada correctamente')) {
+            showNotification('¡Configuración guardada exitosamente!', 'success', 3000);
+        }
+    });
+    
     // Inicializar el formulario
     const form = document.getElementById('configuracionForm');
     if (form) {
@@ -272,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
             certificadoFile.addEventListener('change', function() {
                 const file = this.files[0];
                 if (file && !file.name.endsWith('.cer')) {
-                    alert('El archivo de certificado debe tener extensión .cer');
+                    showNotification('El archivo de certificado debe tener extensión .cer', 'warning', 3000);
                     this.value = '';
                 }
             });
@@ -282,7 +319,7 @@ document.addEventListener('DOMContentLoaded', function() {
             llaveFile.addEventListener('change', function() {
                 const file = this.files[0];
                 if (file && !file.name.endsWith('.key')) {
-                    alert('El archivo de llave debe tener extensión .key');
+                    showNotification('El archivo de llave debe tener extensión .key', 'warning', 3000);
                     this.value = '';
                 }
             });
