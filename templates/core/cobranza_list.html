@@ -236,6 +236,12 @@
                                             <i class="bi bi-cash-coin"></i>
                                         </button>
                                         {% endif %}
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-warning" 
+                                                title="Capturar Pago"
+                                                onclick="capturarPago({{ remision.pk }}, '{{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}', {{ importe_remision }})">
+                                            <i class="bi bi-credit-card"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -454,6 +460,121 @@ function imprimirEstadoCuentaCliente(nombreCliente, codigoCliente) {
     // Abrir ventana de impresión para el cliente específico
     const url = `/cobranza/imprimir/?${params}`;
     window.open(url, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+}
+
+function capturarPago(remisionId, folioRemision, importeRemision) {
+    // Mostrar modal de captura de pago
+    document.getElementById('modalConfirmacionLabel').innerHTML = 
+        '<i class="bi bi-credit-card"></i> Capturar Pago';
+    document.getElementById('modalConfirmacionBody').innerHTML = 
+        '<div class="mb-3">' +
+            '<label class="form-label"><strong>Remisión:</strong> ' + folioRemision + '</label>' +
+        '</div>' +
+        '<div class="mb-3">' +
+            '<label class="form-label"><strong>Importe:</strong> $' + importeRemision.toLocaleString('es-MX', {minimumFractionDigits: 2}) + '</label>' +
+        '</div>' +
+        '<div class="mb-3">' +
+            '<label for="montoPago" class="form-label">Monto del Pago:</label>' +
+            '<input type="number" class="form-control" id="montoPago" step="0.01" min="0" value="' + importeRemision + '" required>' +
+        '</div>' +
+        '<div class="mb-3">' +
+            '<label for="metodoPago" class="form-label">Método de Pago:</label>' +
+            '<select class="form-select" id="metodoPago" required>' +
+                '<option value="">Seleccionar método...</option>' +
+                '<option value="efectivo">Efectivo</option>' +
+                '<option value="transferencia">Transferencia Bancaria</option>' +
+                '<option value="cheque">Cheque</option>' +
+                '<option value="tarjeta">Tarjeta de Crédito/Débito</option>' +
+            '</select>' +
+        '</div>' +
+        '<div class="mb-3">' +
+            '<label for="observacionesPago" class="form-label">Observaciones (opcional):</label>' +
+            '<textarea class="form-control" id="observacionesPago" rows="2" placeholder="Referencia de pago, número de transacción, etc."></textarea>' +
+        '</div>';
+    
+    // Configurar el botón de confirmación para captura de pago
+    const btnConfirmar = document.getElementById('btnConfirmarAccion');
+    btnConfirmar.innerHTML = '<i class="bi bi-credit-card"></i> Capturar Pago';
+    
+    // Limpiar eventos anteriores
+    btnConfirmar.replaceWith(btnConfirmar.cloneNode(true));
+    const nuevoBtnConfirmar = document.getElementById('btnConfirmarAccion');
+    
+    // Agregar nuevo evento
+    nuevoBtnConfirmar.addEventListener('click', function() {
+        const montoPago = parseFloat(document.getElementById('montoPago').value);
+        const metodoPago = document.getElementById('metodoPago').value;
+        const observaciones = document.getElementById('observacionesPago').value;
+        
+        if (!montoPago || montoPago <= 0) {
+            alert('Por favor, ingrese un monto válido.');
+            return;
+        }
+        
+        if (!metodoPago) {
+            alert('Por favor, seleccione un método de pago.');
+            return;
+        }
+        
+        // Deshabilitar botón y mostrar loading
+        nuevoBtnConfirmar.disabled = true;
+        nuevoBtnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
+        
+        // Preparar datos
+        const data = {
+            'accion': 'capturar_pago',
+            'monto': montoPago,
+            'metodo_pago': metodoPago,
+            'observaciones': observaciones,
+            'csrfmiddlewaretoken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        };
+        
+        // Enviar petición AJAX
+        fetch(`/ajax/remisiones/${remisionId}/cobranza/`, {
+            method: 'POST',
+            body: new URLSearchParams(data),
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Mostrar mensaje de éxito
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                alertDiv.innerHTML = `
+                    <i class="bi bi-check-circle"></i> ${data.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.container-fluid').firstChild);
+                
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacion'));
+                modal.hide();
+                
+                // Recargar la página para mostrar los cambios
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                alert('Error: ' + (data.error || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error de conexión. Por favor, intente nuevamente.');
+        })
+        .finally(() => {
+            // Restaurar botón
+            nuevoBtnConfirmar.disabled = false;
+            nuevoBtnConfirmar.innerHTML = '<i class="bi bi-credit-card"></i> Capturar Pago';
+        });
+    });
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+    modal.show();
 }
 </script>
 {% endblock %}
