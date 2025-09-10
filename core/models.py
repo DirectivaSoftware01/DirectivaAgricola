@@ -1327,3 +1327,90 @@ class RemisionDetalle(models.Model):
         if self.pk is not None:
             self.full_clean()
         super().save(*args, **kwargs)
+
+
+class CuentaBancaria(models.Model):
+    """Modelo para gestión de cuentas bancarias"""
+    
+    # Campo auto numérico (se maneja automáticamente con el ID)
+    codigo = models.AutoField(
+        primary_key=True, 
+        verbose_name="Código"
+    )
+    
+    nombre_banco = models.CharField(
+        max_length=200, 
+        verbose_name="Nombre del Banco",
+        help_text="Nombre completo del banco"
+    )
+    
+    numero_cuenta = models.CharField(
+        max_length=50,
+        verbose_name="Número de Cuenta",
+        help_text="Número de cuenta bancaria"
+    )
+    
+    nombre_corto = models.CharField(
+        max_length=100,
+        verbose_name="Nombre Corto",
+        help_text="Nombre corto para identificar la cuenta (ej: BBVA Principal)"
+    )
+    
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si la cuenta bancaria está activa en el sistema"
+    )
+    
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de modificación")
+    usuario_creacion = models.ForeignKey(
+        Usuario, 
+        on_delete=models.PROTECT,
+        related_name='cuentas_bancarias_creadas',
+        verbose_name="Usuario que creó el registro"
+    )
+    usuario_modificacion = models.ForeignKey(
+        Usuario,
+        on_delete=models.PROTECT,
+        related_name='cuentas_bancarias_modificadas',
+        verbose_name="Usuario que modificó el registro",
+        blank=True,
+        null=True
+    )
+    
+    class Meta:
+        verbose_name = "Cuenta Bancaria"
+        verbose_name_plural = "Cuentas Bancarias"
+        db_table = 'cuentas_bancarias'
+        ordering = ['nombre_corto']
+        indexes = [
+            models.Index(fields=['nombre_banco']),
+            models.Index(fields=['numero_cuenta']),
+            models.Index(fields=['nombre_corto']),
+            models.Index(fields=['activo']),
+        ]
+    
+    def __str__(self):
+        return f"{self.nombre_corto} - {self.nombre_banco}"
+    
+    def clean(self):
+        """Validaciones adicionales del modelo"""
+        super().clean()
+        
+        # Validar que el nombre del banco no esté vacío
+        if self.nombre_banco:
+            self.nombre_banco = self.nombre_banco.strip()
+        
+        # Validar que el número de cuenta no esté vacío
+        if self.numero_cuenta:
+            self.numero_cuenta = self.numero_cuenta.strip()
+        
+        # Validar que el nombre corto no esté vacío
+        if self.nombre_corto:
+            self.nombre_corto = self.nombre_corto.strip()
+    
+    def save(self, *args, **kwargs):
+        """Guardar con validaciones"""
+        self.full_clean()
+        super().save(*args, **kwargs)

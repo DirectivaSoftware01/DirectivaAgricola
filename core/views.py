@@ -7,7 +7,7 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle
+from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria
 from .forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm
 
 # Create your views here.
@@ -2178,3 +2178,118 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         }
         
         return context
+
+
+# ===========================
+# VISTAS AJAX PARA CUENTAS BANCARIAS
+# ===========================
+
+@login_required
+def agregar_cuenta_bancaria_ajax(request):
+    """Vista AJAX para agregar una cuenta bancaria"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        from .models import CuentaBancaria
+        
+        # Obtener datos del formulario
+        nombre_banco = request.POST.get('nombre_banco', '').strip()
+        numero_cuenta = request.POST.get('numero_cuenta', '').strip()
+        nombre_corto = request.POST.get('nombre_corto', '').strip()
+        
+        # Validar campos requeridos
+        if not nombre_banco:
+            return JsonResponse({'error': 'El nombre del banco es requerido'}, status=400)
+        
+        if not numero_cuenta:
+            return JsonResponse({'error': 'El número de cuenta es requerido'}, status=400)
+        
+        if not nombre_corto:
+            return JsonResponse({'error': 'El nombre corto es requerido'}, status=400)
+        
+        # Crear la cuenta bancaria
+        cuenta = CuentaBancaria.objects.create(
+            nombre_banco=nombre_banco,
+            numero_cuenta=numero_cuenta,
+            nombre_corto=nombre_corto,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Cuenta bancaria agregada exitosamente',
+            'cuenta': {
+                'codigo': cuenta.codigo,
+                'nombre_banco': cuenta.nombre_banco,
+                'numero_cuenta': cuenta.numero_cuenta,
+                'nombre_corto': cuenta.nombre_corto,
+                'activo': cuenta.activo
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def listar_cuentas_bancarias_ajax(request):
+    """Vista AJAX para listar cuentas bancarias"""
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        from .models import CuentaBancaria
+        
+        # Obtener todas las cuentas bancarias activas
+        cuentas = CuentaBancaria.objects.filter(activo=True).order_by('nombre_corto')
+        
+        cuentas_data = []
+        for cuenta in cuentas:
+            cuentas_data.append({
+                'codigo': cuenta.codigo,
+                'nombre_banco': cuenta.nombre_banco,
+                'numero_cuenta': cuenta.numero_cuenta,
+                'nombre_corto': cuenta.nombre_corto,
+                'activo': cuenta.activo
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'cuentas': cuentas_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_cuenta_bancaria_ajax(request, codigo):
+    """Vista AJAX para eliminar una cuenta bancaria"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        from .models import CuentaBancaria
+        
+        # Obtener la cuenta bancaria
+        cuenta = get_object_or_404(CuentaBancaria, codigo=codigo)
+        
+        # Marcar como inactiva en lugar de eliminar
+        cuenta.activo = False
+        cuenta.usuario_modificacion = request.user
+        cuenta.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Cuenta bancaria eliminada exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)

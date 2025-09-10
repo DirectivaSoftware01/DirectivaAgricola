@@ -479,12 +479,18 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
         '</div>' +
         '<div class="mb-3">' +
             '<label for="metodoPago" class="form-label">Método de Pago:</label>' +
-            '<select class="form-select" id="metodoPago" required>' +
+            '<select class="form-select" id="metodoPago" required onchange="toggleCuentaBancaria()">' +
                 '<option value="">Seleccionar método...</option>' +
                 '<option value="efectivo">Efectivo</option>' +
                 '<option value="transferencia">Transferencia Bancaria</option>' +
                 '<option value="cheque">Cheque</option>' +
                 '<option value="tarjeta">Tarjeta de Crédito/Débito</option>' +
+            '</select>' +
+        '</div>' +
+        '<div class="mb-3" id="cuentaBancariaDiv" style="display: none;">' +
+            '<label for="cuentaBancaria" class="form-label">Cuenta Bancaria:</label>' +
+            '<select class="form-select" id="cuentaBancaria">' +
+                '<option value="">Seleccionar cuenta bancaria...</option>' +
             '</select>' +
         '</div>' +
         '<div class="mb-3">' +
@@ -575,6 +581,41 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
     
     const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
     modal.show();
+}
+
+// Función para mostrar/ocultar campo de cuenta bancaria
+function toggleCuentaBancaria() {
+    const metodoPago = document.getElementById('metodoPago').value;
+    const cuentaBancariaDiv = document.getElementById('cuentaBancariaDiv');
+    
+    if (metodoPago === 'transferencia' || metodoPago === 'cheque') {
+        cuentaBancariaDiv.style.display = 'block';
+        cargarCuentasBancarias();
+    } else {
+        cuentaBancariaDiv.style.display = 'none';
+    }
+}
+
+// Función para cargar cuentas bancarias
+function cargarCuentasBancarias() {
+    fetch('/ajax/cuentas-bancarias/listar/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('cuentaBancaria');
+            select.innerHTML = '<option value="">Seleccionar cuenta bancaria...</option>';
+            
+            if (data.success && data.cuentas.length > 0) {
+                data.cuentas.forEach(cuenta => {
+                    const option = document.createElement('option');
+                    option.value = cuenta.codigo;
+                    option.textContent = cuenta.nombre_corto;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error al cargar cuentas bancarias:', error);
+        });
 }
 </script>
 {% endblock %}

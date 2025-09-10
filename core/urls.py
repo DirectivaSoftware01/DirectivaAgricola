@@ -27,7 +27,8 @@ from .views import (
     RemisionDetalleCreateView, RemisionDetalleUpdateView, RemisionDetalleDeleteView,
     RemisionLiquidacionView, CobranzaListView, CobranzaImprimirView,
     # Vistas AJAX
-    get_cultivos_ajax, cancelar_remision_ajax, actualizar_estado_cobranza_ajax
+    get_cultivos_ajax, cancelar_remision_ajax, actualizar_estado_cobranza_ajax,
+    agregar_cuenta_bancaria_ajax, listar_cuentas_bancarias_ajax, eliminar_cuenta_bancaria_ajax
 )
 
 app_name = 'core'
@@ -128,4 +129,7 @@ urlpatterns = [
     path('ajax/cultivos/', get_cultivos_ajax, name='get_cultivos_ajax'),
     path('ajax/remisiones/<int:pk>/cancelar/', cancelar_remision_ajax, name='cancelar_remision_ajax'),
     path('ajax/remisiones/<int:pk>/cobranza/', actualizar_estado_cobranza_ajax, name='actualizar_estado_cobranza_ajax'),
+    path('ajax/cuentas-bancarias/agregar/', agregar_cuenta_bancaria_ajax, name='agregar_cuenta_bancaria_ajax'),
+    path('ajax/cuentas-bancarias/listar/', listar_cuentas_bancarias_ajax, name='listar_cuentas_bancarias_ajax'),
+    path('ajax/cuentas-bancarias/eliminar/<int:codigo>/', eliminar_cuenta_bancaria_ajax, name='eliminar_cuenta_bancaria_ajax'),
 ]
