@@ -193,7 +193,19 @@
                                 <strong class="fs-5 text-success">${{ total_gastado|floatformat:2 }}</strong>
                             </th>
                             <th class="text-center">
-                                <span class="badge bg-success fs-6">100%</span>
+                                {% if presupuesto.total_presupuestado > 0 %}
+                                    {% with porcentaje_total=total_gastado|mul:100|div:presupuesto.total_presupuestado %}
+                                        {% if porcentaje_total <= 80 %}
+                                            <span class="badge bg-success fs-6">{{ porcentaje_total|floatformat:1 }}%</span>
+                                        {% elif porcentaje_total <= 95 %}
+                                            <span class="badge bg-warning fs-6">{{ porcentaje_total|floatformat:1 }}%</span>
+                                        {% else %}
+                                            <span class="badge bg-danger fs-6">{{ porcentaje_total|floatformat:1 }}%</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% else %}
+                                    <span class="badge bg-secondary fs-6">0%</span>
+                                {% endif %}
                             </th>
                             <th></th>
                         </tr>
