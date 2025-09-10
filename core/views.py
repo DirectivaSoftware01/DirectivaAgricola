@@ -1359,6 +1359,7 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
         context = self.get_context_data()
         context['form'] = form
         return render(request, self.template_name, context)
+
 # Vistas para Cultivos
 
 class CultivoListView(LoginRequiredMixin, ListView):

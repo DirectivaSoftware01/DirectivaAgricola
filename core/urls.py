@@ -53,6 +53,7 @@ urlpatterns = [
     # URLs de configuración y usuarios
     path('configuracion/', ConfiguracionView.as_view(), name='configuracion'),
     path('configuracion/sistema/', ConfiguracionSistemaView.as_view(), name='configuracion_sistema'),
+    path('configuracion-test/', ConfiguracionTestView.as_view(), name='configuracion_test'),
     path('configuracion/usuario/nuevo/', UsuarioCreateView.as_view(), name='usuario_create'),
     path('configuracion/usuario/<int:pk>/editar/', UsuarioUpdateView.as_view(), name='usuario_update'),
     path('configuracion/usuario/<int:pk>/eliminar/', UsuarioDeleteView.as_view(), name='usuario_delete'),
