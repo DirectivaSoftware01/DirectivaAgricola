@@ -114,7 +114,7 @@
                                                     </div>
                                                     <div class="row">
                                                         <div class="col-12">
-                                                            <button type="submit" class="btn btn-primary">
+                                                            <button type="button" class="btn btn-primary" id="btnAgregarCuenta">
                                                                 <i class="bi bi-plus-circle me-1"></i>Agregar Cuenta
                                                             </button>
                                                         </div>
@@ -405,24 +405,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Funcionalidad para cuentas bancarias
+    const btnAgregarCuenta = document.getElementById('btnAgregarCuenta');
     const cuentaBancariaForm = document.getElementById('cuentaBancariaForm');
-    if (cuentaBancariaForm) {
-        cuentaBancariaForm.addEventListener('submit', function(e) {
+    
+    if (btnAgregarCuenta && cuentaBancariaForm) {
+        btnAgregarCuenta.addEventListener('click', function(e) {
             e.preventDefault();
             
-            const formData = new FormData(this);
+            // Validar campos requeridos
+            const nombreBanco = document.getElementById('nombreBanco').value.trim();
+            const numeroCuenta = document.getElementById('numeroCuenta').value.trim();
+            const nombreCorto = document.getElementById('nombreCorto').value.trim();
+            
+            if (!nombreBanco || !numeroCuenta || !nombreCorto) {
+                showNotification('Por favor, complete todos los campos requeridos', 'warning', 3000);
+                return;
+            }
+            
             const data = {
-                'nombre_banco': formData.get('nombre_banco'),
-                'numero_cuenta': formData.get('numero_cuenta'),
-                'nombre_corto': formData.get('nombre_corto'),
-                'csrfmiddlewaretoken': formData.get('csrfmiddlewaretoken')
+                'nombre_banco': nombreBanco,
+                'numero_cuenta': numeroCuenta,
+                'nombre_corto': nombreCorto,
+                'csrfmiddlewaretoken': document.querySelector('[name=csrfmiddlewaretoken]').value
             };
             
             // Deshabilitar botón y mostrar loading
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Agregando...';
+            const originalText = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Agregando...';
             
             // Enviar petición AJAX
             fetch('/ajax/cuentas-bancarias/agregar/', {
@@ -445,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data && data.success) {
                     showNotification('Cuenta bancaria agregada exitosamente', 'success', 3000);
                     // Limpiar formulario
-                    this.reset();
+                    cuentaBancariaForm.reset();
                     // Recargar lista de cuentas
                     cargarCuentasBancarias();
                 } else if (data) {
@@ -458,8 +468,8 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .finally(() => {
                 // Restaurar botón
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
+                this.disabled = false;
+                this.innerHTML = originalText;
             });
         });
     }
