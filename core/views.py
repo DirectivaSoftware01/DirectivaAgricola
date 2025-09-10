@@ -1257,66 +1257,72 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
                         configuracion.rfc = request.POST.get('rfc')
                     if 'direccion' in request.POST:
                         configuracion.direccion = request.POST.get('direccion')
-                    if 'telefono' in request.POST:
-                        configuracion.telefono = request.POST.get('telefono')
-                    
-                    if not configuracion.pk:
-                        configuracion.usuario_creacion = request.user
-                    else:
-                        configuracion.usuario_modificacion = request.user
-                    configuracion.save()
-                    messages.success(request, 'Datos de la empresa guardados correctamente.')
+                if 'telefono' in request.POST:
+                    configuracion.telefono = request.POST.get('telefono')
+                if 'logo_empresa' in request.FILES:
+                    print(f"DEBUG: Archivo logo_empresa encontrado: {request.FILES.get('logo_empresa').name}")
+                    configuracion.logo_empresa = request.FILES.get('logo_empresa')
+                else:
+                    print("DEBUG: No se encontró logo_empresa en request.FILES")
+                    print(f"DEBUG: Archivos disponibles: {list(request.FILES.keys())}")
                 
-                elif seccion == 'timbrado':
-                    if not configuracion:
-                        configuracion = ConfiguracionSistema()
-                    
-                    if 'nombre_pac' in request.POST:
-                        configuracion.nombre_pac = request.POST.get('nombre_pac')
-                    if 'contrato' in request.POST:
-                        configuracion.contrato = request.POST.get('contrato')
-                    if 'usuario_pac' in request.POST:
-                        configuracion.usuario_pac = request.POST.get('usuario_pac')
-                    if 'password_pac' in request.POST:
-                        configuracion.password_pac = request.POST.get('password_pac')
-                    
-                    if not configuracion.pk:
-                        configuracion.usuario_creacion = request.user
-                    else:
-                        configuracion.usuario_modificacion = request.user
-                    configuracion.save()
-                    messages.success(request, 'Configuración de timbrado guardada correctamente.')
+                if not configuracion.pk:
+                    configuracion.usuario_creacion = request.user
+                else:
+                    configuracion.usuario_modificacion = request.user
+                configuracion.save()
+                messages.success(request, 'Datos de la empresa guardados correctamente.')
                 
-                elif seccion == 'certificados':
-                    if not configuracion:
-                        configuracion = ConfiguracionSistema()
-                    
-                    # Procesar archivos de certificado y llave
-                    if 'certificado_file' in request.FILES:
-                        certificado_file = request.FILES.get('certificado_file')
-                        # Convertir archivo a base64
-                        import base64
-                        configuracion.certificado = base64.b64encode(certificado_file.read()).decode('utf-8')
-                        # Guardar nombre del archivo original
-                        configuracion.certificado_nombre = certificado_file.name
-                    
-                    if 'llave_file' in request.FILES:
-                        llave_file = request.FILES.get('llave_file')
-                        # Convertir archivo a base64
-                        import base64
-                        configuracion.llave = base64.b64encode(llave_file.read()).decode('utf-8')
-                        # Guardar nombre del archivo original
-                        configuracion.llave_nombre = llave_file.name
-                    
-                    if 'password_llave' in request.POST:
-                        configuracion.password_llave = request.POST.get('password_llave')
-                    
-                    if not configuracion.pk:
-                        configuracion.usuario_creacion = request.user
-                    else:
-                        configuracion.usuario_modificacion = request.user
-                    configuracion.save()
-                    messages.success(request, 'Certificados guardados correctamente.')
+            elif seccion == 'timbrado':
+                if not configuracion:
+                    configuracion = ConfiguracionSistema()
+                
+                if 'nombre_pac' in request.POST:
+                    configuracion.nombre_pac = request.POST.get('nombre_pac')
+                if 'contrato' in request.POST:
+                    configuracion.contrato = request.POST.get('contrato')
+                if 'usuario_pac' in request.POST:
+                    configuracion.usuario_pac = request.POST.get('usuario_pac')
+                if 'password_pac' in request.POST:
+                    configuracion.password_pac = request.POST.get('password_pac')
+                
+                if not configuracion.pk:
+                    configuracion.usuario_creacion = request.user
+                else:
+                    configuracion.usuario_modificacion = request.user
+                configuracion.save()
+                messages.success(request, 'Configuración de timbrado guardada correctamente.')
+                
+            elif seccion == 'certificados':
+                if not configuracion:
+                    configuracion = ConfiguracionSistema()
+                
+                # Procesar archivos de certificado y llave
+                if 'certificado_file' in request.FILES:
+                    certificado_file = request.FILES.get('certificado_file')
+                    # Convertir archivo a base64
+                    import base64
+                    configuracion.certificado = base64.b64encode(certificado_file.read()).decode('utf-8')
+                    # Guardar nombre del archivo original
+                    configuracion.certificado_nombre = certificado_file.name
+                
+                if 'llave_file' in request.FILES:
+                    llave_file = request.FILES.get('llave_file')
+                    # Convertir archivo a base64
+                    import base64
+                    configuracion.llave = base64.b64encode(llave_file.read()).decode('utf-8')
+                    # Guardar nombre del archivo original
+                    configuracion.llave_nombre = llave_file.name
+                
+                if 'password_llave' in request.POST:
+                    configuracion.password_llave = request.POST.get('password_llave')
+                
+                if not configuracion.pk:
+                    configuracion.usuario_creacion = request.user
+                else:
+                    configuracion.usuario_modificacion = request.user
+                configuracion.save()
+                messages.success(request, 'Certificados guardados correctamente.')
                 
                 # Si es una petición AJAX, devolver JSON
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1357,6 +1363,11 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
             messages.error(request, f'Error al guardar la configuración: {str(e)}')
         
         context = self.get_context_data()
+        # Crear el formulario con la configuración existente
+        configuracion = ConfiguracionSistema.objects.first()
+        if not configuracion:
+            configuracion = ConfiguracionSistema()
+        form = ConfiguracionSistemaForm(instance=configuracion)
         context['form'] = form
         return render(request, self.template_name, context)
 

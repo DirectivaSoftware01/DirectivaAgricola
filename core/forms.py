@@ -873,7 +873,7 @@ class ConfiguracionSistemaForm(forms.ModelForm):
         model = ConfiguracionSistema
         fields = [
             'ciclo_actual',
-            'razon_social', 'rfc', 'direccion', 'telefono',
+            'razon_social', 'rfc', 'direccion', 'telefono', 'logo_empresa',
             'nombre_pac', 'contrato', 'usuario_pac', 'password_pac',
             'password_llave'
         ]
@@ -899,6 +899,10 @@ class ConfiguracionSistemaForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Teléfono de la empresa',
                 'type': 'tel'
+            }),
+            'logo_empresa': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/*'
             }),
             'nombre_pac': forms.Select(attrs={
                 'class': 'form-select'
@@ -926,6 +930,7 @@ class ConfiguracionSistemaForm(forms.ModelForm):
             'rfc': 'RFC',
             'direccion': 'Dirección',
             'telefono': 'Teléfono',
+            'logo_empresa': 'Logo de la Empresa',
             'nombre_pac': 'Nombre de PAC',
             'contrato': 'Contrato',
             'usuario_pac': 'Usuario',
@@ -938,6 +943,7 @@ class ConfiguracionSistemaForm(forms.ModelForm):
             'rfc': 'Registro Federal de Contribuyentes de la empresa',
             'direccion': 'Dirección de la empresa',
             'telefono': 'Número de teléfono de la empresa',
+            'logo_empresa': 'Logotipo de la empresa',
             'nombre_pac': 'Proveedor Autorizado de Certificación',
             'contrato': 'Número de contrato con el PAC',
             'usuario_pac': 'Usuario para el PAC',

@@ -823,6 +823,14 @@ class ConfiguracionSistema(models.Model):
         help_text="Número de teléfono de la empresa"
     )
     
+    logo_empresa = models.ImageField(
+        upload_to='logos_empresa/',
+        blank=True,
+        null=True,
+        verbose_name="Logo de la Empresa",
+        help_text="Logotipo de la empresa"
+    )
+    
     # Configuración de timbrado
     PAC_CHOICES = [
         ('PRODIGIA', 'Prodigia'),
