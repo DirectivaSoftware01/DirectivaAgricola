@@ -44,6 +44,9 @@
 
 {% block content %}
 <div class="container-fluid">
+    <!-- CSRF Token -->
+    {% csrf_token %}
+    
     <!-- Header -->
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <h1 class="h2">
@@ -113,16 +116,19 @@
                     <div class="col-md-8">
                         <h4 class="mb-0 text-success">
                             <i class="bi bi-calculator"></i>
-                            Total General de Cobranza
+                            Saldo Pendiente General
                         </h4>
-                        <p class="mb-0 text-muted">Suma de todos los importes liquidados</p>
+                        <p class="mb-0 text-muted">Suma de todos los saldos pendientes</p>
                     </div>
                     <div class="col-md-4 text-end">
                         <h3 class="mb-0 text-success">
-                            ${{ total_general|floatformat:2|intcomma }}
+                            ${{ saldo_general|floatformat:2|intcomma }}
                         </h3>
                         <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="imprimirEstadoCuenta()">
                             <i class="bi bi-printer"></i> Estado de Cuenta
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm mt-2 ms-2" onclick="imprimirReportePagos()">
+                            <i class="bi bi-credit-card"></i> Reporte de Pagos
                         </button>
                     </div>
                 </div>
@@ -133,7 +139,7 @@
 
     <!-- Lista de Clientes y Remisiones -->
     {% if remisiones_agrupadas %}
-        {% for cliente, remisiones, total_cliente in remisiones_agrupadas %}
+        {% for cliente, remisiones, total_cliente, saldo_cliente in remisiones_agrupadas %}
         <div class="row mb-4">
             <div class="col-12">
                 <!-- Header del Cliente -->
@@ -155,13 +161,16 @@
                             <div class="cliente-total">
                                 <h6 class="mb-0 text-primary">
                                     <i class="bi bi-calculator"></i>
-                                    Total Cliente
+                                    Saldo Pendiente Cliente
                                 </h6>
                                 <h4 class="mb-0 text-primary">
-                                    ${{ total_cliente|floatformat:2|intcomma }}
+                                    ${{ saldo_cliente|floatformat:2|intcomma }}
                                 </h4>
                                 <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="imprimirEstadoCuentaCliente('{{ cliente.razon_social }}', {{ cliente.codigo }})">
                                     <i class="bi bi-printer"></i> Estado de Cuenta
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm mt-2 ms-2" onclick="imprimirReportePagosCliente('{{ cliente.razon_social }}', {{ cliente.codigo }})">
+                                    <i class="bi bi-credit-card"></i> Reporte de Pagos
                                 </button>
                             </div>
                         </div>
@@ -175,7 +184,8 @@
                             <tr>
                                 <th>Ciclo - Folio</th>
                                 <th>Fecha</th>
-                                <th>Importe Liquidado</th>
+                                <th class="text-center">Importe Liquidado</th>
+                                <th class="text-center">Saldo Pendiente</th>
                                 <th>Estado Facturación</th>
                                 <th>Estado Pago</th>
                                 <th>Acciones</th>
@@ -188,8 +198,11 @@
                                     <strong>{{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}</strong>
                                 </td>
                                 <td>{{ remision.fecha|date:"d/m/Y" }}</td>
-                                <td class="importe-cell">
+                                <td class="importe-cell text-center">
                                     ${{ importe_remision|floatformat:2|intcomma }}
+                                </td>
+                                <td class="importe-cell text-center">
+                                    ${{ remision.saldo_pendiente|floatformat:2|intcomma }}
                                 </td>
                                 <td>
                                     {% if remision.facturado %}
@@ -236,12 +249,14 @@
                                             <i class="bi bi-cash-coin"></i>
                                         </button>
                                         {% endif %}
+                                        {% if not remision.pagado %}
                                         <button type="button" 
                                                 class="btn btn-sm btn-outline-warning" 
                                                 title="Capturar Pago"
-                                                onclick="capturarPago({{ remision.pk }}, '{{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}', {{ importe_remision }})">
+                                                onclick="capturarPago({{ remision.pk }}, '{{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}', {{ remision.saldo_pendiente }})">
                                             <i class="bi bi-credit-card"></i>
                                         </button>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -462,7 +477,7 @@ function imprimirEstadoCuentaCliente(nombreCliente, codigoCliente) {
     window.open(url, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
 }
 
-function capturarPago(remisionId, folioRemision, importeRemision) {
+function capturarPago(remisionId, folioRemision, saldoPendiente) {
     // Mostrar modal de captura de pago
     document.getElementById('modalConfirmacionLabel').innerHTML = 
         '<i class="bi bi-credit-card"></i> Capturar Pago';
@@ -471,11 +486,11 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
             '<label class="form-label"><strong>Remisión:</strong> ' + folioRemision + '</label>' +
         '</div>' +
         '<div class="mb-3">' +
-            '<label class="form-label"><strong>Importe:</strong> $' + importeRemision.toLocaleString('es-MX', {minimumFractionDigits: 2}) + '</label>' +
+            '<label class="form-label"><strong>Saldo Pendiente:</strong> $' + saldoPendiente.toLocaleString('es-MX', {minimumFractionDigits: 2}) + '</label>' +
         '</div>' +
         '<div class="mb-3">' +
             '<label for="montoPago" class="form-label">Monto del Pago:</label>' +
-            '<input type="number" class="form-control" id="montoPago" step="0.01" min="0" value="' + importeRemision + '" required>' +
+            '<input type="number" class="form-control" id="montoPago" step="0.01" min="0" value="' + saldoPendiente + '" required>' +
         '</div>' +
         '<div class="mb-3">' +
             '<label for="metodoPago" class="form-label">Método de Pago:</label>' +
@@ -484,19 +499,33 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
                 '<option value="efectivo">Efectivo</option>' +
                 '<option value="transferencia">Transferencia Bancaria</option>' +
                 '<option value="cheque">Cheque</option>' +
-                '<option value="tarjeta">Tarjeta de Crédito/Débito</option>' +
             '</select>' +
         '</div>' +
-        '<div class="mb-3" id="cuentaBancariaDiv" style="display: none;">' +
+        '<div class="mb-3" id="cuentaBancariaDiv">' +
             '<label for="cuentaBancaria" class="form-label">Cuenta Bancaria:</label>' +
             '<select class="form-select" id="cuentaBancaria">' +
                 '<option value="">Seleccionar cuenta bancaria...</option>' +
             '</select>' +
         '</div>' +
         '<div class="mb-3">' +
+            '<label for="fechaPago" class="form-label">Fecha de Pago:</label>' +
+            '<input type="date" class="form-control" id="fechaPago" required>' +
+        '</div>' +
+        '<div class="mb-3">' +
+            '<label for="referenciaPago" class="form-label">Referencia/Comprobante (opcional):</label>' +
+            '<input type="text" class="form-control" id="referenciaPago" placeholder="Número de transferencia, cheque, etc.">' +
+        '</div>' +
+        '<div class="mb-3">' +
             '<label for="observacionesPago" class="form-label">Observaciones (opcional):</label>' +
-            '<textarea class="form-control" id="observacionesPago" rows="2" placeholder="Referencia de pago, número de transacción, etc."></textarea>' +
+            '<textarea class="form-control" id="observacionesPago" rows="2" placeholder="Notas adicionales sobre el pago"></textarea>' +
         '</div>';
+    
+    // Establecer fecha actual
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('fechaPago').value = hoy;
+    
+    // Cargar cuentas bancarias
+    cargarCuentasBancarias();
     
     // Configurar el botón de confirmación para captura de pago
     const btnConfirmar = document.getElementById('btnConfirmarAccion');
@@ -510,6 +539,9 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
     nuevoBtnConfirmar.addEventListener('click', function() {
         const montoPago = parseFloat(document.getElementById('montoPago').value);
         const metodoPago = document.getElementById('metodoPago').value;
+        const cuentaBancaria = document.getElementById('cuentaBancaria').value;
+        const fechaPago = document.getElementById('fechaPago').value;
+        const referencia = document.getElementById('referenciaPago').value;
         const observaciones = document.getElementById('observacionesPago').value;
         
         if (!montoPago || montoPago <= 0) {
@@ -522,6 +554,16 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
             return;
         }
         
+        if ((metodoPago === 'transferencia' || metodoPago === 'cheque') && !cuentaBancaria) {
+            alert('Por favor, seleccione una cuenta bancaria para transferencias y cheques.');
+            return;
+        }
+        
+        if (!fechaPago) {
+            alert('Por favor, seleccione una fecha de pago.');
+            return;
+        }
+        
         // Deshabilitar botón y mostrar loading
         nuevoBtnConfirmar.disabled = true;
         nuevoBtnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
@@ -531,21 +573,33 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
             'accion': 'capturar_pago',
             'monto': montoPago,
             'metodo_pago': metodoPago,
+            'cuenta_bancaria': cuentaBancaria,
+            'fecha_pago': fechaPago,
+            'referencia': referencia,
             'observaciones': observaciones,
             'csrfmiddlewaretoken': document.querySelector('[name=csrfmiddlewaretoken]').value
         };
         
         // Enviar petición AJAX
-        fetch(`/ajax/remisiones/${remisionId}/cobranza/`, {
+        console.log('Enviando datos:', data);
+        fetch(`/ajax/remisiones/${remisionId}/capturar-pago/`, {
             method: 'POST',
             body: new URLSearchParams(data),
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
+            },
+            credentials: 'same-origin'
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Respuesta recibida:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('Datos de respuesta:', data);
             if (data.success) {
                 // Mostrar mensaje de éxito
                 const alertDiv = document.createElement('div');
@@ -558,22 +612,26 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
                 
                 // Cerrar modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacion'));
-                modal.hide();
+                if (modal) {
+                    modal.hide();
+                }
                 
                 // Recargar la página para mostrar los cambios
                 setTimeout(() => {
                     window.location.reload();
                 }, 1500);
             } else {
+                console.error('Error en respuesta:', data.error);
                 alert('Error: ' + (data.error || 'Error desconocido'));
+                // Restaurar botón en caso de error
+                nuevoBtnConfirmar.disabled = false;
+                nuevoBtnConfirmar.innerHTML = '<i class="bi bi-credit-card"></i> Capturar Pago';
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            alert('Error de conexión. Por favor, intente nuevamente.');
-        })
-        .finally(() => {
-            // Restaurar botón
+            console.error('Error en fetch:', error);
+            alert('Error de conexión: ' + error.message);
+            // Restaurar botón en caso de error
             nuevoBtnConfirmar.disabled = false;
             nuevoBtnConfirmar.innerHTML = '<i class="bi bi-credit-card"></i> Capturar Pago';
         });
@@ -586,13 +644,12 @@ function capturarPago(remisionId, folioRemision, importeRemision) {
 // Función para mostrar/ocultar campo de cuenta bancaria
 function toggleCuentaBancaria() {
     const metodoPago = document.getElementById('metodoPago').value;
-    const cuentaBancariaDiv = document.getElementById('cuentaBancariaDiv');
+    const cuentaBancariaSelect = document.getElementById('cuentaBancaria');
     
     if (metodoPago === 'transferencia' || metodoPago === 'cheque') {
-        cuentaBancariaDiv.style.display = 'block';
-        cargarCuentasBancarias();
+        cuentaBancariaSelect.required = true;
     } else {
-        cuentaBancariaDiv.style.display = 'none';
+        cuentaBancariaSelect.required = false;
     }
 }
 
@@ -616,6 +673,22 @@ function cargarCuentasBancarias() {
         .catch(error => {
             console.error('Error al cargar cuentas bancarias:', error);
         });
+}
+
+function imprimirReportePagos() {
+    // Abrir ventana de impresión para el reporte general de pagos
+    const url = `/cobranza/reporte-pagos/`;
+    window.open(url, '_blank', 'width=1000,height=700,scrollbars=yes,resizable=yes');
+}
+
+function imprimirReportePagosCliente(clienteNombre, clienteId) {
+    // Construir parámetros para el reporte de pagos del cliente específico
+    const params = new URLSearchParams();
+    params.append('cliente_id', clienteId);
+    
+    // Abrir ventana de impresión para el reporte de pagos del cliente específico
+    const url = `/cobranza/reporte-pagos/?${params}`;
+    window.open(url, '_blank', 'width=1000,height=700,scrollbars=yes,resizable=yes');
 }
 </script>
 {% endblock %}

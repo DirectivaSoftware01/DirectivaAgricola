@@ -62,6 +62,12 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        <!-- Botón Guardar para Ciclo -->
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-primary btn-sm" onclick="guardarSeccion('ciclo')">
+                                                <i class="bi bi-check-lg me-1"></i>Guardar Ciclo
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -234,6 +240,12 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        <!-- Botón Guardar para Timbrado -->
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-primary btn-sm" onclick="guardarSeccion('timbrado')">
+                                                <i class="bi bi-check-lg me-1"></i>Guardar Timbrado
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -309,12 +321,39 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        
+                                        <!-- Grid de certificados existentes -->
+                                        <div class="mt-4">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="card-title mb-0">
+                                                        <i class="bi bi-shield-check me-2"></i>Certificados Registrados
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div id="certificadosList">
+                                                        <!-- Los certificados se cargarán dinámicamente aquí -->
+                                                        <div class="text-center text-muted">
+                                                            <i class="bi bi-shield-check fs-1"></i>
+                                                            <p class="mt-2">No hay certificados registrados</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Botón Guardar para Certificados -->
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-primary btn-sm" onclick="guardarSeccion('certificados')">
+                                                <i class="bi bi-check-lg me-1"></i>Guardar Certificados
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Botones de acción -->
+                        <!-- Botones de acción generales -->
                         <div class="mt-4">
                             <button type="submit" class="btn btn-primary" data-loading="true">
                                 <i class="bi bi-check-lg me-1"></i>Guardar Configuración
@@ -399,7 +438,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (file && !file.name.endsWith('.key')) {
                     showNotification('El archivo de llave debe tener extensión .key', 'warning', 3000);
                     this.value = '';
+                } else {
+                    // Actualizar grid de certificados cuando se selecciona un archivo
+                    cargarCertificados();
                 }
+            });
+        }
+        
+        // Agregar listener para el campo de certificado
+        if (certificadoFile) {
+            certificadoFile.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file && !file.name.endsWith('.cer')) {
+                    showNotification('El archivo de certificado debe tener extensión .cer', 'warning', 3000);
+                    this.value = '';
+                } else {
+                    // Actualizar grid de certificados cuando se selecciona un archivo
+                    cargarCertificados();
+                }
+            });
+        }
+        
+        // Agregar listener para el campo de contraseña
+        const passwordLlave = document.querySelector('input[name="password_llave"]');
+        if (passwordLlave) {
+            passwordLlave.addEventListener('input', function() {
+                // Actualizar grid de certificados cuando se escribe la contraseña
+                cargarCertificados();
             });
         }
     }
@@ -408,17 +473,26 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Cargar cuentas bancarias al cargar la página
     cargarCuentasBancarias();
+    
+    // Cargar certificados al cargar la página
+    cargarCertificados();
 });
 
 // Función para cargar las cuentas bancarias
 function cargarCuentasBancarias() {
+    console.log('Cargando cuentas bancarias...');
     fetch('/ajax/cuentas-bancarias/listar/', {
         credentials: 'same-origin'  // Incluir cookies de sesión
     })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status para listar:', response.status);
+            return response.json();
+        })
         .then(data => {
+            console.log('Datos recibidos:', data);
             const container = document.getElementById('cuentasBancariasList');
             if (data.success && data.cuentas.length > 0) {
+                console.log(`Actualizando HTML con ${data.cuentas.length} cuentas`);
                 container.innerHTML = `
                     <div class="row">
                         ${data.cuentas.map(cuenta => `
@@ -437,9 +511,6 @@ function cargarCuentasBancarias() {
                                                 ${cuenta.activo ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-secondary">Inactiva</span>'}
                                             </small>
                                             <div class="btn-group btn-group-sm">
-                                                <button type="button" class="btn btn-outline-primary" onclick="editarCuentaBancaria(${cuenta.codigo})" title="Editar">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
                                                 <button type="button" class="btn btn-outline-danger" onclick="eliminarCuentaBancaria(${cuenta.codigo})" title="Eliminar">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
@@ -472,10 +543,101 @@ function cargarCuentasBancarias() {
         });
 }
 
-// Función para editar cuenta bancaria
-function editarCuentaBancaria(codigo) {
-    // Implementar funcionalidad de edición
-    showNotification('Funcionalidad de edición en desarrollo', 'info', 3000);
+// Función para cargar los certificados existentes
+function cargarCertificados() {
+    console.log('Cargando certificados...');
+    
+    // Obtener los valores de los campos de certificados
+    const certificadoFile = document.querySelector('input[name="certificado_file"]');
+    const llaveFile = document.querySelector('input[name="llave_file"]');
+    const passwordLlave = document.querySelector('input[name="password_llave"]');
+    
+    const container = document.getElementById('certificadosList');
+    
+    // Verificar si hay certificados cargados en los campos o en el servidor
+    const tieneCertificadoFile = certificadoFile && certificadoFile.files && certificadoFile.files.length > 0;
+    const tieneLlaveFile = llaveFile && llaveFile.files && llaveFile.files.length > 0;
+    const tienePasswordValue = passwordLlave && passwordLlave.value.trim() !== '';
+    
+    // Verificar si hay certificados guardados en el servidor
+    const tieneCertificadoServidor = {{ tiene_certificado|yesno:"true,false" }};
+    const tieneLlaveServidor = {{ tiene_llave|yesno:"true,false" }};
+    const tienePasswordServidor = {{ tiene_password|yesno:"true,false" }};
+    
+    const tieneCertificado = tieneCertificadoFile || tieneCertificadoServidor;
+    const tieneLlave = tieneLlaveFile || tieneLlaveServidor;
+    const tienePassword = tienePasswordValue || tienePasswordServidor;
+    
+    if (tieneCertificado || tieneLlave || tienePassword) {
+        // Obtener nombres de archivos o usar nombres por defecto
+        let nombreCertificado = 'No cargado';
+        let nombreLlave = 'No cargada';
+        
+        if (tieneCertificadoFile) {
+            nombreCertificado = certificadoFile.files[0].name;
+        } else if (tieneCertificadoServidor) {
+            // Usar el nombre del archivo del servidor
+            nombreCertificado = '{{ certificado_nombre|default:"certificado.cer" }}';
+        }
+        
+        if (tieneLlaveFile) {
+            nombreLlave = llaveFile.files[0].name;
+        } else if (tieneLlaveServidor) {
+            // Usar el nombre del archivo del servidor
+            nombreLlave = '{{ llave_nombre|default:"llave.key" }}';
+        }
+        
+        // Mostrar contraseña con asteriscos
+        const passwordDisplay = tienePassword ? '*'.repeat(8) : 'No configurada';
+        
+        container.innerHTML = `
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-shield-check me-2"></i>Certificado Actual
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong>Certificado:</strong><br>
+                                    <span class="badge ${tieneCertificado ? 'bg-success' : 'bg-secondary'}">
+                                        ${nombreCertificado}
+                                    </span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Llave:</strong><br>
+                                    <span class="badge ${tieneLlave ? 'bg-success' : 'bg-secondary'}">
+                                        ${nombreLlave}
+                                    </span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Contraseña:</strong><br>
+                                    <span class="badge ${tienePassword ? 'bg-success' : 'bg-secondary'}">
+                                        ${passwordDisplay}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Al cargar nuevos certificados, se reemplazarán los existentes.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="bi bi-shield-check fs-1"></i>
+                <p class="mt-2">No hay certificados registrados</p>
+                <small>Selecciona los archivos de certificado y llave para comenzar</small>
+            </div>
+        `;
+    }
 }
 
 // Función para agregar cuenta bancaria (llamada desde onclick)
@@ -529,9 +691,14 @@ function agregarCuentaBancaria() {
         if (data && data.success) {
             showNotification('Cuenta bancaria agregada exitosamente', 'success', 3000);
             // Limpiar formulario
-            document.getElementById('cuentaBancariaForm').reset();
-            // Recargar lista de cuentas
-            cargarCuentasBancarias();
+            document.getElementById('nombreBanco').value = '';
+            document.getElementById('numeroCuenta').value = '';
+            document.getElementById('nombreCorto').value = '';
+            // Recargar lista de cuentas con un pequeño delay
+            console.log('Llamando a cargarCuentasBancarias después de agregar...');
+            setTimeout(() => {
+                cargarCuentasBancarias();
+            }, 500);
         } else if (data) {
             showNotification('Error: ' + (data.error || 'Error desconocido'), 'error', 5000);
         }
@@ -572,6 +739,96 @@ function eliminarCuentaBancaria(codigo) {
             showNotification('Error de conexión. Por favor, intente nuevamente.', 'error', 5000);
         });
     }
+}
+
+// Función para guardar secciones independientemente
+function guardarSeccion(seccion) {
+    console.log('Guardando sección:', seccion);
+    
+    // Obtener el formulario principal
+    const form = document.getElementById('configuracionForm');
+    if (!form) {
+        showNotification('Error: No se encontró el formulario', 'error', 3000);
+        return;
+    }
+    
+    // Crear FormData con solo los campos de la sección específica
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    formData.append('seccion', seccion);
+    
+    // Agregar campos según la sección
+    if (seccion === 'ciclo') {
+        const cicloActual = document.querySelector('input[name="ciclo_actual"]');
+        if (cicloActual) {
+            formData.append('ciclo_actual', cicloActual.value);
+        }
+    } else if (seccion === 'timbrado') {
+        const nombrePac = document.querySelector('input[name="nombre_pac"]');
+        const contrato = document.querySelector('input[name="contrato"]');
+        const usuarioPac = document.querySelector('input[name="usuario_pac"]');
+        const passwordPac = document.querySelector('input[name="password_pac"]');
+        
+        if (nombrePac) formData.append('nombre_pac', nombrePac.value);
+        if (contrato) formData.append('contrato', contrato.value);
+        if (usuarioPac) formData.append('usuario_pac', usuarioPac.value);
+        if (passwordPac) formData.append('password_pac', passwordPac.value);
+    } else if (seccion === 'certificados') {
+        const certificadoFile = document.querySelector('input[name="certificado_file"]');
+        const llaveFile = document.querySelector('input[name="llave_file"]');
+        const passwordLlave = document.querySelector('input[name="password_llave"]');
+        
+        if (certificadoFile && certificadoFile.files[0]) {
+            formData.append('certificado_file', certificadoFile.files[0]);
+        }
+        if (llaveFile && llaveFile.files[0]) {
+            formData.append('llave_file', llaveFile.files[0]);
+        }
+        if (passwordLlave) formData.append('password_llave', passwordLlave.value);
+    }
+    
+    // Mostrar loading en el botón correspondiente
+    const boton = event.target;
+    const originalText = boton.innerHTML;
+    boton.disabled = true;
+    boton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Guardando...';
+    
+    // Enviar petición AJAX
+    fetch('/configuracion/sistema/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (response.status === 302) {
+            showNotification('Error: Necesita estar autenticado. Por favor, recargue la página.', 'error', 5000);
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.success) {
+            showNotification(data.message || `Sección ${seccion} guardada exitosamente`, 'success', 3000);
+            // Actualizar grid de certificados si se guardó la sección de certificados
+            if (seccion === 'certificados') {
+                cargarCertificados();
+            }
+        } else {
+            showNotification('Error al guardar la configuración', 'error', 5000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error de conexión. Por favor, intente nuevamente.', 'error', 5000);
+    })
+    .finally(() => {
+        // Restaurar botón
+        boton.disabled = false;
+        boton.innerHTML = originalText;
+    });
 }
 </script>
 {% endblock %}

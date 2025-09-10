@@ -7,7 +7,11 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria
+from django.shortcuts import render
+from django.db.models import Sum, Count
+from django.db import models
+from datetime import datetime
+from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision
 from .forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm
 
 # Create your views here.
@@ -1209,6 +1213,14 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
         
         context['configuracion'] = configuracion
         context['form'] = form
+        
+        # Agregar información sobre certificados existentes
+        context['tiene_certificado'] = bool(configuracion and configuracion.certificado)
+        context['tiene_llave'] = bool(configuracion and configuracion.llave)
+        context['tiene_password'] = bool(configuracion and configuracion.password_llave)
+        context['certificado_nombre'] = configuracion.certificado_nombre if configuracion else ''
+        context['llave_nombre'] = configuracion.llave_nombre if configuracion else ''
+        
         return context
     
     def post(self, request, *args, **kwargs):
@@ -1216,32 +1228,108 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
         try:
             configuracion = ConfiguracionSistema.objects.first()
             
-            form = ConfiguracionSistemaForm(request.POST, request.FILES, instance=configuracion)
+            # Verificar si es un guardado parcial por sección
+            seccion = request.POST.get('seccion')
             
-            if form.is_valid():
-                configuracion = form.save(commit=False)
+            if seccion:
+                # Guardado parcial por sección
+                if seccion == 'ciclo':
+                    if 'ciclo_actual' in request.POST:
+                        if not configuracion:
+                            configuracion = ConfiguracionSistema()
+                        configuracion.ciclo_actual = request.POST.get('ciclo_actual')
+                        if not configuracion.pk:
+                            configuracion.usuario_creacion = request.user
+                        else:
+                            configuracion.usuario_modificacion = request.user
+                        configuracion.save()
+                        messages.success(request, 'Ciclo de producción guardado correctamente.')
                 
-                # Si es una nueva configuración, asignar usuario de creación
-                if not configuracion.pk:
-                    configuracion.usuario_creacion = request.user
-                else:
-                    configuracion.usuario_modificacion = request.user
+                elif seccion == 'timbrado':
+                    if not configuracion:
+                        configuracion = ConfiguracionSistema()
+                    
+                    if 'nombre_pac' in request.POST:
+                        configuracion.nombre_pac = request.POST.get('nombre_pac')
+                    if 'contrato' in request.POST:
+                        configuracion.contrato = request.POST.get('contrato')
+                    if 'usuario_pac' in request.POST:
+                        configuracion.usuario_pac = request.POST.get('usuario_pac')
+                    if 'password_pac' in request.POST:
+                        configuracion.password_pac = request.POST.get('password_pac')
+                    
+                    if not configuracion.pk:
+                        configuracion.usuario_creacion = request.user
+                    else:
+                        configuracion.usuario_modificacion = request.user
+                    configuracion.save()
+                    messages.success(request, 'Configuración de timbrado guardada correctamente.')
                 
-                configuracion.save()
+                elif seccion == 'certificados':
+                    if not configuracion:
+                        configuracion = ConfiguracionSistema()
+                    
+                    # Procesar archivos de certificado y llave
+                    if 'certificado_file' in request.FILES:
+                        certificado_file = request.FILES.get('certificado_file')
+                        # Convertir archivo a base64
+                        import base64
+                        configuracion.certificado = base64.b64encode(certificado_file.read()).decode('utf-8')
+                        # Guardar nombre del archivo original
+                        configuracion.certificado_nombre = certificado_file.name
+                    
+                    if 'llave_file' in request.FILES:
+                        llave_file = request.FILES.get('llave_file')
+                        # Convertir archivo a base64
+                        import base64
+                        configuracion.llave = base64.b64encode(llave_file.read()).decode('utf-8')
+                        # Guardar nombre del archivo original
+                        configuracion.llave_nombre = llave_file.name
+                    
+                    if 'password_llave' in request.POST:
+                        configuracion.password_llave = request.POST.get('password_llave')
+                    
+                    if not configuracion.pk:
+                        configuracion.usuario_creacion = request.user
+                    else:
+                        configuracion.usuario_modificacion = request.user
+                    configuracion.save()
+                    messages.success(request, 'Certificados guardados correctamente.')
                 
-                messages.success(request, 'Configuración guardada correctamente.')
+                # Si es una petición AJAX, devolver JSON
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': True, 'message': 'Sección guardada correctamente'})
+                
                 return redirect('core:configuracion_sistema')
+            
             else:
-                # Mostrar errores específicos del formulario
-                error_messages = []
-                for field, errors in form.errors.items():
-                    for error in errors:
-                        error_messages.append(f"{form.fields[field].label}: {error}")
+                # Guardado completo del formulario
+                form = ConfiguracionSistemaForm(request.POST, request.FILES, instance=configuracion)
                 
-                if error_messages:
-                    messages.error(request, f'Errores en el formulario: {"; ".join(error_messages)}')
+                if form.is_valid():
+                    configuracion = form.save(commit=False)
+                    
+                    # Si es una nueva configuración, asignar usuario de creación
+                    if not configuracion.pk:
+                        configuracion.usuario_creacion = request.user
+                    else:
+                        configuracion.usuario_modificacion = request.user
+                    
+                    configuracion.save()
+                    
+                    messages.success(request, 'Configuración guardada correctamente.')
+                    return redirect('core:configuracion_sistema')
                 else:
-                    messages.error(request, 'Por favor, corrija los errores en el formulario.')
+                    # Mostrar errores específicos del formulario
+                    error_messages = []
+                    for field, errors in form.errors.items():
+                        for error in errors:
+                            error_messages.append(f"{form.fields[field].label}: {error}")
+                    
+                    if error_messages:
+                        messages.error(request, f'Errores en el formulario: {"; ".join(error_messages)}')
+                    else:
+                        messages.error(request, 'Por favor, corrija los errores en el formulario.')
                 
         except Exception as e:
             messages.error(request, f'Error al guardar la configuración: {str(e)}')
@@ -1933,10 +2021,10 @@ class CobranzaListView(LoginRequiredMixin, ListView):
         if fecha_hasta:
             remisiones = remisiones.filter(fecha__lte=fecha_hasta)
         
-        # Filtrar solo las que están preliquidadas usando el método esta_liquidada
+        # Filtrar solo las que están preliquidadas y no pagadas
         remisiones_preliquidadas = []
         for remision in remisiones:
-            if remision.esta_liquidada():
+            if remision.esta_liquidada() and not remision.pagado:
                 remisiones_preliquidadas.append(remision)
         
         # Agrupar por cliente
@@ -1969,9 +2057,11 @@ class CobranzaListView(LoginRequiredMixin, ListView):
         # Calcular totales por cliente y agregar a cada tupla
         remisiones_agrupadas_con_totales = []
         total_general = 0
+        saldo_general = 0
         
         for cliente, remisiones in context['remisiones_agrupadas']:
             total_importe = 0
+            saldo_cliente = 0
             remisiones_con_importe = []
             
             for remision in remisiones:
@@ -1980,18 +2070,24 @@ class CobranzaListView(LoginRequiredMixin, ListView):
                 for detalle in remision.detalles.all():
                     importe_remision += detalle.importe_liquidado
                 
+                # Calcular el saldo pendiente de la remisión
+                saldo_remision = remision.saldo_pendiente
+                
                 # Agregar el importe de la remisión al total del cliente
                 total_importe += importe_remision
+                saldo_cliente += saldo_remision
                 
                 # Crear una tupla con la remisión y su importe
                 remisiones_con_importe.append((remision, importe_remision))
             
-            # Agregar el total a la tupla
-            remisiones_agrupadas_con_totales.append((cliente, remisiones_con_importe, total_importe))
+            # Agregar el total y saldo a la tupla
+            remisiones_agrupadas_con_totales.append((cliente, remisiones_con_importe, total_importe, saldo_cliente))
             total_general += total_importe
+            saldo_general += saldo_cliente
         
         context['remisiones_agrupadas'] = remisiones_agrupadas_con_totales
         context['total_general'] = total_general
+        context['saldo_general'] = saldo_general
         
         return context
 
@@ -2107,10 +2203,10 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         if fecha_hasta:
             remisiones = remisiones.filter(fecha__lte=fecha_hasta)
         
-        # Filtrar solo las que están preliquidadas
+        # Filtrar solo las que están preliquidadas y no pagadas
         remisiones_preliquidadas = []
         for remision in remisiones:
-            if remision.esta_liquidada():
+            if remision.esta_liquidada() and not remision.pagado:
                 remisiones_preliquidadas.append(remision)
         
         # Agrupar por cliente
@@ -2143,9 +2239,11 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         # Calcular totales por cliente y agregar a cada tupla
         remisiones_agrupadas_con_totales = []
         total_general = 0
+        saldo_general = 0
         
         for cliente, remisiones in remisiones_agrupadas:
             total_importe = 0
+            saldo_cliente = 0
             remisiones_con_importe = []
             
             for remision in remisiones:
@@ -2154,18 +2252,24 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
                 for detalle in remision.detalles.all():
                     importe_remision += detalle.importe_liquidado
                 
+                # Calcular el saldo pendiente de la remisión
+                saldo_remision = remision.saldo_pendiente
+                
                 # Agregar el importe de la remisión al total del cliente
                 total_importe += importe_remision
+                saldo_cliente += saldo_remision
                 
                 # Crear una tupla con la remisión y su importe
                 remisiones_con_importe.append((remision, importe_remision))
             
-            # Agregar el total a la tupla
-            remisiones_agrupadas_con_totales.append((cliente, remisiones_con_importe, total_importe))
+            # Agregar el total y saldo a la tupla
+            remisiones_agrupadas_con_totales.append((cliente, remisiones_con_importe, total_importe, saldo_cliente))
             total_general += total_importe
+            saldo_general += saldo_cliente
         
         context['remisiones_agrupadas'] = remisiones_agrupadas_con_totales
         context['total_general'] = total_general
+        context['saldo_general'] = saldo_general
         
         # Información de filtros aplicados
         context['filtros_aplicados'] = {
@@ -2293,3 +2397,177 @@ def eliminar_cuenta_bancaria_ajax(request, codigo):
         return JsonResponse({
             'error': f'Error interno del servidor: {str(e)}'
         }, status=500)
+@login_required
+def capturar_pago_ajax(request, remision_id):
+    """Vista AJAX para capturar pagos de remisiones"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        remision = Remision.objects.get(pk=remision_id)
+        
+        # Obtener datos del formulario
+        monto = float(request.POST.get('monto', 0))
+        metodo_pago = request.POST.get('metodo_pago')
+        cuenta_bancaria_id = request.POST.get('cuenta_bancaria')
+        fecha_pago = request.POST.get('fecha_pago')
+        referencia = request.POST.get('referencia', '')
+        observaciones = request.POST.get('observaciones', '')
+        
+        # Validaciones
+        if monto <= 0:
+            return JsonResponse({'error': 'El monto debe ser mayor a 0'}, status=400)
+        
+        if not metodo_pago:
+            return JsonResponse({'error': 'Debe seleccionar un método de pago'}, status=400)
+        
+        if metodo_pago in ['transferencia', 'cheque'] and not cuenta_bancaria_id:
+            return JsonResponse({'error': 'Debe seleccionar una cuenta bancaria para transferencias y cheques'}, status=400)
+        
+        if not fecha_pago:
+            return JsonResponse({'error': 'Debe seleccionar una fecha de pago'}, status=400)
+        
+        # Obtener cuenta bancaria si es necesaria
+        cuenta_bancaria = None
+        if cuenta_bancaria_id:
+            try:
+                cuenta_bancaria = CuentaBancaria.objects.get(pk=cuenta_bancaria_id, activo=True)
+            except CuentaBancaria.DoesNotExist:
+                return JsonResponse({'error': 'Cuenta bancaria no encontrada'}, status=400)
+        
+        # Crear el pago
+        from datetime import datetime
+        fecha_pago_obj = datetime.strptime(fecha_pago, '%Y-%m-%d').date()
+        
+        pago = PagoRemision.objects.create(
+            remision=remision,
+            cuenta_bancaria=cuenta_bancaria,
+            metodo_pago=metodo_pago,
+            monto=monto,
+            fecha_pago=fecha_pago_obj,
+            referencia=referencia,
+            observaciones=observaciones,
+            usuario_creacion=request.user
+        )
+        
+        # Calcular el total pagado de la remisión
+        total_pagado = PagoRemision.objects.filter(remision=remision, activo=True).aggregate(
+            total=models.Sum('monto')
+        )['total'] or 0
+        
+        # Calcular el total de la remisión (suma de detalles)
+        total_remision = remision.detalles.aggregate(
+            total=models.Sum('importe_liquidado')
+        )['total'] or 0
+        
+        # Marcar como pagada solo si el total pagado es mayor o igual al total de la remisión
+        if total_pagado >= total_remision:
+            remision.pagado = True
+            remision.fecha_pago = fecha_pago_obj
+            remision.save()
+        return JsonResponse({
+            'success': True,
+            'message': f'Pago de ${monto:,.2f} capturado correctamente',
+            'pago_id': pago.codigo
+        })
+        
+    except Remision.DoesNotExist:
+        return JsonResponse({'error': 'Remisión no encontrada'}, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error al capturar el pago: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def reporte_pagos_view(request):
+    """Vista para mostrar reporte de pagos agrupados por cuenta bancaria"""
+    # Obtener parámetros de filtro
+    cliente_id = request.GET.get('cliente_id') or request.GET.get('cliente')
+    fecha_desde = request.GET.get('fecha_desde')
+    fecha_hasta = request.GET.get('fecha_hasta')
+    remision = request.GET.get('remision')
+    cuenta_bancaria_id = request.GET.get('cuenta_bancaria')
+    metodo_pago = request.GET.get('metodo_pago')
+    
+    # Obtener pagos
+    pagos_query = PagoRemision.objects.filter(activo=True).select_related(
+        'remision', 'cuenta_bancaria', 'remision__cliente'
+    )
+    
+    # Aplicar filtros
+    if cliente_id:
+        pagos_query = pagos_query.filter(remision__cliente_id=cliente_id)
+        cliente = Cliente.objects.get(pk=cliente_id)
+        titulo = f"Reporte de Pagos - {cliente.razon_social}"
+    else:
+        cliente = None
+        titulo = "Reporte General de Pagos"
+    
+    if fecha_desde:
+        pagos_query = pagos_query.filter(fecha_pago__gte=fecha_desde)
+    
+    if fecha_hasta:
+        pagos_query = pagos_query.filter(fecha_pago__lte=fecha_hasta)
+    
+    if remision:
+        # Buscar por ciclo-folio
+        if '-' in remision:
+            try:
+                ciclo, folio = remision.split('-', 1)
+                pagos_query = pagos_query.filter(
+                    remision__ciclo=ciclo,
+                    remision__folio=int(folio)
+                )
+            except (ValueError, IndexError):
+                pass  # Si no se puede parsear, no filtrar
+    
+    if cuenta_bancaria_id:
+        if cuenta_bancaria_id == 'efectivo':
+            pagos_query = pagos_query.filter(cuenta_bancaria__isnull=True)
+        else:
+            pagos_query = pagos_query.filter(cuenta_bancaria_id=cuenta_bancaria_id)
+    
+    if metodo_pago:
+        pagos_query = pagos_query.filter(metodo_pago=metodo_pago)
+    
+    # Agrupar por cuenta bancaria
+    pagos_por_cuenta = {}
+    total_general = 0
+    
+    for pago in pagos_query:
+        if pago.cuenta_bancaria:
+            cuenta_key = pago.cuenta_bancaria.codigo
+            cuenta_nombre = pago.cuenta_bancaria.nombre_corto
+        else:
+            cuenta_key = f'efectivo_{pago.metodo_pago}'
+            cuenta_nombre = f'Efectivo ({pago.get_metodo_pago_display()})'
+        
+        if cuenta_key not in pagos_por_cuenta:
+            pagos_por_cuenta[cuenta_key] = {
+                'cuenta_nombre': cuenta_nombre,
+                'pagos': [],
+                'total': 0,
+                'cantidad': 0
+            }
+        
+        pagos_por_cuenta[cuenta_key]['pagos'].append(pago)
+        pagos_por_cuenta[cuenta_key]['total'] += pago.monto
+        pagos_por_cuenta[cuenta_key]['cantidad'] += 1
+        total_general += pago.monto
+    
+    # Obtener datos para el modal de filtros
+    clientes = Cliente.objects.all().order_by('razon_social')
+    cuentas_bancarias = CuentaBancaria.objects.filter(activo=True).order_by('nombre_corto')
+    
+    context = {
+        'titulo': titulo,
+        'cliente': cliente,
+        'pagos_por_cuenta': pagos_por_cuenta,
+        'total_general': total_general,
+        'fecha_reporte': datetime.now().strftime('%d/%m/%Y %H:%M'),
+        'clientes': clientes,
+        'cuentas_bancarias': cuentas_bancarias,
+    }
+    
+    return render(request, 'core/reporte_pagos.html', context)

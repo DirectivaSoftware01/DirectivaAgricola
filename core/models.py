@@ -830,11 +830,27 @@ class ConfiguracionSistema(models.Model):
         help_text="Certificado en formato base64"
     )
     
+    certificado_nombre = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Nombre del certificado",
+        help_text="Nombre original del archivo de certificado"
+    )
+    
     llave = models.TextField(
         blank=True,
         null=True,
         verbose_name="Llave",
         help_text="Llave privada en formato base64"
+    )
+    
+    llave_nombre = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Nombre de la llave",
+        help_text="Nombre original del archivo de llave"
     )
     
     password_llave = models.CharField(
@@ -1006,6 +1022,20 @@ class Remision(models.Model):
         help_text="Observaciones adicionales sobre la remisión"
     )
     
+    # Campos de estado de pago
+    pagado = models.BooleanField(
+        default=False,
+        verbose_name="Pagado",
+        help_text="Indica si la remisión ha sido pagada"
+    )
+    
+    fecha_pago = models.DateField(
+        blank=True,
+        null=True,
+        verbose_name="Fecha de Pago",
+        help_text="Fecha en que se realizó el pago"
+    )
+    
     # Campos de auditoría
     fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
     fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de modificación")
@@ -1102,6 +1132,24 @@ class Remision(models.Model):
                 detalle.fecha_liquidacion is not None):
                 return True
         return False
+    
+    @property
+    def saldo_pendiente(self):
+        """Calcular el saldo pendiente de la remisión (importe liquidado - pagos realizados)"""
+        from django.db import models
+        
+        # Calcular el importe total liquidado de la remisión
+        importe_total = self.detalles.aggregate(
+            total=models.Sum('importe_liquidado')
+        )['total'] or 0
+        
+        # Calcular el total de pagos realizados
+        total_pagos = self.pagos.filter(activo=True).aggregate(
+            total=models.Sum('monto')
+        )['total'] or 0
+        
+        # El saldo pendiente es la diferencia
+        return importe_total - total_pagos
     
     def __str__(self):
         return f"{self.ciclo} - {self.folio:06d}"
@@ -1414,3 +1462,36 @@ class CuentaBancaria(models.Model):
         """Guardar con validaciones"""
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class PagoRemision(models.Model):
+    """Modelo para registrar pagos de remisiones"""
+    codigo = models.AutoField(primary_key=True, verbose_name="Código")
+    remision = models.ForeignKey(Remision, on_delete=models.CASCADE, related_name='pagos', verbose_name="Remisión")
+    cuenta_bancaria = models.ForeignKey(CuentaBancaria, on_delete=models.CASCADE, verbose_name="Cuenta Bancaria", blank=True, null=True)
+    metodo_pago = models.CharField(
+        max_length=20,
+        choices=[
+            ('efectivo', 'Efectivo'),
+            ('transferencia', 'Transferencia'),
+            ('cheque', 'Cheque'),
+        ],
+        verbose_name="Método de Pago"
+    )
+    monto = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Monto")
+    fecha_pago = models.DateField(verbose_name="Fecha de Pago")
+    referencia = models.CharField(max_length=100, blank=True, null=True, verbose_name="Referencia/Comprobante")
+    observaciones = models.TextField(blank=True, null=True, verbose_name="Observaciones")
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    usuario_creacion = models.ForeignKey('Usuario', on_delete=models.SET_NULL, null=True, blank=True, related_name='pagos_creados', verbose_name="Usuario de Creación")
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Última Modificación")
+    usuario_modificacion = models.ForeignKey('Usuario', on_delete=models.SET_NULL, null=True, blank=True, related_name='pagos_modificados', verbose_name="Usuario de Última Modificación")
+
+    class Meta:
+        verbose_name = "Pago de Remisión"
+        verbose_name_plural = "Pagos de Remisiones"
+        ordering = ['-fecha_pago', '-fecha_creacion']
+
+    def __str__(self):
+        return f"Pago {self.codigo} - {self.remision.ciclo} - {self.remision.folio:06d} - ${self.monto}"

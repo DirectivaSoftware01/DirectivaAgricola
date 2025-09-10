@@ -1,0 +1,332 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ titulo }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-break {
+                page-break-before: always;
+            }
+            body {
+                font-size: 12px;
+            }
+            .table {
+                font-size: 11px;
+            }
+        }
+        
+        .header-print {
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .cuenta-section {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        
+        .cuenta-header {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .total-section {
+            background-color: #e3f2fd;
+            border: 2px solid #2196f3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .filtros-section {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .estado-badge {
+            font-size: 0.8em;
+            padding: 2px 6px;
+        }
+        
+        .importe-cell {
+            text-align: right;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header del reporte -->
+        <div class="header-print">
+            <div class="row">
+                <div class="col-8">
+                    <h2 class="mb-1">
+                        <i class="bi bi-credit-card"></i>
+                        {{ titulo }}
+                    </h2>
+                    <p class="mb-0 text-muted">
+                        Reporte de pagos recibidos agrupados por cuenta bancaria
+                    </p>
+                </div>
+                <div class="col-4 text-end">
+                    <p class="mb-0">
+                        <strong>Fecha de impresión:</strong><br>
+                        {{ "now"|date:"d/m/Y H:i" }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botones de control (no se imprimen) -->
+        <div class="no-print mb-3">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalFiltros">
+                    <i class="bi bi-funnel"></i> Filtros
+                </button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">
+                    <i class="bi bi-printer"></i> Imprimir
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="window.close()">
+                    <i class="bi bi-x-circle"></i> Cerrar
+                </button>
+            </div>
+        </div>
+
+        <!-- Resumen General -->
+        {% if total_general > 0 %}
+        <div class="total-section">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="mb-0 text-primary">
+                        <i class="bi bi-calculator"></i>
+                        Total General de Pagos
+                    </h4>
+                    <p class="mb-0 text-muted">Suma de todos los pagos recibidos</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <h3 class="mb-0 text-primary">
+                        ${{ total_general|floatformat:2|intcomma }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Lista de Cuentas y Pagos -->
+        {% if pagos_por_cuenta %}
+            {% for cuenta_key, cuenta_data in pagos_por_cuenta.items %}
+            <div class="cuenta-section">
+                <!-- Header de la Cuenta -->
+                <div class="cuenta-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5 class="mb-1">
+                                <i class="bi bi-bank"></i>
+                                {{ cuenta_data.cuenta_nombre }}
+                            </h5>
+                            <p class="mb-0 text-muted">
+                                <i class="bi bi-credit-card"></i> Cuenta Bancaria
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="cliente-total">
+                                <h6 class="mb-0 text-primary">
+                                    <i class="bi bi-calculator"></i>
+                                    Total Cuenta
+                                </h6>
+                                <h4 class="mb-0 text-primary">
+                                    ${{ cuenta_data.total|floatformat:2|intcomma }}
+                                </h4>
+                                <p class="mb-1 text-muted">
+                                    <strong>{{ cuenta_data.cantidad }} pago{{ cuenta_data.cantidad|pluralize }}</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de Pagos de la Cuenta -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Remisión</th>
+                                <th>Cliente</th>
+                                <th>Método de Pago</th>
+                                <th>Referencia</th>
+                                <th>Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pago in cuenta_data.pagos %}
+                            <tr>
+                                <td>{{ pago.fecha_pago|date:"d/m/Y" }}</td>
+                                <td>
+                                    <strong>{{ pago.remision.ciclo }} - {{ pago.remision.folio|stringformat:"06d" }}</strong>
+                                </td>
+                                <td>{{ pago.remision.cliente.razon_social }}</td>
+                                <td>
+                                    {% if pago.metodo_pago == 'efectivo' %}
+                                        <span class="badge bg-success estado-badge">
+                                            <i class="bi bi-cash"></i> Efectivo
+                                        </span>
+                                    {% elif pago.metodo_pago == 'transferencia' %}
+                                        <span class="badge bg-info estado-badge">
+                                            <i class="bi bi-arrow-left-right"></i> Transferencia
+                                        </span>
+                                    {% elif pago.metodo_pago == 'cheque' %}
+                                        <span class="badge bg-warning estado-badge">
+                                            <i class="bi bi-receipt"></i> Cheque
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ pago.referencia|default:"-" }}</td>
+                                <td class="importe-cell">
+                                    ${{ pago.monto|floatformat:2|intcomma }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <!-- Mensaje cuando no hay pagos -->
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle fs-1"></i>
+                <h4 class="mt-3">No hay pagos registrados</h4>
+                <p class="mb-0">
+                    No se encontraron pagos para mostrar en el reporte.
+                </p>
+            </div>
+        {% endif %}
+
+        <!-- Pie del reporte -->
+        <div class="mt-4 pt-3 border-top">
+            <div class="row">
+                <div class="col-6">
+                    <small class="text-muted">
+                        Generado por: Directiva Agrícola<br>
+                        Directiva Software - Estrategia digital para su empresa
+                    </small>
+                </div>
+                <div class="col-6 text-end">
+                    <small class="text-muted">
+                        Página 1 de 1<br>
+                        {{ "now"|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Filtros -->
+    <div class="modal fade" id="modalFiltros" tabindex="-1" aria-labelledby="modalFiltrosLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalFiltrosLabel">
+                        <i class="bi bi-funnel"></i> Filtros del Reporte
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="get" id="formFiltros">
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="fecha_desde" class="form-label">Fecha de Pago Desde:</label>
+                                <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" value="{{ request.GET.fecha_desde|default:'' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="fecha_hasta" class="form-label">Fecha de Pago Hasta:</label>
+                                <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" value="{{ request.GET.fecha_hasta|default:'' }}">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="remision" class="form-label">Remisión:</label>
+                                <input type="text" class="form-control" id="remision" name="remision" placeholder="Ej: 2025-2026-000001" value="{{ request.GET.remision|default:'' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="cliente" class="form-label">Cliente:</label>
+                                <select class="form-select" id="cliente" name="cliente">
+                                    <option value="">Todos los clientes</option>
+                                    {% for cliente in clientes %}
+                                    <option value="{{ cliente.codigo }}" {% if request.GET.cliente == cliente.codigo|stringformat:"s" %}selected{% endif %}>
+                                        {{ cliente.razon_social }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="cuenta_bancaria" class="form-label">Cuenta Bancaria:</label>
+                                <select class="form-select" id="cuenta_bancaria" name="cuenta_bancaria">
+                                    <option value="">Todas las cuentas</option>
+                                    <option value="efectivo" {% if request.GET.cuenta_bancaria == 'efectivo' %}selected{% endif %}>Efectivo</option>
+                                    {% for cuenta in cuentas_bancarias %}
+                                    <option value="{{ cuenta.codigo }}" {% if request.GET.cuenta_bancaria == cuenta.codigo|stringformat:"s" %}selected{% endif %}>
+                                        {{ cuenta.nombre_corto }} - {{ cuenta.nombre_banco }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="metodo_pago" class="form-label">Método de Pago:</label>
+                                <select class="form-select" id="metodo_pago" name="metodo_pago">
+                                    <option value="">Todos los métodos</option>
+                                    <option value="efectivo" {% if request.GET.metodo_pago == 'efectivo' %}selected{% endif %}>Efectivo</option>
+                                    <option value="transferencia" {% if request.GET.metodo_pago == 'transferencia' %}selected{% endif %}>Transferencia Bancaria</option>
+                                    <option value="cheque" {% if request.GET.metodo_pago == 'cheque' %}selected{% endif %}>Cheque</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" onclick="limpiarFiltros()">
+                            <i class="bi bi-arrow-clockwise"></i> Limpiar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Aplicar Filtros
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function limpiarFiltros() {
+            document.getElementById('fecha_desde').value = '';
+            document.getElementById('fecha_hasta').value = '';
+            document.getElementById('remision').value = '';
+            document.getElementById('cliente').value = '';
+            document.getElementById('cuenta_bancaria').value = '';
+            document.getElementById('metodo_pago').value = '';
+        }
+    </script>
+</body>
+</html>
