@@ -2776,7 +2776,18 @@ class PresupuestoListView(LoginRequiredMixin, ListView):
     paginate_by = 20
     
     def get_queryset(self):
-        queryset = Presupuesto.objects.filter(activo=True).select_related('centro_costo', 'usuario_creacion')
+        # Obtener el ciclo actual de la configuración
+        try:
+            config = ConfiguracionSistema.objects.first()
+            ciclo_actual = config.ciclo_actual if config else ''
+        except:
+            ciclo_actual = ''
+        
+        # Filtrar por ciclo actual si está configurado
+        if ciclo_actual:
+            queryset = Presupuesto.objects.filter(activo=True, ciclo=ciclo_actual).select_related('centro_costo', 'usuario_creacion')
+        else:
+            queryset = Presupuesto.objects.filter(activo=True).select_related('centro_costo', 'usuario_creacion')
         
         # Aplicar filtros de búsqueda
         busqueda = self.request.GET.get('busqueda', '')
