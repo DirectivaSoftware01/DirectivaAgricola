@@ -268,17 +268,10 @@
             <div class="company-logo">Directiva Agrícola</div>
             <div class="company-slogan">PASIÓN QUE CREA CALIDAD</div>
             <div class="company-details">
-                {% if config %}
-                    <strong>{{ config.nombre_pac|default:"Directiva Agrícola" }}</strong><br>
-                    RFC: {{ config.contrato|default:"RFC123456789" }}<br>
-                    {% if config.direccion %}{{ config.direccion }}<br>{% endif %}
-                    {% if config.telefono %}Tel: {{ config.telefono }}{% endif %}
-                {% else %}
-                    <strong>Directiva Agrícola</strong><br>
-                    RFC: RFC123456789<br>
-                    Ciudad Obregón, Sonora<br>
-                    Tel: 644-135-1366
-                {% endif %}
+                <strong>Directiva Agrícola</strong><br>
+                RFC: RFC123456789<br>
+                Ciudad Obregón, Sonora<br>
+                Tel: 644-135-1366
             </div>
         </div>
         <div class="document-info">
@@ -446,43 +439,15 @@
         </div>
     </div>
 
-    <!-- Información de Pago -->
-    {% if config %}
-    <div class="payment-section">
-        <div class="payment-title">Datos para Pago</div>
-        <div class="payment-grid">
-            <div>
-                <div class="client-field">
-                    <div class="field-label">Banco:</div>
-                    <div class="field-value">{{ config.banco|default:"No especificado" }}</div>
-                </div>
-                <div class="client-field">
-                    <div class="field-label">N° Cuenta:</div>
-                    <div class="field-value">{{ config.numero_cuenta|default:"No especificado" }}</div>
-                </div>
-            </div>
-            <div>
-                <div class="client-field">
-                    <div class="field-label">Cuenta CLABE:</div>
-                    <div class="field-value">{{ config.cuenta_clabe|default:"No especificado" }}</div>
-                </div>
-                <div class="client-field">
-                    <div class="field-label">Email:</div>
-                    <div class="field-value">{{ config.email|default:"No especificado" }}</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 
     <!-- Aviso Importante -->
     <div class="notice-section">
         <div class="notice-title">Aviso Importante</div>
         <p>Llenar formato de preliquidación anexo y enviarlo dentro de los primeros 5 días hábiles después de recibida la mercancía. En caso de requerir factura, solicitarla dentro del mismo mes del pago.</p>
         <p style="margin-top: 10px;">
-            <strong>Atte: {{ config.nombre_pac|default:"Directiva Agrícola" }}</strong><br>
-            {% if config.telefono %}Tel: {{ config.telefono }}{% endif %}<br>
-            {% if config.email %}{{ config.email }}{% endif %}
+            <strong>Atte: Directiva Agrícola</strong><br>
+            Tel: 644-135-1366<br>
+            contabilidad@directivaagricola.com
         </p>
     </div>
 
