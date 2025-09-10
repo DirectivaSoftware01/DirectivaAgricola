@@ -870,6 +870,16 @@ function guardarSeccion(seccion) {
         if (contrato) formData.append('contrato', contrato.value);
         if (usuarioPac) formData.append('usuario_pac', usuarioPac.value);
         if (passwordPac) formData.append('password_pac', passwordPac.value);
+    } else if (seccion === 'empresa') {
+        const razonSocial = document.querySelector('input[name="razon_social"]');
+        const rfc = document.querySelector('input[name="rfc"]');
+        const direccion = document.querySelector('textarea[name="direccion"]');
+        const telefono = document.querySelector('input[name="telefono"]');
+        
+        if (razonSocial) formData.append('razon_social', razonSocial.value);
+        if (rfc) formData.append('rfc', rfc.value);
+        if (direccion) formData.append('direccion', direccion.value);
+        if (telefono) formData.append('telefono', telefono.value);
     } else if (seccion === 'certificados') {
         const certificadoFile = document.querySelector('input[name="certificado_file"]');
         const llaveFile = document.querySelector('input[name="llave_file"]');
