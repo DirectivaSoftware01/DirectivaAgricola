@@ -430,18 +430,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: new URLSearchParams(data),
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': data.csrfmiddlewaretoken
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (response.status === 302) {
+                    showNotification('Error: Necesita estar autenticado. Por favor, recargue la página.', 'error', 5000);
+                    return;
+                }
+                return response.json();
+            })
             .then(data => {
-                if (data.success) {
+                if (data && data.success) {
                     showNotification('Cuenta bancaria agregada exitosamente', 'success', 3000);
                     // Limpiar formulario
                     this.reset();
                     // Recargar lista de cuentas
                     cargarCuentasBancarias();
-                } else {
+                } else if (data) {
                     showNotification('Error: ' + (data.error || 'Error desconocido'), 'error', 5000);
                 }
             })
@@ -554,3 +561,4 @@ function eliminarCuentaBancaria(codigo) {
 }
 </script>
 {% endblock %}
+
