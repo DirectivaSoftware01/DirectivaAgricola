@@ -290,17 +290,25 @@
     <div class="header">
         <div class="company-info">
             <div class="company-logo-section">
-                <img src="/static/images/logoAgroDam.png" alt="Directiva Agrícola" class="company-logo-img">
-                <div class="company-text">
-                    <div class="company-logo">Directiva Agrícola</div>
-                    <div class="company-slogan">PASIÓN QUE CREA CALIDAD</div>
-                </div>
+                {% if configuracion.logo_empresa %}
+                    <img src="{{ configuracion.logo_empresa.url }}" alt="{{ configuracion.razon_social|default:'Empresa' }}" class="company-logo-img">
+                {% else %}
+                    <img src="/static/images/logoAgroDam.png" alt="{{ configuracion.razon_social|default:'Empresa' }}" class="company-logo-img">
+                {% endif %}
             </div>
             <div class="company-details">
-                <strong>Directiva Agrícola</strong><br>
-                RFC: RFC123456789<br>
-                Ciudad Obregón, Sonora<br>
-                Tel: 644-135-1366
+                {% if configuracion.razon_social %}
+                    <strong>{{ configuracion.razon_social }}</strong><br>
+                {% endif %}
+                {% if configuracion.rfc %}
+                    RFC: {{ configuracion.rfc }}<br>
+                {% endif %}
+                {% if configuracion.direccion %}
+                    {{ configuracion.direccion }}<br>
+                {% endif %}
+                {% if configuracion.telefono %}
+                    Tel: {{ configuracion.telefono }}
+                {% endif %}
             </div>
         </div>
         <div class="document-info">

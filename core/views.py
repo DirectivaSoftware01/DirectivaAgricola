@@ -1836,6 +1836,11 @@ class RemisionImprimirView(LoginRequiredMixin, TemplateView):
         remision = get_object_or_404(Remision, pk=kwargs['pk'])
         context['remision'] = remision
         context['detalles'] = remision.detalles.all()
+        
+        # Obtener datos de configuración de la empresa
+        configuracion = ConfiguracionSistema.objects.first()
+        context['configuracion'] = configuracion
+        
         return context
 
 
