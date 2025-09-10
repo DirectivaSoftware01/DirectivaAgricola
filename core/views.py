@@ -1247,6 +1247,26 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
                         configuracion.save()
                         messages.success(request, 'Ciclo de producción guardado correctamente.')
                 
+                elif seccion == 'empresa':
+                    if not configuracion:
+                        configuracion = ConfiguracionSistema()
+                    
+                    if 'razon_social' in request.POST:
+                        configuracion.razon_social = request.POST.get('razon_social')
+                    if 'rfc' in request.POST:
+                        configuracion.rfc = request.POST.get('rfc')
+                    if 'direccion' in request.POST:
+                        configuracion.direccion = request.POST.get('direccion')
+                    if 'telefono' in request.POST:
+                        configuracion.telefono = request.POST.get('telefono')
+                    
+                    if not configuracion.pk:
+                        configuracion.usuario_creacion = request.user
+                    else:
+                        configuracion.usuario_modificacion = request.user
+                    configuracion.save()
+                    messages.success(request, 'Datos de la empresa guardados correctamente.')
+                
                 elif seccion == 'timbrado':
                     if not configuracion:
                         configuracion = ConfiguracionSistema()

@@ -873,6 +873,7 @@ class ConfiguracionSistemaForm(forms.ModelForm):
         model = ConfiguracionSistema
         fields = [
             'ciclo_actual',
+            'razon_social', 'rfc', 'direccion', 'telefono',
             'nombre_pac', 'contrato', 'usuario_pac', 'password_pac',
             'password_llave'
         ]
@@ -880,6 +881,24 @@ class ConfiguracionSistemaForm(forms.ModelForm):
             'ciclo_actual': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Ej: Ciclo 2024-2025'
+            }),
+            'razon_social': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Razón social de la empresa'
+            }),
+            'rfc': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'RFC de la empresa'
+            }),
+            'direccion': forms.Textarea(attrs={
+                'class': 'form-control',
+                'placeholder': 'Dirección de la empresa',
+                'rows': 3
+            }),
+            'telefono': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Teléfono de la empresa',
+                'type': 'tel'
             }),
             'nombre_pac': forms.Select(attrs={
                 'class': 'form-select'
@@ -903,6 +922,10 @@ class ConfiguracionSistemaForm(forms.ModelForm):
         }
         labels = {
             'ciclo_actual': 'Ciclo actual',
+            'razon_social': 'Razón Social',
+            'rfc': 'RFC',
+            'direccion': 'Dirección',
+            'telefono': 'Teléfono',
             'nombre_pac': 'Nombre de PAC',
             'contrato': 'Contrato',
             'usuario_pac': 'Usuario',
@@ -911,6 +934,10 @@ class ConfiguracionSistemaForm(forms.ModelForm):
         }
         help_texts = {
             'ciclo_actual': 'Nombre del ciclo de producción actual',
+            'razon_social': 'Razón social de la empresa',
+            'rfc': 'Registro Federal de Contribuyentes de la empresa',
+            'direccion': 'Dirección de la empresa',
+            'telefono': 'Número de teléfono de la empresa',
             'nombre_pac': 'Proveedor Autorizado de Certificación',
             'contrato': 'Número de contrato con el PAC',
             'usuario_pac': 'Usuario para el PAC',

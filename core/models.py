@@ -790,6 +790,39 @@ class ConfiguracionSistema(models.Model):
         help_text="Nombre del ciclo de producción actual"
     )
     
+    # Datos de la empresa
+    razon_social = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Razón Social",
+        help_text="Razón social de la empresa"
+    )
+    
+    rfc = models.CharField(
+        max_length=13,
+        blank=True,
+        validators=[validar_rfc],
+        verbose_name="RFC",
+        help_text="Registro Federal de Contribuyentes de la empresa"
+    )
+    
+    direccion = models.TextField(
+        blank=True,
+        verbose_name="Dirección",
+        help_text="Dirección de la empresa"
+    )
+    
+    telefono = models.CharField(
+        max_length=15,
+        blank=True,
+        validators=[RegexValidator(
+            regex=r'^[\d\s\-\+\(\)]+$',
+            message='El teléfono solo puede contener números, espacios, guiones, paréntesis y el signo más'
+        )],
+        verbose_name="Teléfono",
+        help_text="Número de teléfono de la empresa"
+    )
+    
     # Configuración de timbrado
     PAC_CHOICES = [
         ('PRODIGIA', 'Prodigia'),
