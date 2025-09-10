@@ -1462,9 +1462,22 @@ class RemisionListView(LoginRequiredMixin, ListView):
     paginate_by = 20
     
     def get_queryset(self):
-        queryset = Remision.objects.select_related(
-            'cliente', 'lote_origen', 'transportista', 'usuario_creacion'
-        ).all()
+        # Obtener el ciclo actual de la configuración
+        try:
+            config = ConfiguracionSistema.objects.first()
+            ciclo_actual = config.ciclo_actual if config else ''
+        except:
+            ciclo_actual = ''
+        
+        # Filtrar por ciclo actual si está configurado
+        if ciclo_actual:
+            queryset = Remision.objects.select_related(
+                'cliente', 'lote_origen', 'transportista', 'usuario_creacion'
+            ).filter(ciclo=ciclo_actual)
+        else:
+            queryset = Remision.objects.select_related(
+                'cliente', 'lote_origen', 'transportista', 'usuario_creacion'
+            ).all()
         
         # Obtener parámetros de búsqueda
         form = RemisionSearchForm(self.request.GET)
@@ -1511,6 +1524,14 @@ class RemisionListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['search_form'] = RemisionSearchForm(self.request.GET)
         context['title'] = 'Gestión de Remisiones'
+        
+        # Agregar ciclo actual al contexto
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else ''
+        except:
+            context['ciclo_actual'] = ''
+        
         return context
 
 
