@@ -26,10 +26,20 @@ from .views import (
     RemisionListView, RemisionCreateView, RemisionUpdateView, RemisionDeleteView, RemisionDetailView,
     RemisionDetalleCreateView, RemisionDetalleUpdateView, RemisionDetalleDeleteView,
     RemisionLiquidacionView, CobranzaListView, CobranzaImprimirView,
+    # Vistas de Presupuestos (estructura anterior)
+    PresupuestoGastoListView, PresupuestoGastoCreateView, PresupuestoGastoUpdateView, PresupuestoGastoDeleteView,
+    presupuesto_gasto_ajax,
+    # Vistas de Presupuestos (nueva estructura)
+    PresupuestoListView, PresupuestoCreateView, PresupuestoUpdateView, PresupuestoDeleteView, PresupuestoDetailView,
+    # Vistas de Gastos
+    GastoListView, GastoCreateView, GastoUpdateView, GastoDeleteView, GastoDetailView,
+    # Vistas de Formulario de Gastos
+    PresupuestoGastoFormView, PresupuestoGastosReporteView,
     # Vistas AJAX
     get_cultivos_ajax, cancelar_remision_ajax, actualizar_estado_cobranza_ajax,
     agregar_cuenta_bancaria_ajax, listar_cuentas_bancarias_ajax, eliminar_cuenta_bancaria_ajax,
-    capturar_pago_ajax, reporte_pagos_view
+    capturar_pago_ajax, reporte_pagos_view, clasificaciones_gastos_ajax, presupuesto_detalle_ajax,
+    proveedores_ajax, clasificaciones_gastos_presupuesto_ajax
 )
 
 app_name = 'core'
@@ -135,4 +145,36 @@ urlpatterns = [
     path('ajax/cuentas-bancarias/eliminar/<int:codigo>/', eliminar_cuenta_bancaria_ajax, name='eliminar_cuenta_bancaria_ajax'),
     path('ajax/remisiones/<int:remision_id>/capturar-pago/', capturar_pago_ajax, name='capturar_pago_ajax'),
     path('cobranza/reporte-pagos/', reporte_pagos_view, name='reporte_pagos'),
+    
+    # URLs de Presupuestos (estructura anterior)
+    path('presupuestos-gasto/', PresupuestoGastoListView.as_view(), name='presupuesto_gasto_list'),
+    path('presupuestos-gasto/crear/', PresupuestoGastoCreateView.as_view(), name='presupuesto_gasto_create'),
+    path('presupuestos-gasto/<int:pk>/editar/', PresupuestoGastoUpdateView.as_view(), name='presupuesto_gasto_update'),
+    path('presupuestos-gasto/<int:pk>/eliminar/', PresupuestoGastoDeleteView.as_view(), name='presupuesto_gasto_delete'),
+    path('ajax/presupuestos-gasto/<int:pk>/', presupuesto_gasto_ajax, name='presupuesto_gasto_ajax'),
+    
+    # URLs de Presupuestos (nueva estructura)
+    path('presupuestos/', PresupuestoListView.as_view(), name='presupuesto_list'),
+    path('presupuestos/crear/', PresupuestoCreateView.as_view(), name='presupuesto_create'),
+    path('presupuestos/<int:pk>/', PresupuestoDetailView.as_view(), name='presupuesto_detail'),
+    path('presupuestos/<int:pk>/editar/', PresupuestoUpdateView.as_view(), name='presupuesto_update'),
+    path('presupuestos/<int:pk>/eliminar/', PresupuestoDeleteView.as_view(), name='presupuesto_delete'),
+    path('ajax/presupuestos/<int:pk>/detalle/', presupuesto_detalle_ajax, name='presupuesto_detalle_ajax'),
+    
+    # URLs de Gastos
+    path('gastos/', GastoListView.as_view(), name='gasto_list'),
+    path('gastos/crear/', GastoCreateView.as_view(), name='gasto_create'),
+    path('gastos/<int:pk>/', GastoDetailView.as_view(), name='gasto_detail'),
+    path('gastos/<int:pk>/editar/', GastoUpdateView.as_view(), name='gasto_update'),
+    path('gastos/<int:pk>/eliminar/', GastoDeleteView.as_view(), name='gasto_delete'),
+    
+    # Formulario de captura de gastos para presupuesto
+    path('presupuestos/<str:pk>/capturar-gastos/', PresupuestoGastoFormView.as_view(), name='presupuesto_gasto_form'),
+    # Reporte de gastos para presupuesto
+    path('presupuestos/<str:pk>/gastos-reporte/', PresupuestoGastosReporteView.as_view(), name='presupuesto_gastos_reporte'),
+    
+    # URLs AJAX
+    path('ajax/clasificaciones-gastos/', clasificaciones_gastos_ajax, name='clasificaciones_gastos_ajax'),
+    path('ajax/proveedores/', proveedores_ajax, name='proveedores_ajax'),
+    path('ajax/presupuestos/<int:presupuesto_id>/clasificaciones/', clasificaciones_gastos_presupuesto_ajax, name='clasificaciones_gastos_presupuesto_ajax'),
 ]

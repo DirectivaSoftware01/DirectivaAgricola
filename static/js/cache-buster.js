@@ -64,17 +64,20 @@
     
     // Función para manejar enlaces y evitar cache
     function handleLinks() {
-        const links = document.querySelectorAll('a[href]');
-        links.forEach(link => {
-            // Solo para enlaces internos
-            if (link.href.includes(window.location.hostname)) {
-                link.addEventListener('click', function(e) {
-                    // Agregar timestamp a la URL
-                    const originalHref = this.href;
-                    this.href = addTimestampToUrl(originalHref);
-                });
-            }
-        });
+        // Deshabilitado temporalmente para evitar problemas de navegación
+        // const links = document.querySelectorAll('a[href]');
+        // links.forEach(link => {
+        //     // Solo para enlaces internos
+        //     if (link.href.includes(window.location.hostname)) {
+        //         link.addEventListener('click', function(e) {
+        //             // Solo agregar timestamp si no tiene uno ya
+        //             if (!this.href.includes('_t=')) {
+        //                 const originalHref = this.href;
+        //                 this.href = addTimestampToUrl(originalHref);
+        //             }
+        //         });
+        //     }
+        // });
     }
     
     // Función para verificar y actualizar recursos
@@ -135,8 +138,8 @@
         // Manejar formularios
         handleFormSubmission();
         
-        // Manejar enlaces
-        handleLinks();
+        // Manejar enlaces - DESHABILITADO para evitar problemas de navegación
+        // handleLinks();
         
         // Verificar actualizaciones
         checkForUpdates();

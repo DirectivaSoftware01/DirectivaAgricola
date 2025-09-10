@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Presupuesto{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-exclamation-triangle text-danger"></i> Eliminar Presupuesto
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{% url 'core:presupuesto_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver al Listado
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> Confirmar Eliminación
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Advertencia:</strong> Esta acción no se puede deshacer.
+                </div>
+                
+                <h6>¿Estás seguro de que quieres eliminar el siguiente presupuesto?</h6>
+                
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Código:</strong> #{{ object.codigo }}<br>
+                                <strong>Centro de Costo:</strong> {{ object.centro_costo.descripcion }}<br>
+                                <strong>Ciclo:</strong> {{ object.ciclo }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Total Presupuestado:</strong> ${{ object.total_presupuestado|floatformat:2 }}<br>
+                                <strong>Clasificaciones:</strong> {{ object.detalles.count }}<br>
+                                <strong>Fecha Creación:</strong> {{ object.fecha_creacion|date:"d/m/Y H:i" }}
+                            </div>
+                        </div>
+                        
+                        {% if object.observaciones %}
+                            <div class="mt-2">
+                                <strong>Observaciones:</strong><br>
+                                <small class="text-muted">{{ object.observaciones }}</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if object.detalles.exists %}
+                    <div class="mt-3">
+                        <h6>Clasificaciones de Gastos que se eliminarán:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Clasificación</th>
+                                        <th class="text-end">Importe</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for detalle in object.detalles.all %}
+                                        <tr>
+                                            <td>{{ detalle.clasificacion_gasto.descripcion }}</td>
+                                            <td class="text-end">${{ detalle.importe|floatformat:2 }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% endif %}
+                
+                <form method="post" class="mt-4">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'core:presupuesto_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Eliminar Presupuesto
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

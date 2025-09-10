@@ -169,8 +169,6 @@
                                 <th>Fecha</th>
                                 <th>Importe Liquidado</th>
                                 <th>Saldo Pendiente</th>
-                                <th>Estado Facturación</th>
-                                <th>Estado Pago</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -185,28 +183,6 @@
                                 </td>
                                 <td class="importe-cell">
                                     ${{ remision.saldo_pendiente|floatformat:2|intcomma }}
-                                </td>
-                                <td>
-                                    {% if remision.facturado %}
-                                        <span class="badge bg-success estado-badge">
-                                            <i class="bi bi-check-circle"></i> Facturado
-                                        </span>
-                                    {% else %}
-                                        <span class="badge bg-warning estado-badge">
-                                            <i class="bi bi-clock"></i> Pendiente
-                                        </span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if remision.pagado %}
-                                        <span class="badge bg-success estado-badge">
-                                            <i class="bi bi-check-circle"></i> Pagado
-                                        </span>
-                                    {% else %}
-                                        <span class="badge bg-warning estado-badge">
-                                            <i class="bi bi-clock"></i> Pendiente
-                                        </span>
-                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}

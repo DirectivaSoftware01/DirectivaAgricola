@@ -1,0 +1,467 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load cache_utils %}
+
+{% block title %}Capturar Gastos - {{ presupuesto.centro_costo.descripcion }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .gasto-form-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    .detail-card {
+        border-left: 4px solid #198754;
+    }
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .detail-item {
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 10px;
+        transition: all 0.2s ease;
+    }
+    .detail-item:hover {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6c757d;
+    }
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+    }
+    .page-header {
+        padding-top: 20px;
+        padding-bottom: 20px;
+    }
+    .page-title {
+        font-size: 2rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center page-header">
+                <div>
+                    <h2 class="page-title">
+                        <i class="bi bi-cash-coin text-success me-2"></i>Capturar Gastos
+                    </h2>
+                    <p class="text-muted mb-0">Presupuesto: {{ presupuesto.centro_costo.descripcion }}</p>
+                </div>
+                <div>
+                    <a href="{% url 'core:presupuesto_detail' presupuesto.codigo %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Volver al Detalle
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información del Presupuesto -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card detail-card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle me-2"></i>Información del Presupuesto
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Ciclo:</label>
+                            <div class="form-control-plaintext">{{ ciclo_actual }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Centro de Costo:</label>
+                            <div class="form-control-plaintext">{{ presupuesto.centro_costo.descripcion }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Total Presupuestado:</label>
+                            <div class="form-control-plaintext fw-bold text-success">${{ presupuesto.total_presupuestado|floatformat:2 }}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Total Gastado:</label>
+                            <div class="form-control-plaintext fw-bold text-danger">${{ total_gastado|floatformat:2 }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario de Captura de Gastos -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-plus-circle me-2"></i>Nuevo Gasto
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="gastoForm" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" id="presupuesto_id" name="presupuesto" value="{{ presupuesto.codigo }}">
+                        
+                        <!-- Fecha del gasto -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="fecha_gasto" class="form-label">Fecha del Gasto <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="fecha_gasto" name="fecha_gasto" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="observaciones" class="form-label">Observaciones</label>
+                                <input type="text" class="form-control" id="observaciones" name="observaciones" placeholder="Observaciones opcionales">
+                            </div>
+                        </div>
+                        
+                        <!-- Detalles del gasto -->
+                        <div class="form-section">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">Detalles del Gasto</h6>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="addDetalleBtn">
+                                    <i class="bi bi-plus-circle me-1"></i>Agregar Detalle
+                                </button>
+                            </div>
+                            
+                            <!-- Lista de detalles -->
+                            <div id="detalles-list">
+                                <div id="empty-state" class="empty-state">
+                                    <i class="bi bi-inbox"></i>
+                                    <p class="mt-2">No hay detalles agregados</p>
+                                    <small>Haz clic en "Agregar Detalle" para comenzar</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Botones -->
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <a href="{% url 'core:presupuesto_detail' presupuesto.codigo %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle me-1"></i>Cancelar
+                            </a>
+                            <button type="button" class="btn btn-success" id="saveGastoBtn">
+                                <i class="bi bi-check-circle me-1"></i>Guardar Gasto
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar Detalle de Gasto -->
+<div class="modal fade" id="detalleModal" tabindex="-1" aria-labelledby="detalleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalleModalLabel">
+                    <i class="bi bi-plus-circle me-2"></i>Agregar Detalle de Gasto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="detalle-form">
+                    <div class="mb-3">
+                        <label for="proveedor" class="form-label">Proveedor <span class="text-danger">*</span></label>
+                        <select class="form-select" id="proveedor" name="proveedor" required>
+                            <option value="">Seleccionar proveedor...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="factura" class="form-label">Factura <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="factura" name="factura" required placeholder="Número de factura">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="clasificacion_gasto" class="form-label">Clasificación de Gasto <span class="text-danger">*</span></label>
+                        <select class="form-select" id="clasificacion_gasto" name="clasificacion_gasto" required>
+                            <option value="">Seleccionar clasificación...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="concepto" class="form-label">Concepto <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="concepto" name="concepto" required placeholder="Descripción del concepto">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="importe" class="form-label">Importe <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="importe" name="importe" step="0.01" min="0.01" required placeholder="0.00">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancel-detalle-btn">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-detalle-btn">
+                    <i class="bi bi-check-circle me-1"></i>Guardar Detalle
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Variables globales
+    let detallesTemporales = [];
+    const presupuestoActual = '{{ presupuesto.codigo }}';
+    
+    // Establecer fecha actual
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('fecha_gasto').value = today;
+    
+    // Manejar botón para agregar detalle
+    const addDetalleBtn = document.getElementById('addDetalleBtn');
+    if (addDetalleBtn) {
+        addDetalleBtn.addEventListener('click', function() {
+            loadProveedores();
+            loadClasificacionesGastos();
+            // Mostrar modal usando solo clases CSS
+            const modalElement = document.getElementById('detalleModal');
+            if (modalElement) {
+                modalElement.classList.add('show');
+                modalElement.style.display = 'block';
+                modalElement.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('modal-open');
+                
+                // Agregar backdrop
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                backdrop.id = 'detalleModalBackdrop';
+                document.body.appendChild(backdrop);
+            }
+        });
+    }
+    
+    // Cargar proveedores
+    function loadProveedores() {
+        const proveedorSelect = document.getElementById('proveedor');
+        if (proveedorSelect) {
+            proveedorSelect.innerHTML = '<option value="">Seleccionar proveedor...</option>';
+            fetch('/ajax/proveedores/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.proveedores.forEach(proveedor => {
+                            const option = document.createElement('option');
+                            option.value = proveedor.codigo;
+                            option.textContent = proveedor.nombre;
+                            proveedorSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar proveedores:', error);
+                });
+        }
+    }
+    
+    // Cargar clasificaciones de gastos
+    function loadClasificacionesGastos() {
+        const clasificacionSelect = document.getElementById('clasificacion_gasto');
+        if (clasificacionSelect) {
+            clasificacionSelect.innerHTML = '<option value="">Seleccionar clasificación...</option>';
+            fetch(`/ajax/presupuestos/${presupuestoActual}/clasificaciones/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.clasificaciones.forEach(clasificacion => {
+                            const option = document.createElement('option');
+                            option.value = clasificacion.codigo;
+                            option.textContent = clasificacion.descripcion;
+                            clasificacionSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar clasificaciones:', error);
+                });
+        }
+    }
+    
+    // Manejar guardado de detalle
+    const saveDetalleBtn = document.getElementById('save-detalle-btn');
+    if (saveDetalleBtn) {
+        saveDetalleBtn.addEventListener('click', function() {
+            const proveedorSelect = document.getElementById('proveedor');
+            const factura = document.getElementById('factura').value;
+            const clasificacionSelect = document.getElementById('clasificacion_gasto');
+            const concepto = document.getElementById('concepto').value;
+            const importe = document.getElementById('importe').value;
+            
+            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !importe || parseFloat(importe) <= 0) {
+                alert('Por favor completa todos los campos obligatorios y asegúrate que el importe sea mayor a cero.');
+                return;
+            }
+            
+            const detalle = {
+                proveedor: {
+                    codigo: proveedorSelect.value,
+                    nombre: proveedorSelect.options[proveedorSelect.selectedIndex].text
+                },
+                factura: factura,
+                clasificacion_gasto: {
+                    codigo: clasificacionSelect.value,
+                    descripcion: clasificacionSelect.options[clasificacionSelect.selectedIndex].text
+                },
+                concepto: concepto,
+                importe: parseFloat(importe)
+            };
+            
+            detallesTemporales.push(detalle);
+            updateDetallesList();
+            
+            // Limpiar formulario y cerrar modal
+            document.getElementById('detalle-form').reset();
+            closeModal('detalleModal');
+        });
+    }
+    
+    // Manejar cancelación de detalle
+    const cancelDetalleBtn = document.getElementById('cancel-detalle-btn');
+    if (cancelDetalleBtn) {
+        cancelDetalleBtn.addEventListener('click', function() {
+            // Limpiar formulario y cerrar modal
+            document.getElementById('detalle-form').reset();
+            closeModal('detalleModal');
+        });
+    }
+    
+    // Actualizar lista de detalles
+    function updateDetallesList() {
+        const container = document.getElementById('detalles-list');
+        const emptyState = document.getElementById('empty-state');
+        
+        if (detallesTemporales.length > 0) {
+            emptyState.style.display = 'none';
+            container.innerHTML = '';
+            
+            detallesTemporales.forEach((detalle, index) => {
+                const detalleElement = document.createElement('div');
+                detalleElement.className = 'detail-item';
+                detalleElement.innerHTML = `
+                    <div class="row align-items-center">
+                        <div class="col-md-2">
+                            <strong>${detalle.proveedor.nombre}</strong>
+                        </div>
+                        <div class="col-md-2">
+                            <span class="badge bg-info">${detalle.factura}</span>
+                        </div>
+                        <div class="col-md-3">
+                            ${detalle.clasificacion_gasto.descripcion}
+                        </div>
+                        <div class="col-md-3">
+                            ${detalle.concepto}
+                        </div>
+                        <div class="col-md-1 text-end">
+                            <strong class="text-success">$${detalle.importe.toFixed(2)}</strong>
+                        </div>
+                        <div class="col-md-1 text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeDetalle(${index})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(detalleElement);
+            });
+        } else {
+            emptyState.style.display = 'block';
+        }
+    }
+    
+    // Función para eliminar detalle
+    window.removeDetalle = function(index) {
+        detallesTemporales.splice(index, 1);
+        updateDetallesList();
+    };
+    
+    // Función para cerrar modal
+    function closeModal(modalId) {
+        const modalElement = document.getElementById(modalId);
+        if (modalElement) {
+            modalElement.classList.remove('show');
+            modalElement.style.display = 'none';
+            modalElement.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+            
+            const backdrop = document.getElementById(modalId + 'Backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+        }
+    }
+    
+    // Manejar guardado del gasto completo
+    const saveGastoBtn = document.getElementById('saveGastoBtn');
+    if (saveGastoBtn) {
+        saveGastoBtn.addEventListener('click', function() {
+            const fechaGasto = document.getElementById('fecha_gasto').value;
+            const observaciones = document.getElementById('observaciones').value;
+            
+            if (!fechaGasto) {
+                alert('Por favor selecciona la fecha del gasto.');
+                return;
+            }
+            
+            if (detallesTemporales.length === 0) {
+                alert('Por favor agrega al menos un detalle de gasto.');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('presupuesto', presupuestoActual);
+            formData.append('ciclo', '{{ ciclo_actual }}');
+            formData.append('fecha_gasto', fechaGasto);
+            formData.append('observaciones', observaciones);
+            formData.append('activo', 'true');
+            formData.append('detalles_temporales', JSON.stringify(detallesTemporales));
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            
+            fetch('/gastos/crear/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Gasto guardado correctamente.');
+                    window.location.href = '{% url "core:presupuesto_detail" presupuesto.codigo %}';
+                } else {
+                    alert('Error al guardar el gasto: ' + (data.error || 'Error desconocido'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al guardar el gasto.');
+            });
+        });
+    }
+    
+    console.log('Formulario de captura de gastos cargado');
+});
+</script>
+{% endblock %}

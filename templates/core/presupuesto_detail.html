@@ -1,0 +1,999 @@
+{% extends 'base.html' %}
+{% load cache_utils %}
+
+{% block title %}Detalles del Presupuesto - {{ presupuesto.centro_costo.descripcion }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-calculator"></i> Detalles del Presupuesto - {{ presupuesto.centro_costo.descripcion }}
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{% url 'core:presupuesto_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver al Listado
+            </a>
+            <button type="button" class="btn btn-outline-info" onclick="verGastos()">
+                <i class="bi bi-eye"></i> Ver Gastos
+            </button>
+            <a href="{% url 'core:presupuesto_update' presupuesto.codigo %}" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Información del Presupuesto -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle"></i> Información del Presupuesto
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4 d-none">Código:</dt>
+                            <dd class="col-sm-8 d-none">
+                                <strong>#{{ presupuesto.codigo }}</strong>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Centro de Costo:</dt>
+                            <dd class="col-sm-8">{{ presupuesto.centro_costo.descripcion }}</dd>
+                            
+                            <dt class="col-sm-4">Ciclo:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-info">{{ presupuesto.ciclo }}</span>
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Total Presupuestado:</dt>
+                            <dd class="col-sm-8">
+                                <strong class="text-success fs-5">${{ presupuesto.total_presupuestado|floatformat:2 }}</strong>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Clasificaciones:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-secondary">{{ detalles|length }}</span>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Estado:</dt>
+                            <dd class="col-sm-8">
+                                {% if presupuesto.activo %}
+                                    <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactivo</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                {% if presupuesto.observaciones %}
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <dt>Observaciones:</dt>
+                        <dd class="text-muted">{{ presupuesto.observaciones }}</dd>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-person"></i> Información de Auditoría
+                </h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-5">Creado por:</dt>
+                    <dd class="col-sm-7">{{ presupuesto.usuario_creacion.get_full_name|default:presupuesto.usuario_creacion.username }}</dd>
+                    
+                    <dt class="col-sm-5">Fecha creación:</dt>
+                    <dd class="col-sm-7">{{ presupuesto.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+                    
+                    {% if presupuesto.usuario_modificacion %}
+                    <dt class="col-sm-5">Modificado por:</dt>
+                    <dd class="col-sm-7">{{ presupuesto.usuario_modificacion.get_full_name|default:presupuesto.usuario_modificacion.username }}</dd>
+                    
+                    <dt class="col-sm-5">Fecha modificación:</dt>
+                    <dd class="col-sm-7">{{ presupuesto.fecha_modificacion|date:"d/m/Y H:i" }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detalles de Clasificaciones de Gastos -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-list-ul"></i> Clasificaciones de Gastos
+            <span class="badge bg-secondary ms-2">{{ detalles|length }}</span>
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if detalles %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>Clasificación de Gasto</th>
+                            <th class="text-end">Importe Presupuestado</th>
+                            <th class="text-end">Importe Gastos</th>
+                            <th class="text-center">Porcentaje</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for detalle in detalles %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>
+                                <strong>{{ detalle.clasificacion_gasto.descripcion }}</strong>
+                                {% if detalle.clasificacion_gasto.codigo %}
+                                    <br><small class="text-muted d-none">Código: {{ detalle.clasificacion_gasto.codigo }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <strong class="text-primary">${{ detalle.importe|floatformat:2 }}</strong>
+                            </td>
+                            <td class="text-end">
+                                {% if detalle.clasificacion_gasto.codigo in gastos_por_clasificacion %}
+                                    <strong class="text-success">${{ gastos_por_clasificacion|get_item:detalle.clasificacion_gasto.codigo|floatformat:2 }}</strong>
+                                {% else %}
+                                    <span class="text-muted">$0.00</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if detalle.importe > 0 %}
+                                    {% with gasto_importe=gastos_por_clasificacion|get_item:detalle.clasificacion_gasto.codigo %}
+                                        {% with porcentaje_consumo=gasto_importe|mul:100|div:detalle.importe %}
+                                            {% if porcentaje_consumo <= 80 %}
+                                                <span class="badge bg-success">{{ porcentaje_consumo|floatformat:1 }}%</span>
+                                            {% elif porcentaje_consumo <= 95 %}
+                                                <span class="badge bg-warning">{{ porcentaje_consumo|floatformat:1 }}%</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{{ porcentaje_consumo|floatformat:1 }}%</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    {% endwith %}
+                                {% else %}
+                                    <span class="badge bg-secondary">0%</span>
+                                {% endif %}
+                            </td>
+                        <td class="text-center">
+                            <a href="{% url 'core:presupuesto_gasto_form' presupuesto.codigo %}" 
+                               class="btn btn-outline-success btn-sm" 
+                               title="Capturar gastos">
+                                <i class="bi bi-cash-coin"></i>
+                            </a>
+                        </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-success">
+                            <th colspan="2">Total Presupuestado</th>
+                            <th class="text-end">
+                                <strong class="fs-5">${{ presupuesto.total_presupuestado|floatformat:2 }}</strong>
+                            </th>
+                            <th class="text-end">
+                                <strong class="fs-5 text-success">${{ total_gastado|floatformat:2 }}</strong>
+                            </th>
+                            <th class="text-center">
+                                <span class="badge bg-success fs-6">100%</span>
+                            </th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-list-ul" style="font-size: 3rem; color: #6c757d;"></i>
+                <h5 class="mt-3 text-muted">No hay clasificaciones de gastos</h5>
+                <p class="text-muted">Este presupuesto no tiene clasificaciones de gastos asociadas.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Gráficos individuales por clasificación -->
+{% if detalles %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-pie-chart"></i> Gráficos de Consumo por Clasificación
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for detalle in detalles %}
+            <div class="col-md-6 col-lg-4 col-xl-3 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h6 class="card-title">{{ detalle.clasificacion_gasto.descripcion|truncatechars:20 }}</h6>
+                        <div class="chart-container" style="position: relative; height: 150px;">
+                            <canvas id="chart_{{ detalle.clasificacion_gasto.codigo }}" width="150" height="150"></canvas>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                Presupuesto: ${{ detalle.importe|floatformat:2 }}<br>
+                                Gastos: ${{ gastos_por_clasificacion|get_item:detalle.clasificacion_gasto.codigo|default:0|floatformat:2 }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+<!-- Modal para Capturar Gastos -->
+<div class="modal fade" id="gastoModal" tabindex="-1" aria-labelledby="gastoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gastoModalLabel">
+                    <i class="bi bi-cash-coin"></i> Capturar Gastos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="gastoForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="presupuesto_id" name="presupuesto_id">
+                    
+                    <!-- Información del Presupuesto -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-info-circle"></i> Información del Presupuesto
+                                    </h6>
+                                    <p class="mb-1"><strong>Presupuesto:</strong> <span id="presupuesto_desc"></span></p>
+                                    <p class="mb-0"><strong>Ciclo:</strong> <span id="ciclo_actual"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-calendar"></i> Información del Gasto
+                                    </h6>
+                                    <div class="mb-3">
+                                        <label for="fecha_gasto" class="form-label">Fecha del Gasto *</label>
+                                        <input type="date" class="form-control" id="fecha_gasto" name="fecha_gasto" required>
+                                    </div>
+                                    <div class="mb-0">
+                                        <label for="observaciones" class="form-label">Observaciones</label>
+                                        <textarea class="form-control" id="observaciones" name="observaciones" rows="2"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detalles del Gasto -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-list-ul"></i> Detalles del Gasto
+                                </h6>
+                                <button type="button" class="btn btn-primary btn-sm" id="addDetalleBtn">
+                                    <i class="bi bi-plus-circle"></i> Agregar Detalle
+                                </button>
+                            </div>
+                            
+                            <div id="detalles-table-container" style="display: none;">
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Proveedor</th>
+                                                <th>Factura</th>
+                                                <th>Clasificación</th>
+                                                <th>Concepto</th>
+                                                <th class="text-end">Importe</th>
+                                                <th class="text-center">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="detalles-tbody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div id="empty-state" class="text-center py-4">
+                                <i class="bi bi-inbox" style="font-size: 2rem; color: #6c757d;"></i>
+                                <p class="text-muted mt-2">No hay detalles agregados</p>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="saveGastoBtn">
+                    <i class="bi bi-check-circle"></i> Guardar Gasto
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar Detalle de Gasto -->
+<div class="modal fade" id="detalleModal" tabindex="-1" aria-labelledby="detalleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalleModalLabel">
+                    <i class="bi bi-plus-circle"></i> Agregar Detalle de Gasto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="detalle-form">
+                    <div class="mb-3">
+                        <label for="proveedor" class="form-label">Proveedor *</label>
+                        <select class="form-select" id="proveedor" name="proveedor" required>
+                            <option value="">Seleccionar proveedor...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="factura" class="form-label">Factura *</label>
+                        <input type="text" class="form-control" id="factura" name="factura" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="clasificacion_gasto" class="form-label">Clasificación de Gasto *</label>
+                        <select class="form-select" id="clasificacion_gasto" name="clasificacion_gasto" required>
+                            <option value="">Seleccionar clasificación...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="concepto" class="form-label">Concepto *</label>
+                        <input type="text" class="form-control" id="concepto" name="concepto" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="importe" class="form-label">Importe *</label>
+                        <input type="number" class="form-control" id="importe" name="importe" step="0.01" min="0.01" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-detalle-btn">
+                    <i class="bi bi-check-circle"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Formulario de Captura de Gastos - No Modal -->
+<div id="gastoFormContainer" class="card mt-4" style="display: none;">
+    <div class="card-header bg-success text-white">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-cash-coin me-2"></i>Capturar Gastos
+        </h5>
+    </div>
+    <div class="card-body">
+        <form id="gastoFormDetail">
+            {% csrf_token %}
+            <input type="hidden" id="presupuesto_id_detail" name="presupuesto">
+            
+            <!-- Información del presupuesto -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Ciclo:</label>
+                    <div class="form-control-plaintext" id="ciclo_actual_detail">{{ ciclo_actual }}</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Presupuesto:</label>
+                    <div class="form-control-plaintext" id="presupuesto_desc_detail"></div>
+                </div>
+            </div>
+            
+            <!-- Fecha del gasto -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="fecha_gasto_detail" class="form-label">Fecha del Gasto <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="fecha_gasto_detail" name="fecha_gasto" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="observaciones_detail" class="form-label">Observaciones</label>
+                    <input type="text" class="form-control" id="observaciones_detail" name="observaciones" placeholder="Observaciones opcionales">
+                </div>
+            </div>
+            
+            <!-- Detalles del gasto -->
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">Detalles del Gasto</h6>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="addDetalleBtnDetail">
+                        <i class="bi bi-plus-circle me-1"></i>Agregar Detalle
+                    </button>
+                </div>
+                
+                <!-- Tabla de detalles -->
+                <div id="detalles-table-container-detail" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Proveedor</th>
+                                    <th>Factura</th>
+                                    <th>Clasificación</th>
+                                    <th>Concepto</th>
+                                    <th class="text-end">Importe</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detalles-tbody-detail">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Estado vacío -->
+                <div id="empty-state-detail" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox display-4"></i>
+                    <p class="mt-2">No hay detalles agregados</p>
+                    <small>Haz clic en "Agregar Detalle" para comenzar</small>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="card-footer">
+        <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary" onclick="closeGastoForm()">Cancelar</button>
+            <button type="button" class="btn btn-success" id="saveGastoBtnDetail">
+                <i class="bi bi-check-circle me-1"></i>Guardar Gasto
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar Detalle de Gasto - Exclusivo para Detalle del Presupuesto -->
+<div class="modal fade" id="gastoModalDetail" tabindex="-1" aria-labelledby="gastoModalDetailLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gastoModalDetailLabel">
+                    <i class="bi bi-cash-coin me-2"></i>Capturar Gastos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="gastoFormDetail">
+                    {% csrf_token %}
+                    <input type="hidden" id="presupuesto_id_detail" name="presupuesto">
+                    
+                    <!-- Información del presupuesto -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Ciclo:</label>
+                            <div class="form-control-plaintext" id="ciclo_actual_detail">{{ ciclo_actual }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Presupuesto:</label>
+                            <div class="form-control-plaintext" id="presupuesto_desc_detail"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Fecha del gasto -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="fecha_gasto_detail" class="form-label">Fecha del Gasto <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="fecha_gasto_detail" name="fecha_gasto" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="observaciones_detail" class="form-label">Observaciones</label>
+                            <input type="text" class="form-control" id="observaciones_detail" name="observaciones" placeholder="Observaciones opcionales">
+                        </div>
+                    </div>
+                    
+                    <!-- Detalles del gasto -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Detalles del Gasto</h6>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addDetalleBtnDetail">
+                                <i class="bi bi-plus-circle me-1"></i>Agregar Detalle
+                            </button>
+                        </div>
+                        
+                        <!-- Tabla de detalles -->
+                        <div id="detalles-table-container-detail" style="display: none;">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Proveedor</th>
+                                            <th>Factura</th>
+                                            <th>Clasificación</th>
+                                            <th>Concepto</th>
+                                            <th class="text-end">Importe</th>
+                                            <th class="text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="detalles-tbody-detail">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Estado vacío -->
+                        <div id="empty-state-detail" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox display-4"></i>
+                            <p class="mt-2">No hay detalles agregados</p>
+                            <small>Haz clic en "Agregar Detalle" para comenzar</small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="saveGastoBtnDetail">
+                    <i class="bi bi-check-circle me-1"></i>Guardar Gasto
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar Detalle de Gasto - Exclusivo para Detalle del Presupuesto -->
+<div class="modal fade" id="detalleModalDetail" tabindex="-1" aria-labelledby="detalleModalDetailLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalleModalDetailLabel">
+                    <i class="bi bi-plus-circle me-2"></i>Agregar Detalle de Gasto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="detalle-form-detail">
+                    <div class="mb-3">
+                        <label for="proveedor_detail" class="form-label">Proveedor <span class="text-danger">*</span></label>
+                        <select class="form-select" id="proveedor_detail" name="proveedor" required>
+                            <option value="">Seleccionar proveedor...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="factura_detail" class="form-label">Factura <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="factura_detail" name="factura" required placeholder="Número de factura">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="clasificacion_gasto_detail" class="form-label">Clasificación de Gasto <span class="text-danger">*</span></label>
+                        <select class="form-select" id="clasificacion_gasto_detail" name="clasificacion_gasto" required>
+                            <option value="">Seleccionar clasificación...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="concepto_detail" class="form-label">Concepto <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="concepto_detail" name="concepto" required placeholder="Descripción del concepto">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="importe_detail" class="form-label">Importe <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="importe_detail" name="importe" step="0.01" min="0.01" required placeholder="0.00">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-detalle-btn-detail">
+                    <i class="bi bi-check-circle me-1"></i>Guardar Detalle
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Variables globales para gastos - Exclusivas para Detalle del Presupuesto
+    let detallesTemporalesDetail = [];
+    let presupuestoActualDetail = null;
+    
+    // Manejar apertura del modal de gastos - Exclusivo para Detalle
+    const gastoModalDetailElement = document.getElementById('gastoModalDetail');
+    
+    if (gastoModalDetailElement) {
+        gastoModalDetailElement.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            presupuestoActualDetail = button.getAttribute('data-presupuesto-id');
+            const presupuestoDesc = button.getAttribute('data-presupuesto-desc');
+            
+            // Limpiar formulario
+            document.getElementById('gastoFormDetail').reset();
+            document.getElementById('presupuesto_id_detail').value = presupuestoActualDetail;
+            document.getElementById('presupuesto_desc_detail').textContent = presupuestoDesc;
+            document.getElementById('ciclo_actual_detail').textContent = '{{ ciclo_actual }}';
+            
+            // Limpiar detalles temporales
+            detallesTemporalesDetail = [];
+            updateDetallesTableDetail();
+            
+            // Establecer fecha actual
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('fecha_gasto_detail').value = today;
+        });
+    }
+    
+    // Manejar botón para agregar detalle - Exclusivo para Detalle
+    const addDetalleBtnDetail = document.getElementById('addDetalleBtnDetail');
+    
+    if (addDetalleBtnDetail) {
+        addDetalleBtnDetail.addEventListener('click', function() {
+            loadProveedoresDetail();
+            loadClasificacionesGastosDetail();
+            // Usar solo atributos HTML de Bootstrap
+            const modalElement = document.getElementById('detalleModalDetail');
+            if (modalElement) {
+                // Mostrar el modal usando solo clases CSS
+                modalElement.classList.add('show');
+                modalElement.style.display = 'block';
+                modalElement.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('modal-open');
+                
+                // Agregar backdrop
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                backdrop.id = 'detalleModalDetailBackdrop';
+                document.body.appendChild(backdrop);
+            }
+        });
+    }
+    
+    // Cargar proveedores - Exclusivo para Detalle
+    function loadProveedoresDetail() {
+        const proveedorSelect = document.getElementById('proveedor_detail');
+        if (proveedorSelect) {
+            proveedorSelect.innerHTML = '<option value="">Seleccionar proveedor...</option>';
+            fetch('/ajax/proveedores/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.proveedores.forEach(proveedor => {
+                            const option = document.createElement('option');
+                            option.value = proveedor.codigo;
+                            option.textContent = proveedor.nombre;
+                            proveedorSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar proveedores:', error);
+                });
+        }
+    }
+    
+    // Cargar clasificaciones de gastos - Exclusivo para Detalle
+    function loadClasificacionesGastosDetail() {
+        const clasificacionSelect = document.getElementById('clasificacion_gasto_detail');
+        if (clasificacionSelect && presupuestoActualDetail) {
+            clasificacionSelect.innerHTML = '<option value="">Seleccionar clasificación...</option>';
+            fetch(`/ajax/presupuestos/${presupuestoActualDetail}/clasificaciones/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.clasificaciones.forEach(clasificacion => {
+                            const option = document.createElement('option');
+                            option.value = clasificacion.codigo;
+                            option.textContent = clasificacion.descripcion;
+                            clasificacionSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar clasificaciones:', error);
+                });
+        }
+    }
+    
+    // Manejar guardado de detalle - Exclusivo para Detalle
+    const saveDetalleBtnDetail = document.getElementById('save-detalle-btn-detail');
+    if (saveDetalleBtnDetail) {
+        saveDetalleBtnDetail.addEventListener('click', function() {
+            const proveedorSelect = document.getElementById('proveedor_detail');
+            const factura = document.getElementById('factura_detail').value;
+            const clasificacionSelect = document.getElementById('clasificacion_gasto_detail');
+            const concepto = document.getElementById('concepto_detail').value;
+            const importe = document.getElementById('importe_detail').value;
+            
+            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !importe || parseFloat(importe) <= 0) {
+                alert('Por favor completa todos los campos obligatorios y asegúrate que el importe sea mayor a cero.');
+                return;
+            }
+            
+            const detalle = {
+                proveedor: {
+                    codigo: proveedorSelect.value,
+                    nombre: proveedorSelect.options[proveedorSelect.selectedIndex].text
+                },
+                factura: factura,
+                clasificacion_gasto: {
+                    codigo: clasificacionSelect.value,
+                    descripcion: clasificacionSelect.options[clasificacionSelect.selectedIndex].text
+                },
+                concepto: concepto,
+                importe: parseFloat(importe)
+            };
+            
+            detallesTemporalesDetail.push(detalle);
+            updateDetallesTableDetail();
+            
+            // Limpiar formulario y cerrar modal
+            document.getElementById('detalle-form-detail').reset();
+            closeModalDetail('detalleModalDetail');
+        });
+    }
+    
+    // Actualizar tabla de detalles - Exclusivo para Detalle
+    function updateDetallesTableDetail() {
+        const tbody = document.getElementById('detalles-tbody-detail');
+        const container = document.getElementById('detalles-table-container-detail');
+        const emptyState = document.getElementById('empty-state-detail');
+        
+        if (detallesTemporalesDetail.length > 0) {
+            container.style.display = 'block';
+            emptyState.style.display = 'none';
+            tbody.innerHTML = '';
+            
+            detallesTemporalesDetail.forEach((detalle, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${detalle.proveedor.nombre}</td>
+                    <td>${detalle.factura}</td>
+                    <td>${detalle.clasificacion_gasto.descripcion}</td>
+                    <td>${detalle.concepto}</td>
+                    <td class="text-end">$${detalle.importe.toFixed(2)}</td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeDetalleDetail(${index})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        } else {
+            container.style.display = 'none';
+            emptyState.style.display = 'block';
+        }
+    }
+    
+    // Función para eliminar detalle - Exclusivo para Detalle
+    window.removeDetalleDetail = function(index) {
+        detallesTemporalesDetail.splice(index, 1);
+        updateDetallesTableDetail();
+    };
+    
+    // Función para cerrar modal manualmente - Exclusivo para Detalle
+    function closeModalDetail(modalId) {
+        const modalElement = document.getElementById(modalId);
+        if (modalElement) {
+            // Ocultar el modal
+            modalElement.classList.remove('show');
+            modalElement.style.display = 'none';
+            modalElement.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+            
+            // Remover backdrop
+            const backdrop = document.getElementById(modalId + 'Backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+        }
+    }
+    
+    // Manejar guardado del gasto completo - Exclusivo para Detalle
+    const saveGastoBtnDetail = document.getElementById('saveGastoBtnDetail');
+    if (saveGastoBtnDetail) {
+        saveGastoBtnDetail.addEventListener('click', function() {
+            const fechaGasto = document.getElementById('fecha_gasto_detail').value;
+            const observaciones = document.getElementById('observaciones_detail').value;
+            
+            if (!fechaGasto) {
+                alert('Por favor selecciona la fecha del gasto.');
+                return;
+            }
+            
+            if (detallesTemporalesDetail.length === 0) {
+                alert('Por favor agrega al menos un detalle de gasto.');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('presupuesto', presupuestoActualDetail);
+            formData.append('ciclo', document.getElementById('ciclo_actual_detail').textContent);
+            formData.append('fecha_gasto', fechaGasto);
+            formData.append('observaciones', observaciones);
+            formData.append('activo', 'true');
+            formData.append('detalles_temporales', JSON.stringify(detallesTemporalesDetail));
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            
+            fetch('/gastos/crear/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Gasto guardado correctamente.');
+                    closeModalDetail('gastoModalDetail');
+                    location.reload();
+                } else {
+                    alert('Error al guardar el gasto: ' + (data.error || 'Error desconocido'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al guardar el gasto.');
+            });
+        });
+    }
+    
+    console.log('Página de detalles del presupuesto cargada - Modales exclusivos');
+    
+    // Crear gráficos individuales por clasificación con un pequeño delay
+    setTimeout(() => {
+        if (typeof Chart !== 'undefined') {
+            crearGraficosIndividuales();
+        } else {
+            console.error('Chart.js no se pudo cargar, intentando de nuevo...');
+            // Intentar cargar Chart.js manualmente
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
+            script.onload = function() {
+                console.log('Chart.js cargado manualmente');
+                crearGraficosIndividuales();
+            };
+            script.onerror = function() {
+                console.error('Error al cargar Chart.js manualmente');
+            };
+            document.head.appendChild(script);
+        }
+    }, 500);
+});
+
+// Función para crear gráficos individuales por clasificación
+function crearGraficosIndividuales() {
+    // Verificar que Chart.js esté disponible
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js no está cargado');
+        return;
+    }
+    
+    console.log('Chart.js cargado correctamente, versión:', Chart.version);
+    
+    // Crear datos para JavaScript
+    const detalles = [
+        {% for detalle in detalles %}
+        {
+            clasificacion_gasto: {
+                codigo: "{{ detalle.clasificacion_gasto.codigo }}",
+                descripcion: "{{ detalle.clasificacion_gasto.descripcion }}"
+            },
+            importe: {{ detalle.importe }}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    const gastosPorClasificacion = {
+        {% for codigo, importe in gastos_por_clasificacion.items %}
+        "{{ codigo }}": {{ importe }}{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    };
+    
+    console.log('Detalles:', detalles);
+    console.log('Gastos por clasificación:', gastosPorClasificacion);
+    
+    if (!detalles || detalles.length === 0) {
+        console.log('No hay detalles para mostrar');
+        return;
+    }
+    
+    detalles.forEach((detalle, index) => {
+        const codigoClasificacion = detalle.clasificacion_gasto.codigo;
+        const canvas = document.getElementById(`chart_${codigoClasificacion}`);
+        
+        console.log(`Procesando clasificación ${index + 1}:`, detalle.clasificacion_gasto.descripcion);
+        console.log(`Buscando canvas: chart_${codigoClasificacion}`);
+        console.log('Canvas encontrado:', canvas);
+        
+        if (!canvas) {
+            console.error(`No se encontró el canvas para la clasificación: ${codigoClasificacion}`);
+            return;
+        }
+        
+        const ctx = canvas.getContext('2d');
+        const presupuesto = parseFloat(detalle.importe);
+        const gastos = gastosPorClasificacion[codigoClasificacion] || 0;
+        const porcentajeConsumo = presupuesto > 0 ? (gastos / presupuesto) * 100 : 0;
+        
+        // Determinar color basado en el porcentaje de consumo (igual que la columna Porcentaje)
+        let colorConsumo;
+        if (porcentajeConsumo <= 80) {
+            colorConsumo = '#28a745'; // Verde
+        } else if (porcentajeConsumo <= 95) {
+            colorConsumo = '#ffc107'; // Amarillo
+        } else {
+            colorConsumo = '#dc3545'; // Rojo
+        }
+        
+        // Crear el gráfico de dona (doughnut) para cada clasificación
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Gastado', 'Disponible'],
+                datasets: [{
+                    data: [gastos, Math.max(0, presupuesto - gastos)],
+                    backgroundColor: [colorConsumo, '#e9ecef'],
+                    borderColor: ['#fff', '#fff'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed;
+                                const total = presupuesto;
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                
+                                if (label === 'Gastado') {
+                                    return `Gastado: $${value.toLocaleString('es-MX', {minimumFractionDigits: 2})} (${percentage}%)`;
+                                } else {
+                                    return `Disponible: $${value.toLocaleString('es-MX', {minimumFractionDigits: 2})} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+}
+
+// Función para abrir el reporte de gastos en nueva ventana
+function verGastos() {
+    const url = '{% url "core:presupuesto_gastos_reporte" presupuesto.codigo %}';
+    window.open(url, '_blank', 'width=1000,height=700,scrollbars=yes,resizable=yes');
+}
+</script>
+{% endblock %}

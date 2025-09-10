@@ -28,3 +28,32 @@ def cache_buster():
     """
     return str(int(time.time() * 1000))  # Milisegundos para mayor precisión
 
+@register.filter
+def get_item(dictionary, key):
+    """
+    Obtiene un elemento de un diccionario por su clave
+    """
+    return dictionary.get(key, 0)
+
+@register.filter
+def mul(value, arg):
+    """
+    Multiplica value por arg
+    """
+    try:
+        return float(value) * float(arg)
+    except (ValueError, TypeError):
+        return 0
+
+@register.filter
+def div(value, arg):
+    """
+    Divide value entre arg
+    """
+    try:
+        if float(arg) == 0:
+            return 0
+        return float(value) / float(arg)
+    except (ValueError, TypeError):
+        return 0
+

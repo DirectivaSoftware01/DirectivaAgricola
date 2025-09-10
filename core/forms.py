@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.db import models
 from decimal import Decimal
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle
+from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle
 import re
 
 class DecimalFieldWithRounding(forms.DecimalField):
@@ -1558,3 +1558,304 @@ class CobranzaSearchForm(forms.Form):
         }),
         label='Fecha hasta'
     )
+class PresupuestoGastoForm(forms.ModelForm):
+    """Formulario para crear/editar presupuestos de gastos"""
+    
+    class Meta:
+        model = PresupuestoGasto
+        fields = ['centro_costo', 'clasificacion_gasto', 'importe', 'observaciones']
+        widgets = {
+            'centro_costo': forms.Select(attrs={
+                'class': 'form-select',
+                'required': True
+            }),
+            'clasificacion_gasto': forms.Select(attrs={
+                'class': 'form-select',
+                'required': True
+            }),
+            'importe': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'placeholder': '0.00'
+            }),
+            'observaciones': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Observaciones adicionales...'
+            })
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filtrar solo centros de costos y clasificaciones activas
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['clasificacion_gasto'].queryset = ClasificacionGasto.objects.filter(activo=True)
+        
+        # Hacer el campo de importe requerido
+        self.fields['importe'].required = True
+
+
+class PresupuestoGastoSearchForm(forms.Form):
+    """Formulario para buscar presupuestos de gastos"""
+    busqueda = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar por centro de costo, clasificación, ciclo...',
+            'autocomplete': 'off'
+        }),
+        label='Buscar presupuesto'
+    )
+    
+    centro_costo = forms.ModelChoiceField(
+        queryset=CentroCosto.objects.filter(activo=True),
+        required=False,
+        empty_label="Todos los centros de costo",
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Centro de Costo'
+    )
+    
+    clasificacion_gasto = forms.ModelChoiceField(
+        queryset=ClasificacionGasto.objects.filter(activo=True),
+        required=False,
+        empty_label="Todas las clasificaciones",
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Clasificación de Gasto'
+    )
+    
+    ciclo = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Ciclo de producción...'
+        }),
+        label='Ciclo'
+    )
+
+
+# ===========================
+# FORMULARIOS PARA PRESUPUESTOS (NUEVA ESTRUCTURA)
+# ===========================
+
+class PresupuestoForm(forms.ModelForm):
+    """Formulario para crear y editar presupuestos"""
+    
+    class Meta:
+        model = Presupuesto
+        fields = ['centro_costo', 'ciclo', 'observaciones', 'activo']
+        widgets = {
+            'centro_costo': forms.Select(attrs={'class': 'form-select'}),
+            'ciclo': forms.TextInput(attrs={'class': 'form-control', 'readonly': 'readonly'}),
+            'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'centro_costo': 'Centro de Costo',
+            'ciclo': 'Ciclo',
+            'observaciones': 'Observaciones',
+            'activo': 'Activo',
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].required = True
+        self.fields['ciclo'].required = True
+        
+        # Inicializar el campo ciclo con el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            ciclo_actual = config.ciclo_actual if config else '2025-2026'
+            self.fields['ciclo'].initial = ciclo_actual
+        except:
+            self.fields['ciclo'].initial = '2025-2026'
+
+
+class PresupuestoDetalleForm(forms.ModelForm):
+    """Formulario para crear y editar detalles de presupuesto"""
+    
+    importe = DecimalFieldWithRounding(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal('0.00'),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        label='Importe Presupuestado'
+    )
+    
+    class Meta:
+        model = PresupuestoDetalle
+        fields = ['clasificacion_gasto', 'importe', 'activo']
+        widgets = {
+            'clasificacion_gasto': forms.Select(attrs={'class': 'form-select'}),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'clasificacion_gasto': 'Clasificación de Gasto',
+            'activo': 'Activo',
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['clasificacion_gasto'].queryset = ClasificacionGasto.objects.filter(activo=True)
+        self.fields['clasificacion_gasto'].required = True
+        self.fields['importe'].required = True
+
+
+class PresupuestoSearchForm(forms.Form):
+    """Formulario para buscar presupuestos"""
+    busqueda = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar por centro de costo, ciclo...',
+            'autocomplete': 'off'
+        }),
+        label='Buscar presupuesto'
+    )
+    
+    centro_costo = forms.ModelChoiceField(
+        queryset=CentroCosto.objects.filter(activo=True),
+        required=False,
+        empty_label="Todos los centros de costo",
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Centro de Costo'
+    )
+    
+    ciclo = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Ej. 2025-2026',
+            'autocomplete': 'off'
+        }),
+        label='Ciclo'
+    )
+
+class GastoForm(forms.ModelForm):
+    """Formulario para crear y editar gastos"""
+    
+    class Meta:
+        model = Gasto
+        fields = ['presupuesto', 'ciclo', 'fecha_gasto', 'observaciones', 'activo']
+        widgets = {
+            'presupuesto': forms.Select(attrs={
+                'class': 'form-select',
+                'required': True
+            }),
+            'ciclo': forms.TextInput(attrs={
+                'class': 'form-control',
+                'readonly': True,
+                'autocomplete': 'off'
+            }),
+            'fecha_gasto': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+                'required': True
+            }),
+            'observaciones': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Observaciones adicionales del gasto'
+            }),
+            'activo': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            })
+        }
+        labels = {
+            'presupuesto': 'Presupuesto',
+            'ciclo': 'Ciclo',
+            'fecha_gasto': 'Fecha del Gasto',
+            'observaciones': 'Observaciones',
+            'activo': 'Activo'
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Obtener el ciclo actual de la configuración
+        try:
+            config = ConfiguracionSistema.objects.first()
+            if config:
+                self.fields['ciclo'].initial = config.ciclo_actual
+        except:
+            pass
+        
+        # Filtrar presupuestos activos
+        self.fields['presupuesto'].queryset = Presupuesto.objects.filter(activo=True).order_by('centro_costo__descripcion')
+
+
+class GastoDetalleForm(forms.ModelForm):
+    """Formulario para crear y editar detalles de gastos"""
+    
+    importe = DecimalFieldWithRounding(
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'step': '0.01',
+            'min': '0.01',
+            'required': True,
+            'placeholder': '0.00'
+        }),
+        label='Importe'
+    )
+    
+    class Meta:
+        model = GastoDetalle
+        fields = ['proveedor', 'factura', 'clasificacion_gasto', 'concepto', 'importe', 'activo']
+        widgets = {
+            'proveedor': forms.Select(attrs={
+                'class': 'form-select',
+                'required': True
+            }),
+            'factura': forms.TextInput(attrs={
+                'class': 'form-control',
+                'required': True,
+                'placeholder': 'Número de factura'
+            }),
+            'clasificacion_gasto': forms.Select(attrs={
+                'class': 'form-select',
+                'required': True
+            }),
+            'concepto': forms.TextInput(attrs={
+                'class': 'form-control',
+                'required': True,
+                'placeholder': 'Concepto o descripción del gasto'
+            }),
+            'activo': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            })
+        }
+        labels = {
+            'proveedor': 'Proveedor',
+            'factura': 'Factura',
+            'clasificacion_gasto': 'Clasificación de Gasto',
+            'concepto': 'Concepto',
+            'importe': 'Importe',
+            'activo': 'Activo'
+        }
+
+    def __init__(self, *args, **kwargs):
+        presupuesto = kwargs.pop('presupuesto', None)
+        super().__init__(*args, **kwargs)
+        
+        # Filtrar proveedores activos
+        self.fields['proveedor'].queryset = Proveedor.objects.filter(activo=True).order_by('razon_social')
+        
+        # Filtrar clasificaciones de gastos según el presupuesto
+        if presupuesto:
+            clasificaciones_ids = presupuesto.detalles.filter(activo=True).values_list('clasificacion_gasto_id', flat=True)
+            self.fields['clasificacion_gasto'].queryset = ClasificacionGasto.objects.filter(
+                id__in=clasificaciones_ids,
+                activo=True
+            ).order_by('descripcion')

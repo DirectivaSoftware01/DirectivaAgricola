@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-trash"></i>
+        Eliminar Presupuesto
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{% url 'core:presupuesto_gasto_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver al Listado
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Confirmar Eliminación
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                </div>
+                
+                <h6>¿Está seguro de que desea eliminar el siguiente presupuesto?</h6>
+                
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-hash"></i> Código</h6>
+                                <p class="text-muted">{{ object.codigo|stringformat:"06d" }}</p>
+                                
+                                <h6><i class="bi bi-building"></i> Centro de Costo</h6>
+                                <p class="text-muted">{{ object.centro_costo.descripcion }}</p>
+                                
+                                <h6><i class="bi bi-tag"></i> Clasificación de Gasto</h6>
+                                <p class="text-muted">{{ object.clasificacion_gasto.descripcion }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-calendar"></i> Ciclo</h6>
+                                <p class="text-muted"><span class="badge bg-info">{{ object.ciclo }}</span></p>
+                                
+                                <h6><i class="bi bi-currency-dollar"></i> Importe</h6>
+                                <p class="text-muted"><strong>${{ object.importe|floatformat:2|intcomma }}</strong></p>
+                                
+                                <h6><i class="bi bi-person"></i> Creado por</h6>
+                                <p class="text-muted">{{ object.usuario_creacion.get_full_name|default:object.usuario_creacion.username }}</p>
+                            </div>
+                        </div>
+                        
+                        {% if object.observaciones %}
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6><i class="bi bi-chat-text"></i> Observaciones</h6>
+                                <p class="text-muted">{{ object.observaciones }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <form method="post" class="mt-4">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'core:presupuesto_gasto_list' %}" class="btn btn-outline-secondary me-md-2">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Eliminar Presupuesto
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

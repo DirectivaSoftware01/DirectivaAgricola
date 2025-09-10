@@ -18,6 +18,94 @@ document.addEventListener('DOMContentLoaded', function() {
         const sidebarLinks = document.querySelectorAll('.sidebar .nav-link');
         const accordionButtons = document.querySelectorAll('.sidebar .accordion-button');
         
+        // Función para detectar la sección activa basada en la URL actual
+        function detectActiveSection() {
+            const currentPath = window.location.pathname;
+            let activeSection = null;
+            
+            // Mapeo de URLs a secciones del menú
+            const urlSectionMap = {
+                // Catálogos
+                '/clientes/': 'catalogos',
+                '/proveedores/': 'catalogos',
+                '/productos-servicios/': 'catalogos',
+                '/centros-costos/': 'catalogos',
+                '/transportistas/': 'catalogos',
+                '/lotes-origen/': 'catalogos',
+                '/cultivos/': 'catalogos',
+                '/cuentas-bancarias/': 'catalogos',
+                
+                // Preliquidaciones
+                '/remisiones/crear/': 'preliquidaciones',
+                '/remisiones/': 'preliquidaciones',
+                '/cobranza/': 'preliquidaciones',
+                
+                // Facturación
+                '/facturacion/': 'facturacion',
+                
+                // Presupuestos
+                '/presupuestos/': 'presupuestos',
+                
+                // Adicionales
+                '/configuracion/': 'adicionales'
+            };
+            
+            // Buscar la sección correspondiente
+            for (const [url, section] of Object.entries(urlSectionMap)) {
+                if (currentPath.includes(url)) {
+                    activeSection = section;
+                    break;
+                }
+            }
+            
+            return activeSection;
+        }
+        
+        // Función para expandir la sección activa
+        function expandActiveSection() {
+            const activeSection = detectActiveSection();
+            
+            if (activeSection) {
+                // Colapsar todas las secciones primero
+                const allCollapses = document.querySelectorAll('.accordion-collapse');
+                allCollapses.forEach(collapse => {
+                    collapse.classList.remove('show');
+                });
+                
+                // Remover clase 'collapsed' de todos los botones
+                accordionButtons.forEach(button => {
+                    button.classList.add('collapsed');
+                    button.setAttribute('aria-expanded', 'false');
+                });
+                
+                // Expandir la sección activa
+                const activeCollapse = document.getElementById(activeSection + 'Collapse');
+                const activeButton = document.getElementById(activeSection + 'Header');
+                
+                if (activeCollapse && activeButton) {
+                    activeCollapse.classList.add('show');
+                    activeButton.querySelector('.accordion-button').classList.remove('collapsed');
+                    activeButton.querySelector('.accordion-button').setAttribute('aria-expanded', 'true');
+                }
+            }
+        }
+        
+        // Función para marcar el enlace activo
+        function markActiveLink() {
+            const currentPath = window.location.pathname;
+            
+            // Remover clase activa de todos los enlaces
+            sidebarLinks.forEach(link => link.classList.remove('active'));
+            
+            // Marcar el enlace activo
+            sidebarLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && currentPath.includes(href)) {
+                    link.classList.add('active');
+                }
+            });
+        }
+        
         // Agregar eventos a los enlaces del sidebar
         sidebarLinks.forEach(link => {
             link.addEventListener('click', function(e) {
@@ -27,19 +115,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (href === '#' || href === '' || href === null) {
                     e.preventDefault();
                     showNotification('Navegando a: ' + this.textContent.trim());
+                    return; // Salir temprano para enlaces vacíos
                 }
                 
-                // Remover clase activa de todos los enlaces
-                sidebarLinks.forEach(l => l.classList.remove('active'));
-                
-                // Agregar clase activa al enlace clickeado
-                this.classList.add('active');
-                
-                // Si es un enlace válido, permitir la navegación normal
-                if (href && href !== '#' && href !== '') {
-                    // La navegación se realizará normalmente
-                    console.log('Navegando a:', href);
-                }
+                // Para enlaces válidos, NO hacer nada que interfiera con la navegación
+                // Permitir que el navegador maneje la navegación normalmente
             });
         });
 
@@ -48,8 +128,25 @@ document.addEventListener('DOMContentLoaded', function() {
             button.addEventListener('click', function() {
                 // Agregar efecto de ripple
                 createRippleEffect(this, event);
+                
+                // Guardar el estado del accordion en localStorage
+                const targetId = this.getAttribute('data-bs-target');
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                
+                // Guardar el estado de todas las secciones
+                const accordionStates = {};
+                accordionButtons.forEach(btn => {
+                    const sectionId = btn.getAttribute('data-bs-target').replace('#', '');
+                    accordionStates[sectionId] = btn.getAttribute('aria-expanded') === 'true';
+                });
+                
+                localStorage.setItem('sidebarAccordionStates', JSON.stringify(accordionStates));
             });
         });
+        
+        // Inicializar el estado del sidebar
+        expandActiveSection();
+        markActiveLink();
     }
 
     // Función para crear efecto de ripple
@@ -291,13 +388,18 @@ document.addEventListener('DOMContentLoaded', function() {
         links.forEach(link => {
             link.addEventListener('click', function(e) {
                 e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
+                const href = this.getAttribute('href');
                 
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
+                // Solo procesar si el href no es solo '#'
+                if (href && href !== '#') {
+                    const target = document.querySelector(href);
+                    
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
                 }
             });
         });

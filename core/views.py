@@ -6,13 +6,15 @@ from django.views.generic import TemplateView, ListView, CreateView, UpdateView,
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from django.http import JsonResponse
-from django.shortcuts import render
+from django.http import JsonResponse, HttpResponseRedirect
+from django.shortcuts import render, get_object_or_404
+import json
 from django.db.models import Sum, Count
 from django.db import models
+from django.contrib import messages
 from datetime import datetime
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision
-from .forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm
+from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle
+from .forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm, PresupuestoGastoForm, PresupuestoGastoSearchForm, PresupuestoForm, PresupuestoDetalleForm, PresupuestoSearchForm, GastoForm, GastoDetalleForm
 
 # Create your views here.
 
@@ -2010,10 +2012,6 @@ class CobranzaListView(LoginRequiredMixin, ListView):
         elif estado_facturacion == 'facturado':
             remisiones = remisiones.filter(facturado=True)
         
-        if estado_pago == 'pendiente':
-            remisiones = remisiones.filter(pagado=False)
-        elif estado_pago == 'pagado':
-            remisiones = remisiones.filter(pagado=True)
         
         if fecha_desde:
             remisiones = remisiones.filter(fecha__gte=fecha_desde)
@@ -2021,11 +2019,25 @@ class CobranzaListView(LoginRequiredMixin, ListView):
         if fecha_hasta:
             remisiones = remisiones.filter(fecha__lte=fecha_hasta)
         
-        # Filtrar solo las que están preliquidadas y no pagadas
+        # Filtrar solo las que están preliquidadas
         remisiones_preliquidadas = []
         for remision in remisiones:
-            if remision.esta_liquidada() and not remision.pagado:
-                remisiones_preliquidadas.append(remision)
+            if remision.esta_liquidada():
+                # Aplicar filtro de estado de pago basado en saldo pendiente
+                saldo_pendiente = remision.saldo_pendiente
+                
+                if estado_pago == 'pendiente':
+                    # Mostrar solo remisiones con saldo pendiente (no pagadas completamente)
+                    if saldo_pendiente > 0:
+                        remisiones_preliquidadas.append(remision)
+                elif estado_pago == 'pagado':
+                    # Mostrar solo remisiones con saldo cero (completamente pagadas)
+                    if saldo_pendiente == 0:
+                        remisiones_preliquidadas.append(remision)
+                else:
+                    # Sin filtro de estado de pago, mostrar solo las no pagadas (comportamiento por defecto)
+                    if saldo_pendiente > 0:
+                        remisiones_preliquidadas.append(remision)
         
         # Agrupar por cliente
         clientes_dict = {}
@@ -2192,10 +2204,6 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         elif estado_facturacion == 'facturado':
             remisiones = remisiones.filter(facturado=True)
         
-        if estado_pago == 'pendiente':
-            remisiones = remisiones.filter(pagado=False)
-        elif estado_pago == 'pagado':
-            remisiones = remisiones.filter(pagado=True)
         
         if fecha_desde:
             remisiones = remisiones.filter(fecha__gte=fecha_desde)
@@ -2203,11 +2211,25 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         if fecha_hasta:
             remisiones = remisiones.filter(fecha__lte=fecha_hasta)
         
-        # Filtrar solo las que están preliquidadas y no pagadas
+        # Filtrar solo las que están preliquidadas
         remisiones_preliquidadas = []
         for remision in remisiones:
-            if remision.esta_liquidada() and not remision.pagado:
-                remisiones_preliquidadas.append(remision)
+            if remision.esta_liquidada():
+                # Aplicar filtro de estado de pago basado en saldo pendiente
+                saldo_pendiente = remision.saldo_pendiente
+                
+                if estado_pago == 'pendiente':
+                    # Mostrar solo remisiones con saldo pendiente (no pagadas completamente)
+                    if saldo_pendiente > 0:
+                        remisiones_preliquidadas.append(remision)
+                elif estado_pago == 'pagado':
+                    # Mostrar solo remisiones con saldo cero (completamente pagadas)
+                    if saldo_pendiente == 0:
+                        remisiones_preliquidadas.append(remision)
+                else:
+                    # Sin filtro de estado de pago, mostrar solo las no pagadas (comportamiento por defecto)
+                    if saldo_pendiente > 0:
+                        remisiones_preliquidadas.append(remision)
         
         # Agrupar por cliente
         clientes_dict = {}
@@ -2571,3 +2593,835 @@ def reporte_pagos_view(request):
     }
     
     return render(request, 'core/reporte_pagos.html', context)
+
+
+# ==================== VISTAS DE PRESUPUESTOS ====================
+
+class PresupuestoGastoListView(LoginRequiredMixin, ListView):
+    """Vista para listar presupuestos de gastos"""
+    model = PresupuestoGasto
+    template_name = 'core/presupuesto_gasto_list.html'
+    context_object_name = 'presupuestos'
+    paginate_by = 20
+    
+    def get_queryset(self):
+        """Obtener presupuestos con filtros"""
+        # Obtener parámetros de búsqueda
+        busqueda = self.request.GET.get('busqueda', '')
+        centro_costo_id = self.request.GET.get('centro_costo', '')
+        clasificacion_gasto_id = self.request.GET.get('clasificacion_gasto', '')
+        ciclo = self.request.GET.get('ciclo', '')
+        
+        # Filtrar solo presupuestos activos
+        presupuestos = PresupuestoGasto.objects.filter(
+            activo=True
+        ).select_related('centro_costo', 'clasificacion_gasto', 'usuario_creacion')
+        
+        # Aplicar filtros
+        if busqueda:
+            presupuestos = presupuestos.filter(
+                Q(centro_costo__descripcion__icontains=busqueda) |
+                Q(clasificacion_gasto__descripcion__icontains=busqueda) |
+                Q(ciclo__icontains=busqueda)
+            )
+        
+        if centro_costo_id:
+            presupuestos = presupuestos.filter(centro_costo_id=centro_costo_id)
+        
+        if clasificacion_gasto_id:
+            presupuestos = presupuestos.filter(clasificacion_gasto_id=clasificacion_gasto_id)
+        
+        if ciclo:
+            presupuestos = presupuestos.filter(ciclo__icontains=ciclo)
+        
+        return presupuestos.order_by('-fecha_creacion')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Presupuestos de Gastos'
+        
+        # Agregar formulario de búsqueda
+        context['search_form'] = PresupuestoGastoSearchForm(self.request.GET)
+        
+        # Obtener ciclo actual de la configuración
+        try:
+            configuracion = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = configuracion.ciclo_actual if configuracion else ''
+        except:
+            context['ciclo_actual'] = ''
+        
+        return context
+
+
+class PresupuestoGastoCreateView(LoginRequiredMixin, CreateView):
+    """Vista para crear presupuestos de gastos"""
+    model = PresupuestoGasto
+    form_class = PresupuestoGastoForm
+    template_name = 'core/presupuesto_gasto_form.html'
+    success_url = reverse_lazy('core:presupuesto_gasto_list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Presupuesto de Gasto'
+        
+        # Obtener ciclo actual de la configuración
+        try:
+            configuracion = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = configuracion.ciclo_actual if configuracion else ''
+        except:
+            context['ciclo_actual'] = ''
+        
+        return context
+    
+    def form_valid(self, form):
+        # Asignar el usuario actual y el ciclo actual
+        form.instance.usuario_creacion = self.request.user
+        
+        # Obtener ciclo actual de la configuración
+        try:
+            configuracion = ConfiguracionSistema.objects.first()
+            if configuracion and configuracion.ciclo_actual:
+                form.instance.ciclo = configuracion.ciclo_actual
+        except:
+            pass
+        
+        return super().form_valid(form)
+
+
+class PresupuestoGastoUpdateView(LoginRequiredMixin, UpdateView):
+    """Vista para editar presupuestos de gastos"""
+    model = PresupuestoGasto
+    form_class = PresupuestoGastoForm
+    template_name = 'core/presupuesto_gasto_form.html'
+    success_url = reverse_lazy('core:presupuesto_gasto_list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Presupuesto de Gasto'
+        return context
+    
+    def form_valid(self, form):
+        # Asignar el usuario de modificación
+        form.instance.usuario_modificacion = self.request.user
+        return super().form_valid(form)
+
+
+class PresupuestoGastoDeleteView(LoginRequiredMixin, DeleteView):
+    """Vista para eliminar presupuestos de gastos"""
+    model = PresupuestoGasto
+    template_name = 'core/presupuesto_gasto_confirm_delete.html'
+    success_url = reverse_lazy('core:presupuesto_gasto_list')
+    
+    def delete(self, request, *args, **kwargs):
+        # En lugar de eliminar, marcar como inactivo
+        self.object = self.get_object()
+        self.object.activo = False
+        self.object.usuario_modificacion = request.user
+        self.object.save()
+        return HttpResponseRedirect(self.get_success_url())
+
+
+@login_required
+def presupuesto_gasto_ajax(request, pk):
+    """Vista AJAX para obtener datos de un presupuesto específico"""
+    try:
+        presupuesto = PresupuestoGasto.objects.get(pk=pk, activo=True)
+        data = {
+            'codigo': presupuesto.codigo,
+            'centro_costo': presupuesto.centro_costo.descripcion,
+            'clasificacion_gasto': presupuesto.clasificacion_gasto.descripcion,
+            'ciclo': presupuesto.ciclo,
+            'importe': float(presupuesto.importe),
+            'observaciones': presupuesto.observaciones or '',
+            'fecha_creacion': presupuesto.fecha_creacion.strftime('%d/%m/%Y %H:%M'),
+            'usuario_creacion': presupuesto.usuario_creacion.get_full_name() or presupuesto.usuario_creacion.username
+        }
+        return JsonResponse(data)
+    except PresupuestoGasto.DoesNotExist:
+        return JsonResponse({'error': 'Presupuesto no encontrado'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ===========================
+# VISTAS PARA PRESUPUESTOS (NUEVA ESTRUCTURA)
+# ===========================
+
+class PresupuestoListView(LoginRequiredMixin, ListView):
+    """Vista para listar presupuestos"""
+    model = Presupuesto
+    template_name = 'core/presupuesto_list.html'
+    context_object_name = 'presupuestos'
+    paginate_by = 20
+    
+    def get_queryset(self):
+        queryset = Presupuesto.objects.filter(activo=True).select_related('centro_costo', 'usuario_creacion')
+        
+        # Aplicar filtros de búsqueda
+        busqueda = self.request.GET.get('busqueda', '')
+        centro_costo_id = self.request.GET.get('centro_costo', '')
+        ciclo = self.request.GET.get('ciclo', '')
+        
+        if busqueda:
+            queryset = queryset.filter(
+                Q(centro_costo__descripcion__icontains=busqueda) |
+                Q(ciclo__icontains=busqueda) |
+                Q(observaciones__icontains=busqueda)
+            )
+        
+        if centro_costo_id:
+            queryset = queryset.filter(centro_costo_id=centro_costo_id)
+        
+        if ciclo:
+            queryset = queryset.filter(ciclo__icontains=ciclo)
+        
+        return queryset.order_by('-fecha_creacion')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['search_form'] = PresupuestoSearchForm(self.request.GET)
+        context['centros_costo'] = CentroCosto.objects.filter(activo=True)
+        
+        # Obtener el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else ''
+        except:
+            context['ciclo_actual'] = ''
+        
+        return context
+
+
+class PresupuestoCreateView(LoginRequiredMixin, CreateView):
+    """Vista para crear presupuestos"""
+    model = Presupuesto
+    form_class = PresupuestoForm
+    template_name = 'core/presupuesto_form.html'
+    success_url = reverse_lazy('core:presupuesto_list')
+    
+    def dispatch(self, request, *args, **kwargs):
+        # Verificar que el usuario sea administrador
+        if not (request.user.is_admin or request.user.is_superuser):
+            messages.error(request, 'No tienes permisos para crear presupuestos.')
+            return HttpResponseRedirect(reverse_lazy('core:presupuesto_list'))
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_initial(self):
+        """Inicializar el formulario con el ciclo actual"""
+        initial = super().get_initial()
+        try:
+            config = ConfiguracionSistema.objects.first()
+            initial['ciclo'] = config.ciclo_actual if config else '2025-2026'
+        except:
+            initial['ciclo'] = '2025-2026'
+        return initial
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Obtener el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else 'No definido'
+        except:
+            context['ciclo_actual'] = 'No definido'
+        
+        # Obtener clasificaciones de gastos para el modal
+        context['clasificaciones_gastos'] = ClasificacionGasto.objects.filter(activo=True)
+        
+        return context
+    
+    def form_valid(self, form):
+        # Establecer el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            form.instance.ciclo = config.ciclo_actual if config else '2025-2026'
+        except:
+            form.instance.ciclo = '2025-2026'
+        
+        # Establecer el usuario de creación
+        form.instance.usuario_creacion = self.request.user
+        
+        # Guardar el presupuesto primero
+        response = super().form_valid(form)
+        
+        # Crear los detalles temporales si existen
+        detalles_temporales = self.request.POST.get('detalles_temporales')
+        if detalles_temporales:
+            try:
+                import json
+                detalles_data = json.loads(detalles_temporales)
+                
+                for detalle_data in detalles_data:
+                    clasificacion_gasto = ClasificacionGasto.objects.get(
+                        codigo=detalle_data['clasificacion_gasto']['codigo']
+                    )
+                    
+                    PresupuestoDetalle.objects.create(
+                        presupuesto=form.instance,
+                        clasificacion_gasto=clasificacion_gasto,
+                        importe=detalle_data['importe'],
+                        usuario_creacion=self.request.user
+                    )
+            except Exception as e:
+                # Si hay error al crear detalles, agregar mensaje de error
+                messages.error(self.request, f'Error al crear algunos detalles: {str(e)}')
+        
+        return response
+    
+    def post(self, request, *args, **kwargs):
+        # Manejar AJAX para agregar/eliminar detalles
+        if request.headers.get('Content-Type') == 'application/json' or 'action' in request.POST:
+            action = request.POST.get('action')
+            
+            if action == 'add_detalle':
+                return self.add_detalle(request)
+            elif action == 'delete_detalle':
+                return self.delete_detalle(request)
+        
+        return super().post(request, *args, **kwargs)
+    
+    def add_detalle(self, request):
+        """Agregar un detalle al presupuesto"""
+        try:
+            presupuesto_id = request.POST.get('presupuesto_id')
+            clasificacion_gasto_id = request.POST.get('clasificacion_gasto')
+            importe = request.POST.get('importe')
+            
+            if not all([presupuesto_id, clasificacion_gasto_id, importe]):
+                return JsonResponse({'success': False, 'message': 'Faltan datos requeridos'})
+            
+            presupuesto = Presupuesto.objects.get(pk=presupuesto_id)
+            clasificacion_gasto = ClasificacionGasto.objects.get(pk=clasificacion_gasto_id)
+            
+            detalle = PresupuestoDetalle.objects.create(
+                presupuesto=presupuesto,
+                clasificacion_gasto=clasificacion_gasto,
+                importe=importe,
+                usuario_creacion=request.user
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Detalle agregado correctamente',
+                'detalle': {
+                    'id': detalle.codigo,
+                    'clasificacion': detalle.clasificacion_gasto.descripcion,
+                    'importe': float(detalle.importe)
+                }
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+    
+    def delete_detalle(self, request):
+        """Eliminar un detalle del presupuesto"""
+        try:
+            detalle_id = request.POST.get('detalle_id')
+            detalle = PresupuestoDetalle.objects.get(pk=detalle_id)
+            detalle.delete()
+            
+            return JsonResponse({'success': True, 'message': 'Detalle eliminado correctamente'})
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+
+
+class PresupuestoUpdateView(LoginRequiredMixin, UpdateView):
+    """Vista para editar presupuestos"""
+    model = Presupuesto
+    form_class = PresupuestoForm
+    template_name = 'core/presupuesto_form.html'
+    success_url = reverse_lazy('core:presupuesto_list')
+    
+    def dispatch(self, request, *args, **kwargs):
+        # Verificar que el usuario sea administrador
+        if not (request.user.is_admin or request.user.is_superuser):
+            messages.error(request, 'No tienes permisos para editar presupuestos.')
+            return HttpResponseRedirect(reverse_lazy('core:presupuesto_list'))
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_initial(self):
+        """Inicializar el formulario con el ciclo actual"""
+        initial = super().get_initial()
+        try:
+            config = ConfiguracionSistema.objects.first()
+            initial['ciclo'] = config.ciclo_actual if config else '2025-2026'
+        except:
+            initial['ciclo'] = '2025-2026'
+        return initial
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Obtener el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else 'No definido'
+        except:
+            context['ciclo_actual'] = 'No definido'
+        
+        # Obtener clasificaciones de gastos para el modal
+        context['clasificaciones_gastos'] = ClasificacionGasto.objects.filter(activo=True)
+        
+        return context
+    
+    def form_valid(self, form):
+        # Establecer el usuario de modificación
+        form.instance.usuario_modificacion = self.request.user
+        
+        return super().form_valid(form)
+    
+    def post(self, request, *args, **kwargs):
+        # Manejar AJAX para agregar/eliminar detalles
+        if request.headers.get('Content-Type') == 'application/json' or 'action' in request.POST:
+            action = request.POST.get('action')
+            
+            if action == 'add_detalle':
+                return self.add_detalle(request)
+            elif action == 'delete_detalle':
+                return self.delete_detalle(request)
+        
+        return super().post(request, *args, **kwargs)
+    
+    def add_detalle(self, request):
+        """Agregar un detalle al presupuesto"""
+        try:
+            presupuesto_id = self.get_object().codigo
+            clasificacion_gasto_id = request.POST.get('clasificacion_gasto')
+            importe = request.POST.get('importe')
+            
+            if not all([presupuesto_id, clasificacion_gasto_id, importe]):
+                return JsonResponse({'success': False, 'message': 'Faltan datos requeridos'})
+            
+            presupuesto = Presupuesto.objects.get(pk=presupuesto_id)
+            clasificacion_gasto = ClasificacionGasto.objects.get(pk=clasificacion_gasto_id)
+            
+            detalle = PresupuestoDetalle.objects.create(
+                presupuesto=presupuesto,
+                clasificacion_gasto=clasificacion_gasto,
+                importe=importe,
+                usuario_creacion=request.user
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Detalle agregado correctamente',
+                'detalle': {
+                    'id': detalle.codigo,
+                    'clasificacion': detalle.clasificacion_gasto.descripcion,
+                    'importe': float(detalle.importe)
+                }
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+    
+    def delete_detalle(self, request):
+        """Eliminar un detalle del presupuesto"""
+        try:
+            detalle_id = request.POST.get('detalle_id')
+            detalle = PresupuestoDetalle.objects.get(pk=detalle_id)
+            detalle.delete()
+            
+            return JsonResponse({'success': True, 'message': 'Detalle eliminado correctamente'})
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+
+
+class PresupuestoDeleteView(LoginRequiredMixin, DeleteView):
+    """Vista para eliminar presupuestos"""
+    model = Presupuesto
+    template_name = 'core/presupuesto_confirm_delete.html'
+    success_url = reverse_lazy('core:presupuesto_list')
+    
+    def dispatch(self, request, *args, **kwargs):
+        # Verificar que el usuario sea administrador
+        if not (request.user.is_admin or request.user.is_superuser):
+            messages.error(request, 'No tienes permisos para eliminar presupuestos.')
+            return HttpResponseRedirect(reverse_lazy('core:presupuesto_list'))
+        return super().dispatch(request, *args, **kwargs)
+    
+    def delete(self, request, *args, **kwargs):
+        """Eliminar lógicamente el presupuesto"""
+        self.object = self.get_object()
+        self.object.activo = False
+        self.object.usuario_modificacion = request.user
+        self.object.save()
+        return HttpResponseRedirect(self.get_success_url())
+
+
+def clasificaciones_gastos_ajax(request):
+    """Vista AJAX para obtener clasificaciones de gastos activas"""
+    try:
+        clasificaciones = ClasificacionGasto.objects.filter(activo=True).values('codigo', 'descripcion')
+        data = {
+            'success': True,
+            'clasificaciones': list(clasificaciones)
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+def presupuesto_detalle_ajax(request, pk):
+    """Vista AJAX para agregar un detalle a un presupuesto existente"""
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            # Obtener el presupuesto
+            presupuesto = get_object_or_404(Presupuesto, codigo=pk, activo=True)
+            
+            # Obtener la clasificación de gasto
+            clasificacion_gasto = get_object_or_404(ClasificacionGasto, codigo=data['clasificacion_gasto']['codigo'], activo=True)
+            
+            # Crear el detalle
+            detalle = PresupuestoDetalle.objects.create(
+                presupuesto=presupuesto,
+                clasificacion_gasto=clasificacion_gasto,
+                importe=data['importe'],
+                usuario_creacion=request.user
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Detalle agregado correctamente',
+                'detalle_codigo': detalle.codigo
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    return JsonResponse({'success': False, 'error': 'Método no permitido'}, status=405)
+
+
+class PresupuestoDetailView(LoginRequiredMixin, TemplateView):
+    """Vista para mostrar los detalles de un presupuesto"""
+    template_name = 'core/presupuesto_detail.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        presupuesto = get_object_or_404(Presupuesto, codigo=kwargs['pk'], activo=True)
+        context['presupuesto'] = presupuesto
+        context['detalles'] = presupuesto.detalles.filter(activo=True).order_by('clasificacion_gasto__descripcion')
+        
+        # Calcular gastos por clasificación
+        gastos_por_clasificacion = {}
+        total_gastado = 0
+        
+        # Obtener todos los gastos del presupuesto
+        gastos = Gasto.objects.filter(presupuesto=presupuesto, activo=True)
+        
+        for gasto in gastos:
+            for detalle_gasto in gasto.detalles.filter(activo=True):
+                clasificacion_id = detalle_gasto.clasificacion_gasto.codigo
+                if clasificacion_id not in gastos_por_clasificacion:
+                    gastos_por_clasificacion[clasificacion_id] = 0
+                gastos_por_clasificacion[clasificacion_id] += float(detalle_gasto.importe)
+                total_gastado += float(detalle_gasto.importe)
+        
+        context['gastos_por_clasificacion'] = gastos_por_clasificacion
+        context['total_gastado'] = total_gastado
+        
+        # Obtener el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else ''
+        except:
+            context['ciclo_actual'] = ''
+        
+        return context
+
+
+# Vistas para Gastos
+class GastoListView(LoginRequiredMixin, ListView):
+    """Vista para listar gastos"""
+    model = Gasto
+    template_name = 'core/gasto_list.html'
+    context_object_name = 'gastos'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Gasto.objects.filter(activo=True).select_related(
+            'presupuesto', 'presupuesto__centro_costo', 'usuario_creacion'
+        ).order_by('-fecha_creacion')
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Listado de Gastos'
+        return context
+
+
+class GastoCreateView(LoginRequiredMixin, CreateView):
+    """Vista para crear gastos con modal master-detail"""
+    model = Gasto
+    form_class = GastoForm
+    template_name = 'core/gasto_form.html'
+    success_url = reverse_lazy('core:gasto_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Obtener el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else ''
+        except:
+            context['ciclo_actual'] = ''
+        return context
+
+    def post(self, request, *args, **kwargs):
+        # Si es una petición AJAX desde el modal
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'detalles_temporales' in request.POST:
+            return self.handle_ajax_request(request)
+        return super().post(request, *args, **kwargs)
+
+    def handle_ajax_request(self, request):
+        """Manejar petición AJAX para crear gasto desde modal"""
+        try:
+            # Crear el gasto principal
+            presupuesto = Presupuesto.objects.get(codigo=request.POST.get('presupuesto'))
+            gasto = Gasto.objects.create(
+                presupuesto=presupuesto,
+                ciclo=request.POST.get('ciclo'),
+                fecha_gasto=request.POST.get('fecha_gasto'),
+                observaciones=request.POST.get('observaciones', ''),
+                activo=True,
+                usuario_creacion=request.user
+            )
+            
+            # Procesar detalles temporales
+            detalles_temporales = request.POST.get('detalles_temporales')
+            if detalles_temporales:
+                import json
+                detalles_data = json.loads(detalles_temporales)
+                for detalle_data in detalles_data:
+                    proveedor = Proveedor.objects.get(codigo=detalle_data['proveedor']['codigo'])
+                    clasificacion_gasto = ClasificacionGasto.objects.get(
+                        codigo=detalle_data['clasificacion_gasto']['codigo']
+                    )
+                    GastoDetalle.objects.create(
+                        gasto=gasto,
+                        proveedor=proveedor,
+                        factura=detalle_data['factura'],
+                        clasificacion_gasto=clasificacion_gasto,
+                        concepto=detalle_data['concepto'],
+                        importe=detalle_data['importe'],
+                        usuario_creacion=request.user
+                    )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Gasto creado correctamente',
+                'gasto_id': gasto.codigo
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+
+    def form_valid(self, form):
+        form.instance.usuario_creacion = self.request.user
+        form.instance.ciclo = form.cleaned_data['ciclo']
+        response = super().form_valid(form)
+        
+        # Procesar detalles temporales si existen
+        detalles_temporales = self.request.POST.get('detalles_temporales')
+        if detalles_temporales:
+            try:
+                import json
+                detalles_data = json.loads(detalles_temporales)
+                for detalle_data in detalles_data:
+                    proveedor = Proveedor.objects.get(codigo=detalle_data['proveedor']['codigo'])
+                    clasificacion_gasto = ClasificacionGasto.objects.get(
+                        codigo=detalle_data['clasificacion_gasto']['codigo']
+                    )
+                    GastoDetalle.objects.create(
+                        gasto=form.instance,
+                        proveedor=proveedor,
+                        factura=detalle_data['factura'],
+                        clasificacion_gasto=clasificacion_gasto,
+                        concepto=detalle_data['concepto'],
+                        importe=detalle_data['importe'],
+                        usuario_creacion=self.request.user
+                    )
+            except Exception as e:
+                messages.error(self.request, f'Error al crear algunos detalles: {str(e)}')
+        
+        return response
+
+
+class GastoDetailView(LoginRequiredMixin, TemplateView):
+    """Vista para mostrar los detalles de un gasto"""
+    template_name = 'core/gasto_detail.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        gasto = get_object_or_404(Gasto, codigo=kwargs['pk'], activo=True)
+        context['gasto'] = gasto
+        context['detalles'] = gasto.detalles.filter(activo=True).order_by('proveedor__razon_social')
+        return context
+
+
+class GastoUpdateView(LoginRequiredMixin, UpdateView):
+    """Vista para editar gastos"""
+    model = Gasto
+    form_class = GastoForm
+    template_name = 'core/gasto_form.html'
+    success_url = reverse_lazy('core:gasto_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Obtener el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else ''
+        except:
+            context['ciclo_actual'] = ''
+        return context
+
+    def form_valid(self, form):
+        form.instance.usuario_modificacion = self.request.user
+        return super().form_valid(form)
+
+
+class GastoDeleteView(LoginRequiredMixin, DeleteView):
+    """Vista para eliminar gastos (inactivar)"""
+    model = Gasto
+    template_name = 'core/gasto_confirm_delete.html'
+    success_url = reverse_lazy('core:gasto_list')
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self.object.activo = False
+        self.object.usuario_modificacion = request.user
+        self.object.save()
+        messages.success(request, 'Gasto eliminado correctamente.')
+        return HttpResponseRedirect(self.get_success_url())
+
+
+# Vistas AJAX para gastos
+def proveedores_ajax(request):
+    """Vista AJAX para obtener proveedores activos"""
+    try:
+        proveedores = Proveedor.objects.filter(activo=True).values('codigo', 'nombre')
+        data = {
+            'success': True,
+            'proveedores': list(proveedores)
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def clasificaciones_gastos_presupuesto_ajax(request, presupuesto_id):
+    """Vista AJAX para obtener clasificaciones de gastos de un presupuesto específico"""
+    try:
+        presupuesto = get_object_or_404(Presupuesto, codigo=presupuesto_id, activo=True)
+        clasificaciones_ids = presupuesto.detalles.filter(activo=True).values_list('clasificacion_gasto_id', flat=True)
+        clasificaciones = ClasificacionGasto.objects.filter(
+            codigo__in=clasificaciones_ids,
+            activo=True
+        ).values('codigo', 'descripcion')
+        
+        data = {
+            'success': True,
+            'clasificaciones': list(clasificaciones)
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class PresupuestoGastoFormView(LoginRequiredMixin, TemplateView):
+    """Vista para mostrar el formulario de captura de gastos para un presupuesto específico"""
+    template_name = 'core/presupuesto_gasto_form.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        presupuesto = get_object_or_404(Presupuesto, codigo=kwargs['pk'], activo=True)
+        context['presupuesto'] = presupuesto
+        
+        # Calcular gastos por clasificación
+        gastos_por_clasificacion = {}
+        total_gastado = 0
+        
+        # Obtener todos los gastos del presupuesto
+        gastos = Gasto.objects.filter(presupuesto=presupuesto, activo=True)
+        
+        for gasto in gastos:
+            for detalle_gasto in gasto.detalles.filter(activo=True):
+                clasificacion_id = detalle_gasto.clasificacion_gasto.codigo
+                if clasificacion_id not in gastos_por_clasificacion:
+                    gastos_por_clasificacion[clasificacion_id] = 0
+                gastos_por_clasificacion[clasificacion_id] += float(detalle_gasto.importe)
+                total_gastado += float(detalle_gasto.importe)
+        
+        context['gastos_por_clasificacion'] = gastos_por_clasificacion
+        context['total_gastado'] = total_gastado
+        
+        # Obtener el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else ''
+        except:
+            context['ciclo_actual'] = ''
+        
+        return context
+class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
+    """Vista para mostrar el reporte de gastos de un presupuesto específico"""
+    template_name = 'core/presupuesto_gastos_reporte.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        presupuesto = get_object_or_404(Presupuesto, codigo=kwargs['pk'], activo=True)
+        context['presupuesto'] = presupuesto
+        
+        # Obtener todos los gastos del presupuesto agrupados por clasificación
+        gastos = Gasto.objects.filter(presupuesto=presupuesto, activo=True).prefetch_related('detalles__proveedor', 'detalles__clasificacion_gasto')
+        
+        # Agrupar gastos por clasificación
+        gastos_por_clasificacion = {}
+        total_gastado = 0
+        
+        for gasto in gastos:
+            for detalle in gasto.detalles.filter(activo=True):
+                clasificacion = detalle.clasificacion_gasto
+                if clasificacion.codigo not in gastos_por_clasificacion:
+                    gastos_por_clasificacion[clasificacion.codigo] = {
+                        'clasificacion': clasificacion,
+                        'detalles': [],
+                        'subtotal': 0
+                    }
+                
+                detalle_info = {
+                    'gasto': gasto,
+                    'proveedor': detalle.proveedor,
+                    'factura': detalle.factura,
+                    'concepto': detalle.concepto,
+                    'importe': detalle.importe,
+                    'fecha_gasto': gasto.fecha_gasto
+                }
+                
+                gastos_por_clasificacion[clasificacion.codigo]['detalles'].append(detalle_info)
+                gastos_por_clasificacion[clasificacion.codigo]['subtotal'] += float(detalle.importe)
+                total_gastado += float(detalle.importe)
+        
+        # Ordenar por descripción de clasificación
+        gastos_ordenados = sorted(gastos_por_clasificacion.values(), key=lambda x: x['clasificacion'].descripcion)
+        
+        context['gastos_por_clasificacion'] = gastos_ordenados
+        context['total_gastado'] = total_gastado
+        
+        # Obtener el ciclo actual
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else ''
+        except:
+            context['ciclo_actual'] = ''
+        
+        return context

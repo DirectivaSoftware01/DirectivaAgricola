@@ -3,6 +3,8 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.hashers import make_password
 from django.core.validators import RegexValidator, EmailValidator
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+from django.conf import settings
 import re
 
 # Create your models here.
@@ -1495,3 +1497,425 @@ class PagoRemision(models.Model):
 
     def __str__(self):
         return f"Pago {self.codigo} - {self.remision.ciclo} - {self.remision.folio:06d} - ${self.monto}"
+
+
+class Presupuesto(models.Model):
+    """Modelo maestro para gestión de presupuestos de gastos por centro de costos y ciclo"""
+    
+    codigo = models.AutoField(primary_key=True, verbose_name="Código")
+    centro_costo = models.ForeignKey(
+        CentroCosto,
+        on_delete=models.PROTECT,
+        verbose_name="Centro de Costo",
+        help_text="Centro de costo al que pertenece el presupuesto"
+    )
+    ciclo = models.CharField(
+        max_length=100,
+        verbose_name="Ciclo",
+        help_text="Ciclo de producción para el cual se define el presupuesto"
+    )
+    observaciones = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones",
+        help_text="Observaciones adicionales sobre el presupuesto"
+    )
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si el presupuesto está activo en el sistema"
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    usuario_creacion = models.ForeignKey(
+        'Usuario',
+        on_delete=models.PROTECT,
+        related_name='presupuestos_creados',
+        verbose_name="Usuario de Creación"
+    )
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Última Modificación")
+    usuario_modificacion = models.ForeignKey(
+        'Usuario',
+        on_delete=models.PROTECT,
+        related_name='presupuestos_modificados',
+        verbose_name="Usuario de Última Modificación",
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        verbose_name = "Presupuesto"
+        verbose_name_plural = "Presupuestos"
+        db_table = 'presupuestos'
+        ordering = ['-fecha_creacion']
+        unique_together = ['centro_costo', 'ciclo']
+        indexes = [
+            models.Index(fields=['centro_costo', 'ciclo']),
+            models.Index(fields=['ciclo']),
+            models.Index(fields=['activo']),
+        ]
+
+    def __str__(self):
+        return f"{self.centro_costo.descripcion} - {self.ciclo}"
+
+    @property
+    def total_presupuestado(self):
+        """Calcula el total presupuestado sumando todos los detalles"""
+        return self.detalles.aggregate(total=models.Sum('importe'))['total'] or 0
+
+    def clean(self):
+        """Validaciones adicionales del modelo"""
+        super().clean()
+
+    def save(self, *args, **kwargs):
+        """Guardar con validaciones"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class PresupuestoDetalle(models.Model):
+    """Modelo detalle para las clasificaciones de gastos del presupuesto"""
+    
+    codigo = models.AutoField(primary_key=True, verbose_name="Código")
+    presupuesto = models.ForeignKey(
+        Presupuesto,
+        on_delete=models.CASCADE,
+        related_name='detalles',
+        verbose_name="Presupuesto",
+        help_text="Presupuesto al que pertenece este detalle"
+    )
+    clasificacion_gasto = models.ForeignKey(
+        ClasificacionGasto,
+        on_delete=models.PROTECT,
+        verbose_name="Clasificación de Gasto",
+        help_text="Clasificación de gasto presupuestada"
+    )
+    importe = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Importe",
+        help_text="Importe presupuestado para esta clasificación de gasto"
+    )
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si el detalle está activo en el sistema"
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    usuario_creacion = models.ForeignKey(
+        'Usuario',
+        on_delete=models.PROTECT,
+        related_name='presupuesto_detalles_creados',
+        verbose_name="Usuario de Creación"
+    )
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Última Modificación")
+    usuario_modificacion = models.ForeignKey(
+        'Usuario',
+        on_delete=models.PROTECT,
+        related_name='presupuesto_detalles_modificados',
+        verbose_name="Usuario de Última Modificación",
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        verbose_name = "Detalle de Presupuesto"
+        verbose_name_plural = "Detalles de Presupuesto"
+        db_table = 'presupuesto_detalles'
+        ordering = ['fecha_creacion']
+        unique_together = ['presupuesto', 'clasificacion_gasto']
+        indexes = [
+            models.Index(fields=['presupuesto']),
+            models.Index(fields=['clasificacion_gasto']),
+            models.Index(fields=['activo']),
+        ]
+
+    def __str__(self):
+        return f"{self.presupuesto} - {self.clasificacion_gasto.descripcion} - ${self.importe}"
+
+    def clean(self):
+        """Validaciones adicionales del modelo"""
+        super().clean()
+        
+        # Validar importe
+        if self.importe is not None and self.importe < 0:
+            raise ValidationError({
+                'importe': 'El importe no puede ser negativo.'
+            })
+
+    def save(self, *args, **kwargs):
+        """Guardar con validaciones"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+# Mantener el modelo anterior para compatibilidad (se puede eliminar después)
+class PresupuestoGasto(models.Model):
+    """Modelo para gestión de presupuestos de gastos por centro de costos y ciclo (DEPRECATED)"""
+    
+    codigo = models.AutoField(primary_key=True, verbose_name="Código")
+    centro_costo = models.ForeignKey(
+        CentroCosto,
+        on_delete=models.PROTECT,
+        verbose_name="Centro de Costo",
+        help_text="Centro de costo al que pertenece el presupuesto"
+    )
+    clasificacion_gasto = models.ForeignKey(
+        ClasificacionGasto,
+        on_delete=models.PROTECT,
+        verbose_name="Clasificación de Gasto",
+        help_text="Clasificación de gasto presupuestada"
+    )
+    ciclo = models.CharField(
+        max_length=100,
+        verbose_name="Ciclo",
+        help_text="Ciclo de producción para el cual se define el presupuesto"
+    )
+    importe = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Importe",
+        help_text="Importe presupuestado para esta clasificación de gasto"
+    )
+    observaciones = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones",
+        help_text="Observaciones adicionales sobre el presupuesto"
+    )
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si el presupuesto está activo en el sistema"
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    usuario_creacion = models.ForeignKey(
+        'Usuario',
+        on_delete=models.PROTECT,
+        related_name='presupuestos_gasto_creados',
+        verbose_name="Usuario de Creación"
+    )
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Última Modificación")
+    usuario_modificacion = models.ForeignKey(
+        'Usuario',
+        on_delete=models.PROTECT,
+        related_name='presupuestos_gasto_modificados',
+        verbose_name="Usuario de Última Modificación",
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        verbose_name = "Presupuesto de Gasto (DEPRECATED)"
+        verbose_name_plural = "Presupuestos de Gastos (DEPRECATED)"
+        db_table = 'presupuestos_gasto'
+        ordering = ['-fecha_creacion']
+        unique_together = ['centro_costo', 'clasificacion_gasto', 'ciclo']
+        indexes = [
+            models.Index(fields=['centro_costo', 'ciclo']),
+            models.Index(fields=['ciclo']),
+            models.Index(fields=['activo']),
+        ]
+
+    def __str__(self):
+        return f"{self.centro_costo.descripcion} - {self.clasificacion_gasto.descripcion} - {self.ciclo} - ${self.importe}"
+
+    def clean(self):
+        """Validaciones adicionales del modelo"""
+        super().clean()
+        
+        # Validar importe
+        if self.importe is not None and self.importe < 0:
+            raise ValidationError({
+                'importe': 'El importe no puede ser negativo.'
+            })
+
+    def save(self, *args, **kwargs):
+        """Guardar con validaciones"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+class Gasto(models.Model):
+    """Modelo para capturar gastos basados en presupuestos"""
+    
+    codigo = models.AutoField(primary_key=True, verbose_name="Código")
+    presupuesto = models.ForeignKey(
+        Presupuesto,
+        on_delete=models.PROTECT,
+        related_name='gastos',
+        verbose_name="Presupuesto",
+        help_text="Presupuesto al que pertenece este gasto"
+    )
+    ciclo = models.CharField(
+        max_length=10,
+        verbose_name="Ciclo",
+        help_text="Ciclo al que pertenece el gasto"
+    )
+    fecha_gasto = models.DateField(
+        verbose_name="Fecha del Gasto",
+        help_text="Fecha en que se realizó el gasto"
+    )
+    observaciones = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones",
+        help_text="Observaciones adicionales del gasto"
+    )
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si el gasto está activo en el sistema"
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    usuario_creacion = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='gastos_creados',
+        verbose_name="Usuario de Creación"
+    )
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Modificación")
+    usuario_modificacion = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='gastos_modificados',
+        verbose_name="Usuario de Última Modificación",
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        verbose_name = "Gasto"
+        verbose_name_plural = "Gastos"
+        db_table = 'gastos'
+        ordering = ['-fecha_creacion']
+        indexes = [
+            models.Index(fields=['presupuesto', 'ciclo']),
+            models.Index(fields=['fecha_gasto']),
+            models.Index(fields=['activo']),
+        ]
+
+    def __str__(self):
+        return f"Gasto {self.codigo} - {self.presupuesto.centro_costo.descripcion} - {self.fecha_gasto}"
+
+    @property
+    def total_gastado(self):
+        """Calcula el total gastado en este gasto"""
+        return self.detalles.filter(activo=True).aggregate(
+            total=models.Sum('importe')
+        )['total'] or 0
+
+    def clean(self):
+        """Validaciones adicionales del modelo"""
+        super().clean()
+        
+        # Validar que la fecha del gasto no sea futura
+        if self.fecha_gasto and self.fecha_gasto > timezone.now().date():
+            raise ValidationError({
+                'fecha_gasto': 'La fecha del gasto no puede ser futura.'
+            })
+
+    def save(self, *args, **kwargs):
+        """Guardar con validaciones"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class GastoDetalle(models.Model):
+    """Modelo detalle para los gastos capturados"""
+    
+    codigo = models.AutoField(primary_key=True, verbose_name="Código")
+    gasto = models.ForeignKey(
+        Gasto,
+        on_delete=models.CASCADE,
+        related_name='detalles',
+        verbose_name="Gasto",
+        help_text="Gasto al que pertenece este detalle"
+    )
+    proveedor = models.ForeignKey(
+        Proveedor,
+        on_delete=models.PROTECT,
+        verbose_name="Proveedor",
+        help_text="Proveedor que emitió la factura"
+    )
+    factura = models.CharField(
+        max_length=100,
+        verbose_name="Factura",
+        help_text="Número de factura del proveedor"
+    )
+    clasificacion_gasto = models.ForeignKey(
+        ClasificacionGasto,
+        on_delete=models.PROTECT,
+        verbose_name="Clasificación de Gasto",
+        help_text="Clasificación de gasto según el presupuesto"
+    )
+    concepto = models.CharField(
+        max_length=255,
+        verbose_name="Concepto",
+        help_text="Concepto o descripción del gasto"
+    )
+    importe = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Importe",
+        help_text="Importe del gasto"
+    )
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si el detalle está activo en el sistema"
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    usuario_creacion = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='gasto_detalles_creados',
+        verbose_name="Usuario de Creación"
+    )
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Modificación")
+    usuario_modificacion = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='gasto_detalles_modificados',
+        verbose_name="Usuario de Última Modificación",
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        verbose_name = "Detalle de Gasto"
+        verbose_name_plural = "Detalles de Gastos"
+        db_table = 'gasto_detalles'
+        ordering = ['-fecha_creacion']
+        indexes = [
+            models.Index(fields=['gasto']),
+            models.Index(fields=['proveedor']),
+            models.Index(fields=['factura']),
+            models.Index(fields=['activo']),
+        ]
+
+    def __str__(self):
+        return f"{self.gasto.codigo} - {self.proveedor.razon_social} - {self.factura} - ${self.importe}"
+
+    def clean(self):
+        """Validaciones adicionales del modelo"""
+        super().clean()
+        
+        # Validar importe
+        if self.importe is not None and self.importe <= 0:
+            raise ValidationError({
+                'importe': 'El importe debe ser mayor a cero.'
+            })
+        
+        # Validar que la clasificación de gasto esté en el presupuesto
+        if self.gasto and self.clasificacion_gasto:
+            if not self.gasto.presupuesto.detalles.filter(
+                clasificacion_gasto=self.clasificacion_gasto,
+                activo=True
+            ).exists():
+                raise ValidationError({
+                    'clasificacion_gasto': 'Esta clasificación de gasto no está incluida en el presupuesto seleccionado.'
+                })
+
+    def save(self, *args, **kwargs):
+        """Guardar con validaciones"""
+        self.full_clean()
+        super().save(*args, **kwargs)
