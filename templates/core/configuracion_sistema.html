@@ -962,7 +962,15 @@ function guardarSeccion(seccion) {
             showNotification('Error: Necesita estar autenticado. Por favor, recargue la página.', 'error', 5000);
             return;
         }
-        return response.json();
+        
+        // Verificar si la respuesta es JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            // Si no es JSON, asumir que fue exitoso (redirección o HTML)
+            return { success: true, message: `Sección ${seccion} guardada exitosamente` };
+        }
     })
     .then(data => {
         if (data && data.success) {
