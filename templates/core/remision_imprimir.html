@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remisión {{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #333;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #2c5aa0;
+        }
+        
+        .company-info {
+            flex: 1;
+        }
+        
+        .company-logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 5px;
+        }
+        
+        .company-slogan {
+            font-size: 10px;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 10px;
+        }
+        
+        .company-details {
+            font-size: 10px;
+            line-height: 1.3;
+        }
+        
+        .document-info {
+            text-align: right;
+            flex: 0 0 200px;
+        }
+        
+        .document-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 10px;
+        }
+        
+        .document-number {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .date-section {
+            margin-bottom: 20px;
+        }
+        
+        .date-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        
+        .date-field {
+            border: 1px solid #ccc;
+            padding: 5px;
+            text-align: center;
+            background-color: #f9f9f9;
+        }
+        
+        .client-section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .client-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .client-field {
+            margin-bottom: 8px;
+        }
+        
+        .field-label {
+            font-weight: bold;
+            color: #555;
+            font-size: 10px;
+        }
+        
+        .field-value {
+            font-size: 11px;
+            margin-top: 2px;
+        }
+        
+        .product-section {
+            margin-bottom: 20px;
+        }
+        
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        .product-table th,
+        .product-table td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+            font-size: 10px;
+        }
+        
+        .product-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .product-table .text-left {
+            text-align: left;
+        }
+        
+        .product-table .text-right {
+            text-align: right;
+        }
+        
+        .totals-section {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .totals-left {
+            flex: 1;
+        }
+        
+        .totals-right {
+            flex: 0 0 300px;
+        }
+        
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            padding: 5px 0;
+        }
+        
+        .total-label {
+            font-weight: bold;
+        }
+        
+        .total-value {
+            font-weight: bold;
+            color: #2c5aa0;
+        }
+        
+        .driver-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+        
+        .driver-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .signatures-section {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .signature-box {
+            width: 200px;
+            text-align: center;
+        }
+        
+        .signature-line {
+            border-bottom: 1px solid #333;
+            height: 40px;
+            margin-bottom: 5px;
+        }
+        
+        .payment-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+        }
+        
+        .payment-title {
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 10px;
+        }
+        
+        .payment-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .notice-section {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            font-size: 10px;
+        }
+        
+        .notice-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 5px;
+        }
+        
+        @media print {
+            body {
+                font-size: 11px;
+            }
+            
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="company-info">
+            <div class="company-logo">Directiva Agrícola</div>
+            <div class="company-slogan">PASIÓN QUE CREA CALIDAD</div>
+            <div class="company-details">
+                {% if config %}
+                    <strong>{{ config.nombre_pac|default:"Directiva Agrícola" }}</strong><br>
+                    RFC: {{ config.contrato|default:"RFC123456789" }}<br>
+                    {% if config.direccion %}{{ config.direccion }}<br>{% endif %}
+                    {% if config.telefono %}Tel: {{ config.telefono }}{% endif %}
+                {% else %}
+                    <strong>Directiva Agrícola</strong><br>
+                    RFC: RFC123456789<br>
+                    Ciudad Obregón, Sonora<br>
+                    Tel: 644-135-1366
+                {% endif %}
+            </div>
+        </div>
+        <div class="document-info">
+            <div class="document-title">REMISIÓN</div>
+            <div class="document-number">{{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}</div>
+        </div>
+    </div>
+
+    <!-- Fecha -->
+    <div class="date-section">
+        <div class="section-title">Fecha de Emisión</div>
+        <div class="date-grid">
+            <div class="date-field">{{ remision.fecha|date:"d" }}</div>
+            <div class="date-field">{{ remision.fecha|date:"F" }}</div>
+            <div class="date-field">{{ remision.fecha|date:"Y" }}</div>
+        </div>
+    </div>
+
+    <!-- Información del Cliente -->
+    <div class="client-section">
+        <div class="section-title">Información del Cliente</div>
+        <div class="client-grid">
+            <div>
+                <div class="client-field">
+                    <div class="field-label">Cliente:</div>
+                    <div class="field-value"><strong>{{ remision.cliente.razon_social }}</strong></div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">RFC:</div>
+                    <div class="field-value">{{ remision.cliente.rfc }}</div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Dirección:</div>
+                    <div class="field-value">{{ remision.cliente.direccion|default:"No especificada" }}</div>
+                </div>
+            </div>
+            <div>
+                <div class="client-field">
+                    <div class="field-label">Ciudad:</div>
+                    <div class="field-value">{{ remision.cliente.ciudad|default:"No especificada" }}</div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Teléfono:</div>
+                    <div class="field-value">{{ remision.cliente.telefono|default:"No especificado" }}</div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Email:</div>
+                    <div class="field-value">{{ remision.cliente.email|default:"No especificado" }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información del Producto -->
+    <div class="product-section">
+        <div class="section-title">Información del Producto</div>
+        <div class="client-grid">
+            <div>
+                <div class="client-field">
+                    <div class="field-label">Lote de Origen:</div>
+                    <div class="field-value"><strong>{{ remision.lote_origen.nombre }}</strong></div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Cultivo:</div>
+                    <div class="field-value">{{ remision.lote_origen.cultivo.descripcion|default:"No especificado" }}</div>
+                </div>
+            </div>
+            <div>
+                <div class="client-field">
+                    <div class="field-label">Variedad:</div>
+                    <div class="field-value">{{ remision.lote_origen.variedad|default:"No especificada" }}</div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Observaciones:</div>
+                    <div class="field-value">{{ remision.observaciones|default:"Ninguna" }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalles del Producto -->
+    {% if detalles %}
+    <div class="product-section">
+        <div class="section-title">Detalles del Producto</div>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th class="text-left">Producto</th>
+                    <th>Peso Neto (Kg)</th>
+                    <th>Peso Promedio/Arpilla (Kg)</th>
+                    <th>N° Arpillas</th>
+                    <th>Precio/Kg</th>
+                    <th>Importe</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for detalle in detalles %}
+                <tr>
+                    <td class="text-left">{{ detalle.producto_servicio.descripcion }}</td>
+                    <td>{{ detalle.peso_neto|floatformat:2 }}</td>
+                    <td>{{ detalle.peso_promedio|floatformat:2 }}</td>
+                    <td>{{ detalle.cantidad|floatformat:0 }}</td>
+                    <td class="text-right">${{ detalle.precio_unitario|floatformat:2 }}</td>
+                    <td class="text-right">${{ detalle.importe|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="background-color: #f0f0f0; font-weight: bold;">
+                    <td class="text-left">TOTAL</td>
+                    <td>{{ remision.total_peso_neto|floatformat:2 }}</td>
+                    <td>{{ remision.peso_promedio_arpilla|floatformat:2 }}</td>
+                    <td>{{ remision.total_arpillas|floatformat:0 }}</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">${{ remision.total_importe|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Totales y Transporte -->
+    <div class="totals-section">
+        <div class="totals-left">
+            <div class="section-title">Información de Transporte</div>
+            <div class="client-field">
+                <div class="field-label">Transportista:</div>
+                <div class="field-value"><strong>{{ remision.transportista.nombre_completo }}</strong></div>
+            </div>
+            <div class="client-field">
+                <div class="field-label">Placas:</div>
+                <div class="field-value">{{ remision.transportista.placas_unidad }}</div>
+            </div>
+            <div class="client-field">
+                <div class="field-label">Teléfono:</div>
+                <div class="field-value">{{ remision.transportista.telefono|default:"No especificado" }}</div>
+            </div>
+        </div>
+        <div class="totals-right">
+            <div class="section-title">Resumen Financiero</div>
+            <div class="total-row">
+                <span class="total-label">Subtotal:</span>
+                <span class="total-value">${{ remision.total_importe|floatformat:2 }}</span>
+            </div>
+            <div class="total-row">
+                <span class="total-label">Costo Flete:</span>
+                <span class="total-value">${{ remision.costo_flete|floatformat:2 }}</span>
+            </div>
+            <div class="total-row" style="border-top: 2px solid #2c5aa0; padding-top: 10px; margin-top: 10px;">
+                <span class="total-label" style="font-size: 14px;">TOTAL:</span>
+                <span class="total-value" style="font-size: 16px; color: #2c5aa0;">${{ remision.total_remision|floatformat:2 }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firmas -->
+    <div class="signatures-section">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="field-label">Autorización</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="field-label">Recibe</div>
+        </div>
+    </div>
+
+    <!-- Información de Pago -->
+    {% if config %}
+    <div class="payment-section">
+        <div class="payment-title">Datos para Pago</div>
+        <div class="payment-grid">
+            <div>
+                <div class="client-field">
+                    <div class="field-label">Banco:</div>
+                    <div class="field-value">{{ config.banco|default:"No especificado" }}</div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">N° Cuenta:</div>
+                    <div class="field-value">{{ config.numero_cuenta|default:"No especificado" }}</div>
+                </div>
+            </div>
+            <div>
+                <div class="client-field">
+                    <div class="field-label">Cuenta CLABE:</div>
+                    <div class="field-value">{{ config.cuenta_clabe|default:"No especificado" }}</div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Email:</div>
+                    <div class="field-value">{{ config.email|default:"No especificado" }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Aviso Importante -->
+    <div class="notice-section">
+        <div class="notice-title">Aviso Importante</div>
+        <p>Llenar formato de preliquidación anexo y enviarlo dentro de los primeros 5 días hábiles después de recibida la mercancía. En caso de requerir factura, solicitarla dentro del mismo mes del pago.</p>
+        <p style="margin-top: 10px;">
+            <strong>Atte: {{ config.nombre_pac|default:"Directiva Agrícola" }}</strong><br>
+            {% if config.telefono %}Tel: {{ config.telefono }}{% endif %}<br>
+            {% if config.email %}{{ config.email }}{% endif %}
+        </p>
+    </div>
+
+    <script>
+        // Auto-imprimir cuando se carga la página
+        window.onload = function() {
+            window.print();
+        };
+    </script>
+</body>
+</html>

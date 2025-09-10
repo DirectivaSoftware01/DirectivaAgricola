@@ -23,7 +23,7 @@ from .views import (
     # Vistas de Cultivos
     CultivoListView, CultivoCreateView, CultivoUpdateView, CultivoDeleteView, CultivoDetailView,
     # Vistas de Remisiones
-    RemisionListView, RemisionCreateView, RemisionUpdateView, RemisionDeleteView, RemisionDetailView,
+    RemisionListView, RemisionCreateView, RemisionUpdateView, RemisionDeleteView, RemisionDetailView, RemisionImprimirView,
     RemisionDetalleCreateView, RemisionDetalleUpdateView, RemisionDetalleDeleteView,
     RemisionLiquidacionView, CobranzaListView, CobranzaImprimirView,
     # Vistas de Presupuestos (estructura anterior)
@@ -123,6 +123,7 @@ urlpatterns = [
     path('remisiones/', RemisionListView.as_view(), name='remision_list'),
     path('remisiones/nuevo/', RemisionCreateView.as_view(), name='remision_create'),
     path('remisiones/<int:pk>/', RemisionDetailView.as_view(), name='remision_detail'),
+    path('remisiones/<int:pk>/imprimir/', RemisionImprimirView.as_view(), name='remision_imprimir'),
     path('remisiones/<int:pk>/editar/', RemisionUpdateView.as_view(), name='remision_update'),
     path('remisiones/<int:pk>/eliminar/', RemisionDeleteView.as_view(), name='remision_delete'),
     path('remisiones/<int:pk>/liquidar/', RemisionLiquidacionView.as_view(), name='remision_liquidar'),

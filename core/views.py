@@ -1795,6 +1795,26 @@ class RemisionDetailView(LoginRequiredMixin, TemplateView):
         return context
 
 
+class RemisionImprimirView(LoginRequiredMixin, TemplateView):
+    """Vista para imprimir formato de remisión"""
+    template_name = 'core/remision_imprimir.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        remision = get_object_or_404(Remision, pk=kwargs['pk'])
+        context['remision'] = remision
+        context['detalles'] = remision.detalles.all()
+        
+        # Obtener configuración del sistema para datos de la empresa
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['config'] = config
+        except:
+            context['config'] = None
+            
+        return context
+
+
 class RemisionDeleteView(LoginRequiredMixin, DeleteView):
     """Vista para eliminar remisiones"""
     model = Remision
