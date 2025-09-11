@@ -417,34 +417,43 @@
         <table class="product-table">
             <thead>
                 <tr>
-                    <th class="text-left">Producto</th>
-                    <th>Peso Neto (Kg)</th>
-                    <th>Peso Promedio/Arpilla (Kg)</th>
-                    <th>N° Arpillas</th>
-                    <th>Precio/Kg</th>
-                    <th>Importe</th>
+                    <th>Calidad</th>
+                    <th>No Arpillas</th>
+                    <th>Kgs Enviados</th>
+                    <th>Merma</th>
+                    <th>Peso Promedio</th>
+                    <th>Kgs Liquidados</th>
+                    <th>Kgs Merma</th>
+                    <th>Precio por Kilo</th>
+                    <th>Importe Liquidado</th>
                 </tr>
             </thead>
             <tbody>
                 {% for detalle in detalles %}
                 <tr>
-                    <td class="text-left">{{ detalle.producto_servicio.descripcion }}</td>
-                    <td>{{ detalle.peso_neto|floatformat:2 }}</td>
+                    <td>{{ detalle.calidad }}</td>
+                    <td>{{ detalle.no_arps|floatformat:0 }}</td>
+                    <td>{{ detalle.kgs_enviados|floatformat:2 }}</td>
+                    <td>{{ detalle.merma_arps|floatformat:0 }}</td>
                     <td>{{ detalle.peso_promedio|floatformat:2 }}</td>
-                    <td>{{ detalle.cantidad|floatformat:0 }}</td>
-                    <td class="text-right">${{ detalle.precio_unitario|floatformat:2 }}</td>
-                    <td class="text-right">${{ detalle.importe|floatformat:2 }}</td>
+                    <td>{{ detalle.kgs_liquidados|floatformat:2 }}</td>
+                    <td>{{ detalle.kgs_merma|floatformat:2 }}</td>
+                    <td class="text-right">${{ detalle.precio|floatformat:2 }}</td>
+                    <td class="text-right">${{ detalle.importe_liquidado|floatformat:2 }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
                 <tr style="background-color: #f0f0f0; font-weight: bold;">
-                    <td class="text-left">TOTAL</td>
-                    <td>{{ remision.total_peso_neto|floatformat:2 }}</td>
-                    <td>{{ remision.peso_promedio_arpilla|floatformat:2 }}</td>
-                    <td>{{ remision.total_arpillas|floatformat:0 }}</td>
+                    <td>TOTAL</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
                     <td class="text-right">-</td>
-                    <td class="text-right">${{ remision.total_importe|floatformat:2 }}</td>
+                    <td class="text-right">-</td>
                 </tr>
             </tfoot>
         </table>
