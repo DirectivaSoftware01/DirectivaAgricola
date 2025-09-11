@@ -479,9 +479,9 @@
         <div class="notice-title">Aviso Importante</div>
         <p>Llenar formato de preliquidación anexo y enviarlo dentro de los primeros 5 días hábiles después de recibida la mercancía. En caso de requerir factura, solicitarla dentro del mismo mes del pago.</p>
         <p style="margin-top: 10px;">
-            <strong>Atte: Directiva Agrícola</strong><br>
-            Tel: 644-135-1366<br>
-            contabilidad@directivaagricola.com
+            <strong>Atte: {{ configuracion.razon_social|default:"Directiva Agrícola" }}</strong><br>
+            {% if configuracion.rfc %}RFC: {{ configuracion.rfc }}<br>{% endif %}
+            {% if configuracion.telefono %}Tel: {{ configuracion.telefono }}{% endif %}
         </p>
     </div>
 
