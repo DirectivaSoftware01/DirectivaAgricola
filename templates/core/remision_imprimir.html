@@ -340,23 +340,11 @@
                     <div class="field-label">RFC:</div>
                     <div class="field-value">{{ remision.cliente.rfc }}</div>
                 </div>
-                <div class="client-field">
-                    <div class="field-label">Dirección:</div>
-                    <div class="field-value">{{ remision.cliente.direccion|default:"No especificada" }}</div>
-                </div>
             </div>
             <div>
                 <div class="client-field">
-                    <div class="field-label">Ciudad:</div>
-                    <div class="field-value">{{ remision.cliente.ciudad|default:"No especificada" }}</div>
-                </div>
-                <div class="client-field">
-                    <div class="field-label">Teléfono:</div>
-                    <div class="field-value">{{ remision.cliente.telefono|default:"No especificado" }}</div>
-                </div>
-                <div class="client-field">
-                    <div class="field-label">Email:</div>
-                    <div class="field-value">{{ remision.cliente.email|default:"No especificado" }}</div>
+                    <div class="field-label">Información de Entrega:</div>
+                    <div class="field-value">{{ remision.cliente.direccion_entrega|default:"No especificada" }}</div>
                 </div>
             </div>
         </div>
