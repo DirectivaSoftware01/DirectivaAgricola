@@ -346,6 +346,28 @@
                     <div class="field-label">Información de Entrega:</div>
                     <div class="field-value">{{ remision.cliente.direccion_entrega|default:"No especificada" }}</div>
                 </div>
+                <div class="client-field">
+                    <div class="field-label">Número de Bodega:</div>
+                    <div class="field-value">{{ remision.cliente.numero_bodega|default:"No especificado" }}</div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Teléfono de Bodega:</div>
+                    <div class="field-value">{{ remision.cliente.telefono_bodega|default:"No especificado" }}</div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Ubicación:</div>
+                    <div class="field-value">
+                        {% if remision.cliente.ciudad and remision.cliente.estado %}
+                            {{ remision.cliente.ciudad }}, {{ remision.cliente.estado }}
+                        {% elif remision.cliente.ciudad %}
+                            {{ remision.cliente.ciudad }}
+                        {% elif remision.cliente.estado %}
+                            {{ remision.cliente.estado }}
+                        {% else %}
+                            No especificada
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
     </div>
