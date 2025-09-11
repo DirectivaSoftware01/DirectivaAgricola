@@ -383,13 +383,25 @@
                 </div>
                 <div class="client-field">
                     <div class="field-label">Cultivo:</div>
-                    <div class="field-value">{{ remision.lote_origen.cultivo.descripcion|default:"No especificado" }}</div>
+                    <div class="field-value">
+                        {% if detalles.first.cultivo %}
+                            {{ detalles.first.cultivo.nombre }}
+                        {% else %}
+                            No especificado
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             <div>
                 <div class="client-field">
                     <div class="field-label">Variedad:</div>
-                    <div class="field-value">{{ remision.lote_origen.variedad|default:"No especificada" }}</div>
+                    <div class="field-value">
+                        {% if detalles.first.cultivo %}
+                            {{ detalles.first.cultivo.variedad }}
+                        {% else %}
+                            No especificada
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="client-field">
                     <div class="field-label">Observaciones:</div>
