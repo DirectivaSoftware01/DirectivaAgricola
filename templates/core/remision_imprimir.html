@@ -89,6 +89,13 @@
             margin-bottom: 5px;
         }
         
+        .document-date {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
         .date-section {
             margin-bottom: 20px;
         }
@@ -314,18 +321,10 @@
         <div class="document-info">
             <div class="document-title">REMISIÓN</div>
             <div class="document-number">{{ remision.ciclo }} - {{ remision.folio|stringformat:"06d" }}</div>
+            <div class="document-date">{{ remision.fecha|date:"d/m/Y" }}</div>
         </div>
     </div>
 
-    <!-- Fecha -->
-    <div class="date-section">
-        <div class="section-title">Fecha de Emisión</div>
-        <div class="date-grid">
-            <div class="date-field">{{ remision.fecha|date:"d" }}</div>
-            <div class="date-field">{{ remision.fecha|date:"F" }}</div>
-            <div class="date-field">{{ remision.fecha|date:"Y" }}</div>
-        </div>
-    </div>
 
     <!-- Información del Cliente -->
     <div class="client-section">
