@@ -39,7 +39,15 @@ from .views import (
     get_cultivos_ajax, cancelar_remision_ajax, actualizar_estado_cobranza_ajax,
     agregar_cuenta_bancaria_ajax, listar_cuentas_bancarias_ajax, eliminar_cuenta_bancaria_ajax,
     capturar_pago_ajax, reporte_pagos_view, clasificaciones_gastos_ajax, presupuesto_detalle_ajax,
-    proveedores_ajax, clasificaciones_gastos_presupuesto_ajax
+    proveedores_ajax, clasificaciones_gastos_presupuesto_ajax,
+    # Vistas AJAX para Emisores
+    listar_emisores_ajax, agregar_emisor_ajax, eliminar_emisor_ajax
+)
+
+# Importar vistas de facturación
+from .factura_views import (
+    FacturacionView, ListadoFacturasView, FacturaDetailView, obtener_emisor_ajax, obtener_cliente_ajax, 
+    obtener_producto_ajax, guardar_factura_ajax, cancelar_factura_ajax
 )
 
 app_name = 'core'
@@ -178,4 +186,19 @@ urlpatterns = [
     path('ajax/clasificaciones-gastos/', clasificaciones_gastos_ajax, name='clasificaciones_gastos_ajax'),
     path('ajax/proveedores/', proveedores_ajax, name='proveedores_ajax'),
     path('ajax/presupuestos/<int:presupuesto_id>/clasificaciones/', clasificaciones_gastos_presupuesto_ajax, name='clasificaciones_gastos_presupuesto_ajax'),
+    
+    # URLs AJAX para Emisores
+    path('ajax/emisores/listar/', listar_emisores_ajax, name='listar_emisores_ajax'),
+    path('ajax/emisores/agregar/', agregar_emisor_ajax, name='agregar_emisor_ajax'),
+    path('ajax/emisores/eliminar/<int:codigo>/', eliminar_emisor_ajax, name='eliminar_emisor_ajax'),
+    
+    # URLs para Facturación
+    path('facturacion/', FacturacionView.as_view(), name='facturacion'),
+    path('listado-facturas/', ListadoFacturasView.as_view(), name='listado_facturas'),
+    path('factura/<int:folio>/', FacturaDetailView.as_view(), name='factura_detail'),
+    path('ajax/emisores/<str:codigo>/', obtener_emisor_ajax, name='obtener_emisor_ajax'),
+    path('ajax/clientes/<str:codigo>/', obtener_cliente_ajax, name='obtener_cliente_ajax'),
+    path('ajax/productos/<str:codigo>/', obtener_producto_ajax, name='obtener_producto_ajax'),
+    path('ajax/facturas/guardar/', guardar_factura_ajax, name='guardar_factura_ajax'),
+    path('ajax/facturas/<int:folio>/cancelar/', cancelar_factura_ajax, name='cancelar_factura_ajax'),
 ]

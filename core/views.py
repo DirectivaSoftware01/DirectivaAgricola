@@ -13,7 +13,7 @@ from django.db.models import Sum, Count
 from django.db import models
 from django.contrib import messages
 from datetime import datetime
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle
+from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Emisor, Factura, FacturaDetalle
 from .forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm, PresupuestoGastoForm, PresupuestoGastoSearchForm, PresupuestoForm, PresupuestoDetalleForm, PresupuestoSearchForm, GastoForm, GastoDetalleForm
 
 # Create your views here.
@@ -31,6 +31,183 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['usuarios_activos'] = Usuario.objects.filter(is_active=True).count()
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 def login_view(request):
     """Vista de login"""
@@ -60,13 +237,12 @@ class ConfiguracionView(LoginRequiredMixin, ListView):
     context_object_name = 'usuarios'
     
     def dispatch(self, request, *args, **kwargs):
-        # Asegurar autenticación antes de verificar permisos
+        """Verificar que el usuario sea administrador"""
         if not request.user.is_authenticated:
             return redirect('core:login')
-        # Verificar que el usuario tenga permisos de administrador
-        if not getattr(request.user, 'is_admin', False) and not request.user.is_superuser:
-            messages.error(request, 'No tiene permisos para acceder a la configuración de usuarios.')
-            return redirect('core:dashboard')
+        if not request.user.is_staff:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
         return super().dispatch(request, *args, **kwargs)
     
     def get_queryset(self):
@@ -218,6 +394,183 @@ class ClienteListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class ClienteCreateView(LoginRequiredMixin, CreateView):
     """Vista para crear clientes"""
     model = Cliente
@@ -249,6 +602,183 @@ class ClienteCreateView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Nuevo Cliente'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class ClienteUpdateView(LoginRequiredMixin, UpdateView):
@@ -284,6 +814,183 @@ class ClienteUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class ClienteDetailView(LoginRequiredMixin, TemplateView):
     """Vista para mostrar detalles de un cliente"""
     template_name = 'core/cliente_detail.html'
@@ -294,6 +1001,183 @@ class ClienteDetailView(LoginRequiredMixin, TemplateView):
         context['cliente'] = cliente
         context['title'] = f'Cliente: {cliente.razon_social}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class ClienteDeleteView(LoginRequiredMixin, DeleteView):
@@ -320,6 +1204,183 @@ class ClienteDeleteView(LoginRequiredMixin, DeleteView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 # ====================================
 # VISTAS PARA CRUD DE RÉGIMEN FISCAL
 # ====================================
@@ -338,6 +1399,183 @@ class RegimenFiscalListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Regímenes Fiscales'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class RegimenFiscalCreateView(LoginRequiredMixin, CreateView):
@@ -369,6 +1607,183 @@ class RegimenFiscalCreateView(LoginRequiredMixin, CreateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class RegimenFiscalUpdateView(LoginRequiredMixin, UpdateView):
     """Vista para editar regímenes fiscales"""
     model = RegimenFiscal
@@ -396,6 +1811,183 @@ class RegimenFiscalUpdateView(LoginRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Editar Régimen Fiscal: {self.object.codigo}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class RegimenFiscalDeleteView(LoginRequiredMixin, DeleteView):
@@ -438,6 +2030,183 @@ class RegimenFiscalDeleteView(LoginRequiredMixin, DeleteView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 # ===========================
 # VISTAS PARA CRUD DE PROVEEDORES
 # ===========================
@@ -475,6 +2244,183 @@ class ProveedorListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class ProveedorCreateView(LoginRequiredMixin, CreateView):
     model = Proveedor
     form_class = ProveedorForm
@@ -500,6 +2446,183 @@ class ProveedorCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Nuevo Proveedor'
         context['is_edit'] = False
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class ProveedorUpdateView(LoginRequiredMixin, UpdateView):
@@ -529,6 +2652,183 @@ class ProveedorUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class ProveedorDetailView(LoginRequiredMixin, TemplateView):
     template_name = 'core/proveedor_detail.html'
     
@@ -538,6 +2838,183 @@ class ProveedorDetailView(LoginRequiredMixin, TemplateView):
         context['proveedor'] = proveedor
         context['title'] = f'Proveedor: {proveedor.nombre}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class ProveedorDeleteView(LoginRequiredMixin, DeleteView):
@@ -560,6 +3037,183 @@ class ProveedorDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Eliminar Proveedor: {self.object.nombre}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 # ===========================
@@ -601,6 +3255,183 @@ class TransportistaListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class TransportistaCreateView(LoginRequiredMixin, CreateView):
     model = Transportista
     form_class = TransportistaForm
@@ -626,6 +3457,183 @@ class TransportistaCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Nuevo Transportista'
         context['is_edit'] = False
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class TransportistaUpdateView(LoginRequiredMixin, UpdateView):
@@ -655,6 +3663,183 @@ class TransportistaUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class TransportistaDetailView(LoginRequiredMixin, TemplateView):
     template_name = 'core/transportista_detail.html'
     
@@ -664,6 +3849,183 @@ class TransportistaDetailView(LoginRequiredMixin, TemplateView):
         context['transportista'] = transportista
         context['title'] = f'Transportista: {transportista.nombre_completo}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class TransportistaDeleteView(LoginRequiredMixin, DeleteView):
@@ -686,6 +4048,183 @@ class TransportistaDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Eliminar Transportista: {self.object.nombre_completo}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 # ===========================
@@ -725,6 +4264,183 @@ class LoteOrigenListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class LoteOrigenCreateView(LoginRequiredMixin, CreateView):
     model = LoteOrigen
     form_class = LoteOrigenForm
@@ -750,6 +4466,183 @@ class LoteOrigenCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Nuevo Lote de Origen'
         context['is_edit'] = False
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class LoteOrigenUpdateView(LoginRequiredMixin, UpdateView):
@@ -779,6 +4672,183 @@ class LoteOrigenUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class LoteOrigenDetailView(LoginRequiredMixin, TemplateView):
     template_name = 'core/lote_origen_detail.html'
     
@@ -788,6 +4858,183 @@ class LoteOrigenDetailView(LoginRequiredMixin, TemplateView):
         context['lote_origen'] = lote_origen
         context['title'] = f'Lote de Origen: {lote_origen.nombre}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class LoteOrigenDeleteView(LoginRequiredMixin, DeleteView):
@@ -810,6 +5057,183 @@ class LoteOrigenDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Eliminar Lote de Origen: {self.object.nombre}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 # ===========================
@@ -849,6 +5273,183 @@ class ClasificacionGastoListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class ClasificacionGastoCreateView(LoginRequiredMixin, CreateView):
     model = ClasificacionGasto
     form_class = ClasificacionGastoForm
@@ -874,6 +5475,183 @@ class ClasificacionGastoCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Nueva Clasificación de Gasto'
         context['is_edit'] = False
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class ClasificacionGastoUpdateView(LoginRequiredMixin, UpdateView):
@@ -903,6 +5681,183 @@ class ClasificacionGastoUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class ClasificacionGastoDetailView(LoginRequiredMixin, TemplateView):
     template_name = 'core/clasificacion_gasto_detail.html'
     
@@ -912,6 +5867,183 @@ class ClasificacionGastoDetailView(LoginRequiredMixin, TemplateView):
         context['clasificacion_gasto'] = clasificacion_gasto
         context['title'] = f'Clasificación de Gasto: {clasificacion_gasto.descripcion}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class ClasificacionGastoDeleteView(LoginRequiredMixin, DeleteView):
@@ -934,6 +6066,183 @@ class ClasificacionGastoDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Eliminar Clasificación de Gasto: {self.object.descripcion}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 # ===========================
@@ -973,6 +6282,183 @@ class CentroCostoListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class CentroCostoCreateView(LoginRequiredMixin, CreateView):
     model = CentroCosto
     form_class = CentroCostoForm
@@ -998,6 +6484,183 @@ class CentroCostoCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Nuevo Centro de Costo'
         context['is_edit'] = False
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class CentroCostoUpdateView(LoginRequiredMixin, UpdateView):
@@ -1027,6 +6690,183 @@ class CentroCostoUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class CentroCostoDetailView(LoginRequiredMixin, TemplateView):
     template_name = 'core/centro_costo_detail.html'
     
@@ -1036,6 +6876,183 @@ class CentroCostoDetailView(LoginRequiredMixin, TemplateView):
         context['centro_costo'] = centro_costo
         context['title'] = f'Centro de Costo: {centro_costo.descripcion}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class CentroCostoDeleteView(LoginRequiredMixin, DeleteView):
@@ -1058,6 +7075,183 @@ class CentroCostoDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Eliminar Centro de Costo: {self.object.descripcion}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 # ===========================
@@ -1102,6 +7296,183 @@ class ProductoServicioListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class ProductoServicioCreateView(LoginRequiredMixin, CreateView):
     model = ProductoServicio
     form_class = ProductoServicioForm
@@ -1128,6 +7499,183 @@ class ProductoServicioCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Nuevo Producto o Servicio'
         context['is_edit'] = False
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class ProductoServicioUpdateView(LoginRequiredMixin, UpdateView):
@@ -1159,6 +7707,183 @@ class ProductoServicioUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class ProductoServicioDetailView(LoginRequiredMixin, TemplateView):
     template_name = 'core/producto_servicio_detail.html'
     
@@ -1169,6 +7894,183 @@ class ProductoServicioDetailView(LoginRequiredMixin, TemplateView):
         tipo = "Producto" if producto_servicio.producto_servicio else "Servicio"
         context['title'] = f'{tipo}: {producto_servicio.descripcion}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class ProductoServicioDeleteView(LoginRequiredMixin, DeleteView):
@@ -1193,11 +8095,197 @@ class ProductoServicioDeleteView(LoginRequiredMixin, DeleteView):
         tipo = "Producto" if self.object.producto_servicio else "Servicio"
         context['title'] = f'Eliminar {tipo}: {self.object.descripcion}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 # Vistas para Configuración del Sistema
 
 class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
     """Vista para mostrar y editar la configuración del sistema"""
     template_name = 'core/configuracion_sistema.html'
+    
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_staff:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1224,7 +8312,7 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
         context['llave_nombre'] = configuracion.llave_nombre if configuracion else ''
         
         return context
-    
+
     def post(self, request, *args, **kwargs):
         """Manejar el envío del formulario"""
         try:
@@ -1246,6 +8334,10 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
                             configuracion.usuario_modificacion = request.user
                         configuracion.save()
                         messages.success(request, 'Ciclo de producción guardado correctamente.')
+                        
+                        # Si es una petición AJAX, devolver JSON
+                        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                            return JsonResponse({'success': True, 'message': 'Ciclo de producción guardado correctamente'})
                 
                 elif seccion == 'empresa':
                     if not configuracion:
@@ -1257,79 +8349,87 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
                         configuracion.rfc = request.POST.get('rfc')
                     if 'direccion' in request.POST:
                         configuracion.direccion = request.POST.get('direccion')
-                if 'telefono' in request.POST:
-                    configuracion.telefono = request.POST.get('telefono')
-                if 'logo_empresa' in request.FILES:
-                    print(f"DEBUG: Archivo logo_empresa encontrado: {request.FILES.get('logo_empresa').name}")
-                    configuracion.logo_empresa = request.FILES.get('logo_empresa')
-                else:
-                    print("DEBUG: No se encontró logo_empresa en request.FILES")
-                    print(f"DEBUG: Archivos disponibles: {list(request.FILES.keys())}")
+                    if 'telefono' in request.POST:
+                        configuracion.telefono = request.POST.get('telefono')
+                    if 'logo_empresa' in request.FILES:
+                        print(f"DEBUG: Archivo logo_empresa encontrado: {request.FILES.get('logo_empresa').name}")
+                        configuracion.logo_empresa = request.FILES.get('logo_empresa')
+                    else:
+                        print("DEBUG: No se encontró logo_empresa en request.FILES")
+                        print(f"DEBUG: Archivos disponibles: {list(request.FILES.keys())}")
+                    
+                    if not configuracion.pk:
+                        configuracion.usuario_creacion = request.user
+                    else:
+                        configuracion.usuario_modificacion = request.user
+                    configuracion.save()
+                    messages.success(request, 'Datos de la empresa guardados correctamente.')
+                    
+                    # Si es una petición AJAX, devolver JSON
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return JsonResponse({'success': True, 'message': 'Datos de la empresa guardados correctamente'})
                 
-                if not configuracion.pk:
-                    configuracion.usuario_creacion = request.user
-                else:
-                    configuracion.usuario_modificacion = request.user
-                configuracion.save()
-                messages.success(request, 'Datos de la empresa guardados correctamente.')
+                elif seccion == 'timbrado':
+                    if not configuracion:
+                        configuracion = ConfiguracionSistema()
+                    
+                    if 'nombre_pac' in request.POST:
+                        configuracion.nombre_pac = request.POST.get('nombre_pac')
+                    if 'contrato' in request.POST:
+                        configuracion.contrato = request.POST.get('contrato')
+                    if 'usuario_pac' in request.POST:
+                        configuracion.usuario_pac = request.POST.get('usuario_pac')
+                    if 'password_pac' in request.POST:
+                        configuracion.password_pac = request.POST.get('password_pac')
+                    
+                    if not configuracion.pk:
+                        configuracion.usuario_creacion = request.user
+                    else:
+                        configuracion.usuario_modificacion = request.user
+                    configuracion.save()
+                    messages.success(request, 'Configuración de timbrado guardada correctamente.')
+                    
+                    # Si es una petición AJAX, devolver JSON
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return JsonResponse({'success': True, 'message': 'Configuración de timbrado guardada correctamente'})
                 
-            elif seccion == 'timbrado':
-                if not configuracion:
-                    configuracion = ConfiguracionSistema()
+                elif seccion == 'certificados':
+                    if not configuracion:
+                        configuracion = ConfiguracionSistema()
+                    
+                    # Procesar archivos de certificado y llave
+                    if 'certificado_file' in request.FILES:
+                        certificado_file = request.FILES.get('certificado_file')
+                        # Convertir archivo a base64
+                        import base64
+                        configuracion.certificado = base64.b64encode(certificado_file.read()).decode('utf-8')
+                        # Guardar nombre del archivo original
+                        configuracion.certificado_nombre = certificado_file.name
+                    
+                    if 'llave_file' in request.FILES:
+                        llave_file = request.FILES.get('llave_file')
+                        # Convertir archivo a base64
+                        import base64
+                        configuracion.llave = base64.b64encode(llave_file.read()).decode('utf-8')
+                        # Guardar nombre del archivo original
+                        configuracion.llave_nombre = llave_file.name
+                    
+                    if 'password_llave' in request.POST:
+                        configuracion.password_llave = request.POST.get('password_llave')
+                    
+                    if not configuracion.pk:
+                        configuracion.usuario_creacion = request.user
+                    else:
+                        configuracion.usuario_modificacion = request.user
+                    configuracion.save()
+                    messages.success(request, 'Certificados guardados correctamente.')
+                    
+                    # Si es una petición AJAX, devolver JSON
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return JsonResponse({'success': True, 'message': 'Sección guardada correctamente'})
+                    
+                    return redirect('core:configuracion_sistema')
                 
-                if 'nombre_pac' in request.POST:
-                    configuracion.nombre_pac = request.POST.get('nombre_pac')
-                if 'contrato' in request.POST:
-                    configuracion.contrato = request.POST.get('contrato')
-                if 'usuario_pac' in request.POST:
-                    configuracion.usuario_pac = request.POST.get('usuario_pac')
-                if 'password_pac' in request.POST:
-                    configuracion.password_pac = request.POST.get('password_pac')
-                
-                if not configuracion.pk:
-                    configuracion.usuario_creacion = request.user
-                else:
-                    configuracion.usuario_modificacion = request.user
-                configuracion.save()
-                messages.success(request, 'Configuración de timbrado guardada correctamente.')
-                
-            elif seccion == 'certificados':
-                if not configuracion:
-                    configuracion = ConfiguracionSistema()
-                
-                # Procesar archivos de certificado y llave
-                if 'certificado_file' in request.FILES:
-                    certificado_file = request.FILES.get('certificado_file')
-                    # Convertir archivo a base64
-                    import base64
-                    configuracion.certificado = base64.b64encode(certificado_file.read()).decode('utf-8')
-                    # Guardar nombre del archivo original
-                    configuracion.certificado_nombre = certificado_file.name
-                
-                if 'llave_file' in request.FILES:
-                    llave_file = request.FILES.get('llave_file')
-                    # Convertir archivo a base64
-                    import base64
-                    configuracion.llave = base64.b64encode(llave_file.read()).decode('utf-8')
-                    # Guardar nombre del archivo original
-                    configuracion.llave_nombre = llave_file.name
-                
-                if 'password_llave' in request.POST:
-                    configuracion.password_llave = request.POST.get('password_llave')
-                
-                if not configuracion.pk:
-                    configuracion.usuario_creacion = request.user
-                else:
-                    configuracion.usuario_modificacion = request.user
-                configuracion.save()
-                messages.success(request, 'Certificados guardados correctamente.')
-                
-                # Si es una petición AJAX, devolver JSON
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({'success': True, 'message': 'Sección guardada correctamente'})
-                
-                return redirect('core:configuracion_sistema')
-            
             else:
                 # Guardado completo del formulario
                 form = ConfiguracionSistemaForm(request.POST, request.FILES, instance=configuracion)
@@ -1358,7 +8458,7 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
                         messages.error(request, f'Errores en el formulario: {"; ".join(error_messages)}')
                     else:
                         messages.error(request, 'Por favor, corrija los errores en el formulario.')
-                
+            
         except Exception as e:
             messages.error(request, f'Error al guardar la configuración: {str(e)}')
         
@@ -1369,7 +8469,186 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
             configuracion = ConfiguracionSistema()
         form = ConfiguracionSistemaForm(instance=configuracion)
         context['form'] = form
+        context['configuracion'] = configuracion
+        
         return render(request, self.template_name, context)
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 # Vistas para Cultivos
 
@@ -1404,6 +8683,183 @@ class CultivoListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class CultivoCreateView(LoginRequiredMixin, CreateView):
     """Vista para crear cultivos"""
     model = Cultivo
@@ -1422,6 +8878,183 @@ class CultivoCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Nuevo Cultivo'
         context['is_edit'] = False
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class CultivoUpdateView(LoginRequiredMixin, UpdateView):
@@ -1444,6 +9077,183 @@ class CultivoUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class CultivoDetailView(LoginRequiredMixin, TemplateView):
     """Vista para ver detalles de un cultivo"""
     template_name = 'core/cultivo_detail.html'
@@ -1457,6 +9267,183 @@ class CultivoDetailView(LoginRequiredMixin, TemplateView):
         context['cultivo'] = cultivo
         context['title'] = f'Cultivo: {cultivo.nombre} - {cultivo.variedad}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class CultivoDeleteView(LoginRequiredMixin, DeleteView):
@@ -1480,6 +9467,183 @@ class CultivoDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Eliminar Cultivo: {self.object.nombre} - {self.object.variedad}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 # ===========================
@@ -1565,6 +9729,183 @@ class RemisionListView(LoginRequiredMixin, ListView):
             context['ciclo_actual'] = ''
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class RemisionCreateView(LoginRequiredMixin, CreateView):
@@ -1689,6 +10030,183 @@ class RemisionLiquidacionView(LoginRequiredMixin, TemplateView):
         context['detalles'] = self.object.detalles.all()
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
     
     def post(self, request, *args, **kwargs):
         """Procesar la liquidación"""
@@ -1814,6 +10332,183 @@ class RemisionUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class RemisionDetailView(LoginRequiredMixin, TemplateView):
     """Vista para mostrar detalles de una remisión"""
     template_name = 'core/remision_detail.html'
@@ -1825,6 +10520,183 @@ class RemisionDetailView(LoginRequiredMixin, TemplateView):
         context['detalles'] = remision.detalles.all()
         context['title'] = f'Remisión: {remision.ciclo} - {remision.folio:06d}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class RemisionImprimirView(LoginRequiredMixin, TemplateView):
@@ -1842,6 +10714,183 @@ class RemisionImprimirView(LoginRequiredMixin, TemplateView):
         context['configuracion'] = configuracion
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 class RemisionDeleteView(LoginRequiredMixin, DeleteView):
@@ -1882,6 +10931,183 @@ class RemisionDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Eliminar Remisión: {self.object.ciclo} - {self.object.folio:06d}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 # ===========================
@@ -1927,6 +11153,183 @@ class RemisionDetalleCreateView(LoginRequiredMixin, CreateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class RemisionDetalleUpdateView(LoginRequiredMixin, UpdateView):
     """Vista para editar detalles de remisiones"""
     model = RemisionDetalle
@@ -1963,6 +11366,183 @@ class RemisionDetalleUpdateView(LoginRequiredMixin, UpdateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class RemisionDetalleDeleteView(LoginRequiredMixin, DeleteView):
     """Vista para eliminar detalles de remisiones"""
     model = RemisionDetalle
@@ -1988,6 +11568,183 @@ class RemisionDetalleDeleteView(LoginRequiredMixin, DeleteView):
         context['remision'] = self.object.remision
         context['title'] = f'Eliminar Detalle - Remisión: {self.object.remision.ciclo} - {self.object.remision.folio:06d}'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
 
 @login_required
@@ -2038,6 +11795,135 @@ def cancelar_remision_ajax(request, pk):
                 'errors': errors
             }, status=400)
             
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
     except Exception as e:
         return JsonResponse({
             'error': f'Error interno del servidor: {str(e)}'
@@ -2174,6 +12060,183 @@ class CobranzaListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 @login_required
 def actualizar_estado_cobranza_ajax(request, pk):
     """Vista AJAX para actualizar el estado de facturado o pagado de una remisión"""
@@ -2233,6 +12296,135 @@ def actualizar_estado_cobranza_ajax(request, pk):
                 'error': 'Acción no válida. Use "facturado" o "pagado"'
             }, status=400)
             
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
     except Exception as e:
         return JsonResponse({
             'error': f'Error interno del servidor: {str(e)}'
@@ -2376,6 +12568,183 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 # ===========================
 # VISTAS AJAX PARA CUENTAS BANCARIAS
 # ===========================
@@ -2431,6 +12800,135 @@ def agregar_cuenta_bancaria_ajax(request):
 
 
 @login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
 def listar_cuentas_bancarias_ajax(request):
     """Vista AJAX para listar cuentas bancarias"""
     if request.method != 'GET':
@@ -2464,6 +12962,135 @@ def listar_cuentas_bancarias_ajax(request):
 
 
 @login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
 def eliminar_cuenta_bancaria_ajax(request, codigo):
     """Vista AJAX para eliminar una cuenta bancaria"""
     if request.method != 'POST':
@@ -2483,6 +13110,135 @@ def eliminar_cuenta_bancaria_ajax(request, codigo):
         return JsonResponse({
             'success': True,
             'message': 'Cuenta bancaria eliminada exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
         })
         
     except Exception as e:
@@ -2568,6 +13324,135 @@ def capturar_pago_ajax(request, remision_id):
     except Exception as e:
         return JsonResponse({
             'error': f'Error al capturar el pago: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
         }, status=500)
 
 
@@ -2723,6 +13608,183 @@ class PresupuestoGastoListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class PresupuestoGastoCreateView(LoginRequiredMixin, CreateView):
     """Vista para crear presupuestos de gastos"""
     model = PresupuestoGasto
@@ -2742,6 +13804,183 @@ class PresupuestoGastoCreateView(LoginRequiredMixin, CreateView):
             context['ciclo_actual'] = ''
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
     
     def form_valid(self, form):
         # Asignar el usuario actual y el ciclo actual
@@ -2769,6 +14008,183 @@ class PresupuestoGastoUpdateView(LoginRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Presupuesto de Gasto'
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
     
     def form_valid(self, form):
         # Asignar el usuario de modificación
@@ -2873,6 +14289,183 @@ class PresupuestoListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class PresupuestoCreateView(LoginRequiredMixin, CreateView):
     """Vista para crear presupuestos"""
     model = Presupuesto
@@ -2911,6 +14504,183 @@ class PresupuestoCreateView(LoginRequiredMixin, CreateView):
         context['clasificaciones_gastos'] = ClasificacionGasto.objects.filter(activo=True)
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
     
     def form_valid(self, form):
         # Establecer el ciclo actual
@@ -3046,6 +14816,183 @@ class PresupuestoUpdateView(LoginRequiredMixin, UpdateView):
         context['clasificaciones_gastos'] = ClasificacionGasto.objects.filter(activo=True)
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
     
     def form_valid(self, form):
         # Establecer el usuario de modificación
@@ -3216,6 +15163,183 @@ class PresupuestoDetailView(LoginRequiredMixin, TemplateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 # Vistas para Gastos
 class GastoListView(LoginRequiredMixin, ListView):
     """Vista para listar gastos"""
@@ -3236,6 +15360,183 @@ class GastoListView(LoginRequiredMixin, ListView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class GastoCreateView(LoginRequiredMixin, CreateView):
     """Vista para crear gastos con modal master-detail"""
     model = Gasto
@@ -3252,6 +15553,183 @@ class GastoCreateView(LoginRequiredMixin, CreateView):
         except:
             context['ciclo_actual'] = ''
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
     def post(self, request, *args, **kwargs):
         # Si es una petición AJAX desde el modal
@@ -3305,6 +15783,135 @@ class GastoCreateView(LoginRequiredMixin, CreateView):
                 'error': str(e)
             }, status=500)
 
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
     def form_valid(self, form):
         form.instance.usuario_creacion = self.request.user
         form.instance.ciclo = form.cleaned_data['ciclo']
@@ -3348,6 +15955,183 @@ class GastoDetailView(LoginRequiredMixin, TemplateView):
         return context
 
 
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
 class GastoUpdateView(LoginRequiredMixin, UpdateView):
     """Vista para editar gastos"""
     model = Gasto
@@ -3364,6 +16148,183 @@ class GastoUpdateView(LoginRequiredMixin, UpdateView):
         except:
             context['ciclo_actual'] = ''
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 
     def form_valid(self, form):
         form.instance.usuario_modificacion = self.request.user
@@ -3453,6 +16414,183 @@ class PresupuestoGastoFormView(LoginRequiredMixin, TemplateView):
             context['ciclo_actual'] = ''
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
 class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
     """Vista para mostrar el reporte de gastos de un presupuesto específico"""
     template_name = 'core/presupuesto_gastos_reporte.html'
@@ -3506,3 +16644,180 @@ class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
             context['ciclo_actual'] = ''
         
         return context
+
+
+# Vistas AJAX para Emisores
+
+@login_required
+def listar_emisores_ajax(request):
+    """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener todos los emisores activos
+        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
+        
+        emisores_data = []
+        for emisor in emisores:
+            emisores_data.append({
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'serie': emisor.serie,
+                'archivo_certificado': emisor.archivo_certificado.name if emisor.archivo_certificado else None,
+                'archivo_llave': emisor.archivo_llave.name if emisor.archivo_llave else None,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'emisores': emisores_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def agregar_emisor_ajax(request):
+    """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener datos del formulario
+        razon_social = request.POST.get('razon_social', '').strip()
+        rfc = request.POST.get('rfc', '').strip()
+        codigo_postal = request.POST.get('codigo_postal', '').strip()
+        serie = request.POST.get('serie', 'A').strip()
+        password_llave = request.POST.get('password_llave', '').strip()
+        nombre_pac = request.POST.get('nombre_pac', 'PRODIGIA').strip()
+        contrato = request.POST.get('contrato', '').strip()
+        usuario_pac = request.POST.get('usuario_pac', '').strip()
+        password_pac = request.POST.get('password_pac', '').strip()
+        timbrado_prueba = request.POST.get('timbrado_prueba', 'true').lower() == 'true'
+        regimen_fiscal = request.POST.get('regimen_fiscal', '626').strip()
+        
+        # Validar campos requeridos
+        if not razon_social:
+            return JsonResponse({'error': 'La razón social es requerida'}, status=400)
+        
+        if not rfc:
+            return JsonResponse({'error': 'El RFC es requerido'}, status=400)
+        
+        if not codigo_postal:
+            return JsonResponse({'error': 'El código postal es requerido'}, status=400)
+        
+        if not password_llave:
+            return JsonResponse({'error': 'La contraseña de la llave es requerida'}, status=400)
+        
+        # Validar archivos
+        if 'archivo_certificado' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de certificado es requerido'}, status=400)
+        
+        if 'archivo_llave' not in request.FILES:
+            return JsonResponse({'error': 'El archivo de llave es requerido'}, status=400)
+        
+        certificado_file = request.FILES.get('archivo_certificado')
+        llave_file = request.FILES.get('archivo_llave')
+        
+        # Validar extensiones
+        if not certificado_file.name.endswith('.cer'):
+            return JsonResponse({'error': 'El archivo de certificado debe tener extensión .cer'}, status=400)
+        
+        if not llave_file.name.endswith('.key'):
+            return JsonResponse({'error': 'El archivo de llave debe tener extensión .key'}, status=400)
+        
+        # Crear el emisor
+        emisor = Emisor.objects.create(
+            razon_social=razon_social,
+            rfc=rfc,
+            codigo_postal=codigo_postal,
+            serie=serie,
+            archivo_certificado=certificado_file,
+            archivo_llave=llave_file,
+            password_llave=password_llave,
+            nombre_pac=nombre_pac,
+            contrato=contrato,
+            usuario_pac=usuario_pac,
+            password_pac=password_pac,
+            timbrado_prueba=timbrado_prueba,
+            regimen_fiscal=regimen_fiscal,
+            usuario_creacion=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor agregado exitosamente',
+            'emisor': {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'archivo_certificado': emisor.archivo_certificado.name,
+                'archivo_llave': emisor.archivo_llave.name,
+                'tiene_password': bool(emisor.password_llave),
+                'nombre_pac': emisor.nombre_pac,
+                'contrato': emisor.contrato,
+                'usuario_pac': emisor.usuario_pac,
+                'tiene_password_pac': bool(emisor.password_pac),
+                'timbrado_prueba': emisor.timbrado_prueba,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'activo': emisor.activo,
+                'fecha_creacion': emisor.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def eliminar_emisor_ajax(request, codigo):
+    """Vista AJAX para eliminar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Marcar como inactivo en lugar de eliminar
+        emisor.activo = False
+        emisor.usuario_modificacion = request.user
+        emisor.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Emisor eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)

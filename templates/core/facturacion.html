@@ -1,0 +1,979 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .factura-container {
+        background: #f8f9fa;
+        min-height: 100vh;
+        padding: 20px 0;
+    }
+    
+    .factura-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+    
+    .factura-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px 10px 0 0;
+    }
+    
+    .section-title {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    .form-section {
+        padding: 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+    }
+    
+    .detalle-row {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+    
+    .totales-section {
+        background: #e9ecef;
+        padding: 20px;
+        border-radius: 0 0 10px 10px;
+    }
+    
+    .total-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .total-row:last-child {
+        border-bottom: none;
+        font-weight: bold;
+        font-size: 1.2em;
+        color: #495057;
+    }
+    
+    .btn-action {
+        margin: 5px;
+    }
+    
+    .producto-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .detalle-item {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+    
+    .detalle-item .row {
+        margin-bottom: 10px;
+    }
+    
+    .detalle-item .row:last-child {
+        margin-bottom: 0;
+    }
+    
+    .btn-remove-item {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+    }
+    
+    .detalle-item {
+        position: relative;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        color: #dee2e6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="factura-container">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="factura-card">
+                    <!-- Header -->
+                    <div class="factura-header">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h2 class="mb-0">
+                                    <i class="bi bi-file-earmark-text me-2"></i>
+                                    Facturación CFDI 4.0
+                                </h2>
+                                <p class="mb-0 mt-2">Crear nueva factura</p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="d-flex gap-2 justify-content-end">
+                                    <button type="button" class="btn btn-light" onclick="limpiarFormulario()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i> Limpiar
+                                    </button>
+                                    <button type="button" class="btn btn-success" onclick="guardarFactura()">
+                                        <i class="bi bi-save me-1"></i> Guardar Factura
+                                    </button>
+                                    <button type="button" class="btn btn-primary" onclick="imprimirFactura()">
+                                        <i class="bi bi-printer me-1"></i> Imprimir
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Formulario Principal -->
+                    <form id="facturaForm">
+                        {% csrf_token %}
+                        <!-- Fecha y Hora de Emisión -->
+                        <div class="form-section">
+                            <h5 class="section-title">
+                                <i class="bi bi-calendar-event me-2"></i>
+                                Fecha y Hora de Emisión
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="fechaEmision" class="form-label">
+                                            Fecha y Hora <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="datetime-local" class="form-control" id="fechaEmision" name="fecha_emision" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="serie" class="form-label">
+                                            Serie <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="text" class="form-control" id="serie" name="serie" maxlength="10" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Emisor -->
+                        <div class="form-section">
+                            <h5 class="section-title">
+                                <i class="bi bi-building me-2"></i>
+                                Datos del Emisor
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="emisorSelect" class="form-label">
+                                            Emisor <span class="text-danger">*</span>
+                                        </label>
+                                        <select class="form-select" id="emisorSelect" name="emisor_id" required onchange="cargarDatosEmisor()">
+                                            <option value="">Seleccionar emisor...</option>
+                                            {% for emisor in emisores %}
+                                            <option value="{{ emisor.codigo }}">{{ emisor.razon_social }} ({{ emisor.rfc }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="lugarExpedicion" class="form-label">
+                                            Lugar de Expedición <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="text" class="form-control" id="lugarExpedicion" name="lugar_expedicion" maxlength="5" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row" id="datosEmisor" style="display: none;">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">Razón Social</label>
+                                        <input type="text" class="form-control" id="emisorRazonSocial" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">RFC</label>
+                                        <input type="text" class="form-control" id="emisorRfc" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">Régimen Fiscal</label>
+                                        <input type="text" class="form-control" id="emisorRegimenFiscal" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">Código Postal</label>
+                                        <input type="text" class="form-control" id="emisorCodigoPostal" readonly>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Receptor -->
+                        <div class="form-section">
+                            <h5 class="section-title">
+                                <i class="bi bi-person me-2"></i>
+                                Datos del Receptor
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="receptorSelect" class="form-label">
+                                            Cliente <span class="text-danger">*</span>
+                                        </label>
+                                        <select class="form-select" id="receptorSelect" name="receptor_id" required onchange="cargarDatosCliente()">
+                                            <option value="">Seleccionar cliente...</option>
+                                            {% for cliente in clientes %}
+                                            <option value="{{ cliente.codigo }}">{{ cliente.razon_social }} ({{ cliente.rfc }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="usoCfdi" class="form-label">
+                                            Uso CFDI <span class="text-danger">*</span>
+                                        </label>
+                                        <select class="form-select" id="usoCfdi" name="uso_cfdi" required>
+                                            <option value="">Seleccionar uso CFDI...</option>
+                                            <option value="G01">G01 - Adquisición de mercancías</option>
+                                            <option value="G02">G02 - Devoluciones, descuentos o bonificaciones</option>
+                                            <option value="G03">G03 - Gastos en general</option>
+                                            <option value="I01">I01 - Construcciones</option>
+                                            <option value="I02">I02 - Mobilario y equipo de oficina por inversiones</option>
+                                            <option value="I03">I03 - Equipo de transporte</option>
+                                            <option value="I04">I04 - Equipo de computo y accesorios</option>
+                                            <option value="I05">I05 - Dados, troqueles, moldes, matrices y herramental</option>
+                                            <option value="I06">I06 - Comunicaciones telefónicas</option>
+                                            <option value="I07">I07 - Comunicaciones satelitales</option>
+                                            <option value="I08">I08 - Otra maquinaria y equipo</option>
+                                            <option value="D01">D01 - Honorarios médicos, dentales y gastos hospitalarios</option>
+                                            <option value="D02">D02 - Gastos médicos por incapacidad o discapacidad</option>
+                                            <option value="D03">D03 - Gastos funerales</option>
+                                            <option value="D04">D04 - Donativos</option>
+                                            <option value="D05">D05 - Intereses reales efectivamente pagados por créditos hipotecarios (casa habitación)</option>
+                                            <option value="D06">D06 - Aportaciones voluntarias al SAR</option>
+                                            <option value="D07">D07 - Primas por seguros de gastos médicos</option>
+                                            <option value="D08">D08 - Gastos de transportación escolar obligatoria</option>
+                                            <option value="D09">D09 - Depósitos en cuentas para el ahorro, primas que tengan como base planes de pensiones</option>
+                                            <option value="D10">D10 - Pagos por servicios educativos (colegiaturas)</option>
+                                            <option value="P01">P01 - Por definir</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row" id="datosCliente" style="display: none;">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">Razón Social</label>
+                                        <input type="text" class="form-control" id="clienteRazonSocial" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">RFC</label>
+                                        <input type="text" class="form-control" id="clienteRfc" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">Código Postal</label>
+                                        <input type="text" class="form-control" id="clienteCodigoPostal" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label class="form-label">Régimen Fiscal</label>
+                                        <input type="text" class="form-control" id="clienteRegimenFiscal" readonly>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="exportacion" class="form-label">Exportación</label>
+                                        <select class="form-select" id="exportacion" name="exportacion">
+                                            <option value="01" selected>01 - No aplica</option>
+                                            <option value="02">02 - Definitiva (bloqueado)</option>
+                                            <option value="03">03 - Temporal</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Datos de Pago -->
+                        <div class="form-section">
+                            <h5 class="section-title">
+                                <i class="bi bi-credit-card me-2"></i>
+                                Datos de Pago
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="metodoPago" class="form-label">Método de Pago</label>
+                                        <select class="form-select" id="metodoPago" name="metodo_pago" onchange="cambiarFormaPago()">
+                                            <option value="PUE" selected>PUE - Pago en una sola exhibición</option>
+                                            <option value="PPD">PPD - Pago en parcialidades o diferido</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="moneda" class="form-label">Moneda</label>
+                                        <input type="text" class="form-control" id="moneda" name="moneda" value="MXN" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="formaPago" class="form-label">Forma de Pago</label>
+                                        <select class="form-select" id="formaPago" name="forma_pago">
+                                            <option value="01" selected>01 - Efectivo</option>
+                                            <option value="02">02 - Cheque nominativo</option>
+                                            <option value="03">03 - Transferencia electrónica de fondos</option>
+                                            <option value="04">04 - Tarjeta de crédito</option>
+                                            <option value="05">05 - Monedero electrónico</option>
+                                            <option value="06">06 - Dinero electrónico</option>
+                                            <option value="08">08 - Vales de despensa</option>
+                                            <option value="12">12 - Dación en pago</option>
+                                            <option value="13">13 - Pago por subrogación</option>
+                                            <option value="14">14 - Pago por consignación</option>
+                                            <option value="15">15 - Condonación</option>
+                                            <option value="17">17 - Compensación</option>
+                                            <option value="23">23 - Novación</option>
+                                            <option value="24">24 - Confusión</option>
+                                            <option value="25">25 - Remisión de deuda</option>
+                                            <option value="26">26 - Prescripción o caducidad</option>
+                                            <option value="27">27 - A satisfacción del acreedor</option>
+                                            <option value="28">28 - Tarjeta de débito</option>
+                                            <option value="29">29 - Tarjeta de servicios</option>
+                                            <option value="30">30 - Aplicación de anticipos</option>
+                                            <option value="31">31 - Intermediario pagos</option>
+                                            <option value="99">99 - Por definir</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="tipoCambio" class="form-label">Tipo de Cambio</label>
+                                        <input type="number" class="form-control" id="tipoCambio" name="tipo_cambio" value="1.0000" step="0.0001" min="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detalle de Productos -->
+                        <div class="form-section">
+                            <h5 class="section-title">
+                                <i class="bi bi-list-ul me-2"></i>
+                                Detalle de Productos/Servicios
+                            </h5>
+                            
+                            <!-- Formulario para agregar producto -->
+                            <div class="detalle-row">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label for="productoSelect" class="form-label">Producto/Servicio</label>
+                                            <select class="form-select" id="productoSelect" onchange="cargarDatosProducto()">
+                                                <option value="">Seleccionar producto...</option>
+                                                {% for producto in productos %}
+                                                <option value="{{ producto.codigo }}">{{ producto.descripcion }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label for="noIdentificacion" class="form-label">No. Identificación</label>
+                                            <input type="text" class="form-control" id="noIdentificacion" maxlength="50">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="concepto" class="form-label">Concepto</label>
+                                            <input type="text" class="form-control" id="concepto" maxlength="200">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-2">
+                                        <div class="mb-3">
+                                            <label for="cantidad" class="form-label">Cantidad</label>
+                                            <input type="number" class="form-control" id="cantidad" step="0.01" min="0" onchange="calcularImporte()">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="mb-3">
+                                            <label for="precio" class="form-label">Precio</label>
+                                            <input type="number" class="form-control" id="precio" step="0.01" min="0" onchange="calcularImporte()">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="mb-3">
+                                            <label for="claveProdServ" class="form-label">Clave SAT</label>
+                                            <input type="text" class="form-control" id="claveProdServ" maxlength="20">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="mb-3">
+                                            <label for="unidad" class="form-label">Unidad Medida</label>
+                                            <input type="text" class="form-control" id="unidad" maxlength="20">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="mb-3">
+                                            <label for="objetoImpuesto" class="form-label">Objeto de Impuesto</label>
+                                            <select class="form-select" id="objetoImpuesto">
+                                                <option value="01">01 - No objeto del impuesto</option>
+                                                <option value="02" selected>02 - Sí objeto del impuesto</option>
+                                                <option value="03">03 - Sí objeto del impuesto y no obligado al desglose</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="mb-3">
+                                            <label class="form-label">Tasa de Impuesto</label>
+                                            <div class="form-control-plaintext" id="tasaImpuestoDisplay">
+                                                <span class="badge bg-secondary">Selecciona un producto</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="mb-3">
+                                            <label class="form-label">&nbsp;</label>
+                                            <button type="button" class="btn btn-primary w-100" onclick="agregarProducto()">
+                                                <i class="bi bi-plus-circle me-1"></i> Agregar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Lista de productos agregados -->
+                            <div id="listaProductos">
+                                <div class="empty-state">
+                                    <i class="bi bi-inbox"></i>
+                                    <h5>No hay productos agregados</h5>
+                                    <p>Selecciona un producto y haz clic en "Agregar" para comenzar</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Totales -->
+                        <div class="totales-section">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="total-row">
+                                        <span>Subtotal:</span>
+                                        <span id="subtotal">$0.00</span>
+                                    </div>
+                                    <div class="total-row">
+                                        <span>Impuesto (16%):</span>
+                                        <span id="impuesto">$0.00</span>
+                                    </div>
+                                    <div class="total-row">
+                                        <span><strong>Total:</strong></span>
+                                        <span id="total"><strong>$0.00</strong></span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-success btn-lg" onclick="guardarFactura()">
+                                            <i class="bi bi-save me-2"></i> Guardar Factura
+                                        </button>
+                                        <button type="button" class="btn btn-primary" onclick="imprimirFactura()">
+                                            <i class="bi bi-printer me-2"></i> Imprimir
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let productosAgregados = [];
+let contadorProductos = 0;
+
+// Inicializar fecha actual
+document.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    const fechaActual = now.toISOString().slice(0, 16);
+    document.getElementById('fechaEmision').value = fechaActual;
+});
+
+// Cargar datos del emisor
+function cargarDatosEmisor() {
+    const emisorId = document.getElementById('emisorSelect').value;
+    if (!emisorId) {
+        document.getElementById('datosEmisor').style.display = 'none';
+        return;
+    }
+
+    fetch(`/ajax/emisores/${emisorId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('emisorRazonSocial').value = data.emisor.razon_social;
+                document.getElementById('emisorRfc').value = data.emisor.rfc;
+                document.getElementById('serie').value = data.emisor.serie || 'A';
+                document.getElementById('emisorRegimenFiscal').value = data.emisor.regimen_fiscal_display;
+                document.getElementById('emisorCodigoPostal').value = data.emisor.codigo_postal;
+                document.getElementById('lugarExpedicion').value = data.emisor.codigo_postal;
+                document.getElementById('datosEmisor').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarNotificacion('Error al cargar datos del emisor', 'error');
+        });
+}
+
+// Cargar datos del cliente
+function cargarDatosCliente() {
+    const clienteId = document.getElementById('receptorSelect').value;
+    if (!clienteId) {
+        document.getElementById('datosCliente').style.display = 'none';
+        return;
+    }
+
+    fetch(`/ajax/clientes/${clienteId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('clienteRazonSocial').value = data.cliente.razon_social;
+                document.getElementById('clienteRfc').value = data.cliente.rfc;
+                document.getElementById('clienteCodigoPostal').value = data.cliente.codigo_postal;
+                document.getElementById('clienteRegimenFiscal').value = data.cliente.regimen_fiscal_display;
+                document.getElementById('datosCliente').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarNotificacion('Error al cargar datos del cliente', 'error');
+        });
+}
+
+// Cargar datos del producto
+function cargarDatosProducto() {
+    const productoId = document.getElementById('productoSelect').value;
+    console.log('Producto seleccionado:', productoId);
+    
+    if (!productoId) {
+        limpiarCamposProducto();
+        return;
+    }
+
+    console.log('Haciendo petición a:', `/ajax/productos/${productoId}/`);
+    
+    fetch(`/ajax/productos/${productoId}/`)
+        .then(response => {
+            console.log('Respuesta recibida:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Datos recibidos:', data);
+            if (data.success) {
+                // Mostrar el código del producto en No Identificación
+                console.log('Código del producto:', data.producto.codigo);
+                console.log('Tasa de impuesto:', data.producto.tasa_impuesto);
+                document.getElementById('noIdentificacion').value = data.producto.codigo;
+                document.getElementById('concepto').value = data.producto.descripcion;
+                // El precio se ingresa manualmente, no se carga del catálogo
+                document.getElementById('claveProdServ').value = data.producto.clave_prod_serv;
+                document.getElementById('unidad').value = data.producto.unidad_medida;
+                
+                // Guardar la tasa de impuesto para usar en cálculos
+                window.tasaImpuestoProducto = data.producto.tasa_impuesto;
+                
+                // Mostrar la tasa de impuesto
+                actualizarTasaImpuestoDisplay(data.producto.tasa_impuesto, data.producto.impuesto);
+                
+                // No llamar calcularImporte() porque el precio está vacío
+            } else {
+                console.error('Error en respuesta:', data.error);
+                mostrarNotificacion(data.error || 'Error al cargar datos del producto', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarNotificacion('Error al cargar datos del producto', 'error');
+        });
+}
+
+// Limpiar campos del producto
+function limpiarCamposProducto() {
+    document.getElementById('noIdentificacion').value = '';
+    document.getElementById('concepto').value = '';
+    document.getElementById('cantidad').value = '';
+    // No limpiar precio, se ingresa manualmente
+    document.getElementById('claveProdServ').value = '';
+    document.getElementById('unidad').value = '';
+    
+    // Limpiar tasa de impuesto
+    window.tasaImpuestoProducto = undefined;
+    actualizarTasaImpuestoDisplay(0, '');
+}
+
+// Actualizar visualización de tasa de impuesto
+function actualizarTasaImpuestoDisplay(tasa, tipoImpuesto) {
+    const display = document.getElementById('tasaImpuestoDisplay');
+    
+    if (tasa === 0) {
+        if (tipoImpuesto === 'IVA_0') {
+            display.innerHTML = '<span class="badge bg-info">IVA Tasa 0%</span>';
+        } else if (tipoImpuesto === 'IVA_EXENTO') {
+            display.innerHTML = '<span class="badge bg-warning">IVA Exento</span>';
+        } else {
+            display.innerHTML = '<span class="badge bg-secondary">Selecciona un producto</span>';
+        }
+    } else {
+        display.innerHTML = `<span class="badge bg-success">IVA ${(tasa * 100).toFixed(0)}%</span>`;
+    }
+}
+
+// Calcular importe
+function calcularImporte() {
+    const cantidad = parseFloat(document.getElementById('cantidad').value) || 0;
+    const precio = parseFloat(document.getElementById('precio').value) || 0;
+    const importe = cantidad * precio;
+    
+    // Calcular impuesto si hay tasa definida
+    let impuesto = 0;
+    if (window.tasaImpuestoProducto !== undefined) {
+        impuesto = importe * window.tasaImpuestoProducto;
+    }
+    
+    // Mostrar cálculo en consola para debugging
+    console.log(`Cálculo: ${cantidad} × ${precio} = ${importe}, Impuesto: ${impuesto.toFixed(2)}`);
+}
+
+// Cambiar forma de pago según método de pago
+function cambiarFormaPago() {
+    const metodoPago = document.getElementById('metodoPago').value;
+    const formaPago = document.getElementById('formaPago');
+    
+    if (metodoPago === 'PPD') {
+        // Si es PPD (Pago en parcialidades), cambiar a 99 - Por definir
+        formaPago.value = '99';
+    } else if (metodoPago === 'PUE') {
+        // Si es PUE (Pago en una sola exhibición), cambiar a 01 - Efectivo por defecto
+        // pero permitir que el usuario lo cambie después
+        formaPago.value = '01';
+    }
+}
+
+// Agregar producto a la lista
+function agregarProducto() {
+    const productoId = document.getElementById('productoSelect').value;
+    const noIdentificacion = document.getElementById('noIdentificacion').value.trim();
+    const concepto = document.getElementById('concepto').value.trim();
+    const cantidad = parseFloat(document.getElementById('cantidad').value) || 0;
+    const precio = parseFloat(document.getElementById('precio').value) || 0;
+    const claveProdServ = document.getElementById('claveProdServ').value.trim();
+    const unidad = document.getElementById('unidad').value.trim();
+    const objetoImpuesto = document.getElementById('objetoImpuesto').value;
+
+    // Validaciones
+    if (!productoId) {
+        mostrarNotificacion('Selecciona un producto', 'warning');
+        return;
+    }
+    if (!concepto) {
+        mostrarNotificacion('El concepto es requerido', 'warning');
+        return;
+    }
+    if (cantidad <= 0) {
+        mostrarNotificacion('La cantidad debe ser mayor a 0', 'warning');
+        return;
+    }
+    if (precio <= 0) {
+        mostrarNotificacion('El precio debe ser mayor a 0', 'warning');
+        return;
+    }
+
+    const importe = cantidad * precio;
+    
+    // Calcular impuesto según la tasa del producto y objeto de impuesto
+    let impuesto = 0;
+    if (objetoImpuesto === '02' && window.tasaImpuestoProducto !== undefined) {
+        impuesto = importe * window.tasaImpuestoProducto;
+    }
+
+    const producto = {
+        id: ++contadorProductos,
+        producto_id: productoId,
+        no_identificacion: noIdentificacion,
+        concepto: concepto,
+        cantidad: cantidad,
+        precio: precio,
+        clave_prod_serv: claveProdServ,
+        unidad: unidad,
+        objeto_impuesto: objetoImpuesto,
+        importe: importe,
+        impuesto: impuesto
+    };
+
+    productosAgregados.push(producto);
+    actualizarListaProductos();
+    actualizarTotales();
+    limpiarCamposProducto();
+    document.getElementById('productoSelect').value = '';
+}
+
+// Actualizar lista de productos
+function actualizarListaProductos() {
+    const lista = document.getElementById('listaProductos');
+    
+    if (productosAgregados.length === 0) {
+        lista.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <h5>No hay productos agregados</h5>
+                <p>Selecciona un producto y haz clic en "Agregar" para comenzar</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    productosAgregados.forEach(producto => {
+        html += `
+            <div class="detalle-item">
+                <button type="button" class="btn-remove-item" onclick="eliminarProducto(${producto.id})">
+                    <i class="bi bi-x"></i>
+                </button>
+                <div class="row">
+                    <div class="col-md-3">
+                        <strong>Concepto:</strong> ${producto.concepto}
+                    </div>
+                    <div class="col-md-2">
+                        <strong>Cantidad:</strong> ${producto.cantidad}
+                    </div>
+                    <div class="col-md-2">
+                        <strong>Precio:</strong> $${producto.precio.toFixed(2)}
+                    </div>
+                    <div class="col-md-2">
+                        <strong>Importe:</strong> $${producto.importe.toFixed(2)}
+                    </div>
+                    <div class="col-md-2">
+                        <strong>Impuesto:</strong> $${producto.impuesto.toFixed(2)}
+                    </div>
+                    <div class="col-md-1">
+                        <strong>Total:</strong> $${(producto.importe + producto.impuesto).toFixed(2)}
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-2">
+                        <small><strong>No. Identificación:</strong> ${producto.no_identificacion}</small>
+                    </div>
+                    <div class="col-md-2">
+                        <small><strong>Clave SAT:</strong> ${producto.clave_prod_serv}</small>
+                    </div>
+                    <div class="col-md-2">
+                        <small><strong>Unidad Medida:</strong> ${producto.unidad}</small>
+                    </div>
+                    <div class="col-md-2">
+                        <small><strong>Objeto Impuesto:</strong> ${producto.objeto_impuesto}</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    lista.innerHTML = html;
+}
+
+// Eliminar producto de la lista
+function eliminarProducto(id) {
+    productosAgregados = productosAgregados.filter(p => p.id !== id);
+    actualizarListaProductos();
+    actualizarTotales();
+}
+
+// Actualizar totales
+function actualizarTotales() {
+    let subtotal = 0;
+    let impuesto = 0;
+
+    productosAgregados.forEach(producto => {
+        subtotal += producto.importe;
+        impuesto += producto.impuesto;
+    });
+
+    const total = subtotal + impuesto;
+
+    document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
+    document.getElementById('impuesto').textContent = `$${impuesto.toFixed(2)}`;
+    document.getElementById('total').innerHTML = `<strong>$${total.toFixed(2)}</strong>`;
+}
+
+// Guardar factura
+function guardarFactura() {
+    // Validar campos requeridos
+    const serie = document.getElementById('serie').value.trim();
+    const fechaEmision = document.getElementById('fechaEmision').value;
+    const emisorId = document.getElementById('emisorSelect').value;
+    const receptorId = document.getElementById('receptorSelect').value;
+    const usoCfdi = document.getElementById('usoCfdi').value;
+
+    if (!serie || !fechaEmision || !emisorId || !receptorId || !usoCfdi) {
+        mostrarNotificacion('Faltan campos requeridos', 'warning');
+        return;
+    }
+
+    if (productosAgregados.length === 0) {
+        mostrarNotificacion('Debe agregar al menos un producto', 'warning');
+        return;
+    }
+
+    // Preparar datos
+    const formData = new FormData();
+    formData.append('serie', serie);
+    formData.append('fecha_emision', fechaEmision);
+    formData.append('emisor_id', emisorId);
+    formData.append('lugar_expedicion', document.getElementById('lugarExpedicion').value);
+    formData.append('receptor_id', receptorId);
+    formData.append('uso_cfdi', usoCfdi);
+    formData.append('exportacion', document.getElementById('exportacion').value);
+    formData.append('metodo_pago', document.getElementById('metodoPago').value);
+    formData.append('moneda', document.getElementById('moneda').value);
+    formData.append('forma_pago', document.getElementById('formaPago').value);
+    formData.append('tipo_cambio', document.getElementById('tipoCambio').value);
+    formData.append('detalles', JSON.stringify(productosAgregados));
+
+    // Obtener token CSRF
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ||
+                     getCookie('csrftoken');
+    
+    if (!csrfToken) {
+        mostrarNotificacion('Error: No se pudo obtener el token CSRF', 'error');
+        return;
+    }
+
+    // Enviar datos
+    fetch('/ajax/facturas/guardar/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarNotificacion(`Factura ${data.serie_folio} guardada exitosamente`, 'success');
+            limpiarFormulario();
+        } else {
+            mostrarNotificacion(data.error || 'Error al guardar la factura', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarNotificacion('Error al guardar la factura', 'error');
+    });
+}
+
+// Limpiar formulario
+function limpiarFormulario() {
+    document.getElementById('facturaForm').reset();
+    document.getElementById('fechaEmision').value = new Date().toISOString().slice(0, 16);
+    document.getElementById('moneda').value = 'MXN';
+    document.getElementById('tipoCambio').value = '1.0000';
+    document.getElementById('metodoPago').value = 'PUE';
+    document.getElementById('formaPago').value = '01'; // Efectivo por defecto
+    document.getElementById('exportacion').value = '01';
+    document.getElementById('objetoImpuesto').value = '02';
+    
+    productosAgregados = [];
+    contadorProductos = 0;
+    actualizarListaProductos();
+    actualizarTotales();
+    
+    document.getElementById('datosEmisor').style.display = 'none';
+    document.getElementById('datosCliente').style.display = 'none';
+}
+
+// Imprimir factura
+function imprimirFactura() {
+    if (productosAgregados.length === 0) {
+        mostrarNotificacion('No hay productos para imprimir', 'warning');
+        return;
+    }
+    
+    // Aquí implementarías la lógica de impresión
+    mostrarNotificacion('Funcionalidad de impresión en desarrollo', 'info');
+}
+
+// Función para obtener cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Mostrar notificación
+function mostrarNotificacion(mensaje, tipo) {
+    // Implementar sistema de notificaciones
+    alert(mensaje);
+}
+</script>
+{% endblock %}

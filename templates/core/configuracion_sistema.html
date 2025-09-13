@@ -285,203 +285,211 @@
                                 </div>
                             </div>
 
-                            <!-- Acordeón 4: Configuración de timbrado -->
+                            <!-- Acordeón 4: Emisores -->
                             <div class="accordion-item">
-                                <h2 class="accordion-header" id="timbradoHeader">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#timbradoCollapse" aria-expanded="false" aria-controls="timbradoCollapse">
-                                        <i class="bi bi-receipt me-2"></i>
-                                        Configuración de timbrado
+                                <h2 class="accordion-header" id="emisoresHeader">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#emisoresCollapse" aria-expanded="false" aria-controls="emisoresCollapse">
+                                        <i class="bi bi-building me-2"></i>
+                                        Emisores
                                     </button>
                                 </h2>
-                                <div id="timbradoCollapse" class="accordion-collapse collapse" aria-labelledby="timbradoHeader" data-bs-parent="#configuracionAccordion">
+                                <div id="emisoresCollapse" class="accordion-collapse collapse" aria-labelledby="emisoresHeader" data-bs-parent="#configuracionAccordion">
                                     <div class="accordion-body">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="{{ form.nombre_pac.id_for_label }}" class="form-label">
-                                                        {{ form.nombre_pac.label }}
-                                                        {% if form.nombre_pac.field.required %}<span class="text-danger">*</span>{% endif %}
-                                                    </label>
-                                                    {{ form.nombre_pac }}
-                                                    {% if form.nombre_pac.help_text %}
-                                                        <div class="form-text">{{ form.nombre_pac.help_text }}</div>
-                                                    {% endif %}
-                                                    {% if form.nombre_pac.errors %}
-                                                        <div class="text-danger">
-                                                            {% for error in form.nombre_pac.errors %}
-                                                                <small>{{ error }}</small>
-                                                            {% endfor %}
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
+                                        <!-- Formulario para agregar emisor -->
+                                        <div class="card mb-4">
+                                            <div class="card-header">
+                                                <h6 class="card-title mb-0">
+                                                    <i class="bi bi-plus-circle me-2"></i>Agregar Emisor
+                                                </h6>
                                             </div>
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="{{ form.contrato.id_for_label }}" class="form-label">
-                                                        {{ form.contrato.label }}
-                                                        {% if form.contrato.field.required %}<span class="text-danger">*</span>{% endif %}
-                                                    </label>
-                                                    {{ form.contrato }}
-                                                    {% if form.contrato.help_text %}
-                                                        <div class="form-text">{{ form.contrato.help_text }}</div>
-                                                    {% endif %}
-                                                    {% if form.contrato.errors %}
-                                                        <div class="text-danger">
-                                                            {% for error in form.contrato.errors %}
-                                                                <small>{{ error }}</small>
-                                                            {% endfor %}
+                                            <div class="card-body">
+                                                <form id="emisorForm" enctype="multipart/form-data">
+                                                    {% csrf_token %}
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="razonSocial" class="form-label">
+                                                                    Razón Social <span class="text-danger">*</span>
+                                                                </label>
+                                                                <input type="text" class="form-control" id="razonSocial" name="razon_social" required>
+                                                            </div>
                                                         </div>
-                                                    {% endif %}
-                                                </div>
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="rfc" class="form-label">
+                                                                    RFC <span class="text-danger">*</span>
+                                                                </label>
+                                                                <input type="text" class="form-control" id="rfc" name="rfc" required>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="codigoPostal" class="form-label">
+                                                                    Código Postal <span class="text-danger">*</span>
+                                                                </label>
+                                                                <input type="text" class="form-control" id="codigoPostal" name="codigo_postal" maxlength="5" required>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="serie" class="form-label">
+                                                                    Serie <span class="text-danger">*</span>
+                                                                </label>
+                                                                <input type="text" class="form-control" id="serie" name="serie" maxlength="10" value="A" required>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="regimenFiscal" class="form-label">
+                                                                    Régimen Fiscal <span class="text-danger">*</span>
+                                                                </label>
+                                                                <select class="form-select" id="regimenFiscal" name="regimen_fiscal" required>
+                                                                    <option value="601">601 - General de Ley Personas Morales</option>
+                                                                    <option value="603">603 - Personas Morales con Fines no Lucrativos</option>
+                                                                    <option value="605">605 - Sueldos y Salarios e Ingresos Asimilados a Salarios</option>
+                                                                    <option value="606">606 - Arrendamiento</option>
+                                                                    <option value="608">608 - Demás ingresos</option>
+                                                                    <option value="610">610 - Residentes en el Extranjero sin Establecimiento Permanente en México</option>
+                                                                    <option value="611">611 - Ingresos por Dividendos (socios y accionistas)</option>
+                                                                    <option value="612">612 - Personas Físicas con Actividades Empresariales y Profesionales</option>
+                                                                    <option value="614">614 - Ingresos por intereses</option>
+                                                                    <option value="615">615 - Régimen de los ingresos por obtención de premios</option>
+                                                                    <option value="616">616 - Sin obligaciones fiscales</option>
+                                                                    <option value="620">620 - Sociedades Cooperativas de Producción que optan por diferir sus ingresos</option>
+                                                                    <option value="621">621 - Incorporación Fiscal</option>
+                                                                    <option value="622">622 - Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras</option>
+                                                                    <option value="623">623 - Opcional para Grupos de Sociedades</option>
+                                                                    <option value="624">624 - Coordinados</option>
+                                                                    <option value="625">625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas</option>
+                                                                    <option value="626" selected>626 - Régimen Simplificado de Confianza</option>
+                                                                    <option value="628">628 - Hidrocarburos</option>
+                                                                    <option value="629">629 - De los Regímenes Fiscales Preferentes y de las Empresas Multinacionales</option>
+                                                                    <option value="630">630 - Enajenación de acciones en bolsa de valores</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="passwordLlave" class="form-label">
+                                                                    Contraseña de la Llave <span class="text-danger">*</span>
+                                                                </label>
+                                                                <input type="password" class="form-control" id="passwordLlave" name="password_llave" required>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <!-- Espacio vacío para mantener el diseño -->
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="archivoCertificado" class="form-label">
+                                                                    Archivo de Certificado (.cer) <span class="text-danger">*</span>
+                                                                </label>
+                                                                <input type="file" class="form-control" id="archivoCertificado" name="archivo_certificado" accept=".cer" required>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="archivoLlave" class="form-label">
+                                                                    Archivo de Llave (.key) <span class="text-danger">*</span>
+                                                                </label>
+                                                                <input type="file" class="form-control" id="archivoLlave" name="archivo_llave" accept=".key" required>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Datos de Timbrado -->
+                                                    <div class="mt-4">
+                                                        <h6 class="text-primary border-bottom pb-2">
+                                                            <i class="bi bi-receipt me-2"></i>Datos de Timbrado
+                                                        </h6>
+                                                    </div>
+                                                    
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="nombrePac" class="form-label">
+                                                                    Nombre de PAC
+                                                                </label>
+                                                                <select class="form-select" id="nombrePac" name="nombre_pac">
+                                                                    <option value="PRODIGIA">Prodigia</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="contrato" class="form-label">
+                                                                    Contrato
+                                                                </label>
+                                                                <input type="text" class="form-control" id="contrato" name="contrato">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="usuarioPac" class="form-label">
+                                                                    Usuario PAC
+                                                                </label>
+                                                                <input type="text" class="form-control" id="usuarioPac" name="usuario_pac">
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <div class="mb-3">
+                                                                <label for="passwordPac" class="form-label">
+                                                                    Contraseña PAC
+                                                                </label>
+                                                                <input type="password" class="form-control" id="passwordPac" name="password_pac">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-12">
+                                                            <div class="mb-3">
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" id="timbradoPrueba" name="timbrado_prueba" checked>
+                                                                    <label class="form-check-label" for="timbradoPrueba">
+                                                                        <strong>Timbrado de Prueba</strong>
+                                                                    </label>
+                                                                    <div class="form-text">Desmarcar para usar timbrado en modo producción</div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row">
+                                                        <div class="col-12">
+                                                            <button type="button" class="btn btn-primary" id="btnAgregarEmisor" onclick="agregarEmisor()">
+                                                                <i class="bi bi-plus-circle me-1"></i>Agregar Emisor
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </form>
                                             </div>
                                         </div>
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="{{ form.usuario_pac.id_for_label }}" class="form-label">
-                                                        {{ form.usuario_pac.label }}
-                                                        {% if form.usuario_pac.field.required %}<span class="text-danger">*</span>{% endif %}
-                                                    </label>
-                                                    {{ form.usuario_pac }}
-                                                    {% if form.usuario_pac.help_text %}
-                                                        <div class="form-text">{{ form.usuario_pac.help_text }}</div>
-                                                    {% endif %}
-                                                    {% if form.usuario_pac.errors %}
-                                                        <div class="text-danger">
-                                                            {% for error in form.usuario_pac.errors %}
-                                                                <small>{{ error }}</small>
-                                                            {% endfor %}
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="{{ form.password_pac.id_for_label }}" class="form-label">
-                                                        {{ form.password_pac.label }}
-                                                        {% if form.password_pac.field.required %}<span class="text-danger">*</span>{% endif %}
-                                                    </label>
-                                                    {{ form.password_pac }}
-                                                    {% if form.password_pac.help_text %}
-                                                        <div class="form-text">{{ form.password_pac.help_text }}</div>
-                                                    {% endif %}
-                                                    {% if form.password_pac.errors %}
-                                                        <div class="text-danger">
-                                                            {% for error in form.password_pac.errors %}
-                                                                <small>{{ error }}</small>
-                                                            {% endfor %}
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <!-- Botón Guardar para Timbrado -->
-                                        <div class="mt-3">
-                                            <button type="button" class="btn btn-primary btn-sm" onclick="guardarSeccion('timbrado')">
-                                                <i class="bi bi-check-lg me-1"></i>Guardar Timbrado
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <!-- Acordeón 5: Certificados -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="certificadosHeader">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#certificadosCollapse" aria-expanded="false" aria-controls="certificadosCollapse">
-                                        <i class="bi bi-shield-check me-2"></i>
-                                        Certificados
-                                    </button>
-                                </h2>
-                                <div id="certificadosCollapse" class="accordion-collapse collapse" aria-labelledby="certificadosHeader" data-bs-parent="#configuracionAccordion">
-                                    <div class="accordion-body">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="{{ form.certificado_file.id_for_label }}" class="form-label">
-                                                        {{ form.certificado_file.label }}
-                                                        {% if form.certificado_file.field.required %}<span class="text-danger">*</span>{% endif %}
-                                                    </label>
-                                                    {{ form.certificado_file }}
-                                                    {% if form.certificado_file.help_text %}
-                                                        <div class="form-text">{{ form.certificado_file.help_text }}</div>
-                                                    {% endif %}
-                                                    {% if form.certificado_file.errors %}
-                                                        <div class="text-danger">
-                                                            {% for error in form.certificado_file.errors %}
-                                                                <small>{{ error }}</small>
-                                                            {% endfor %}
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
+                                        <!-- Lista de emisores -->
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6 class="card-title mb-0">
+                                                    <i class="bi bi-list-ul me-2"></i>Emisores Registrados
+                                                </h6>
                                             </div>
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="{{ form.llave_file.id_for_label }}" class="form-label">
-                                                        {{ form.llave_file.label }}
-                                                        {% if form.llave_file.field.required %}<span class="text-danger">*</span>{% endif %}
-                                                    </label>
-                                                    {{ form.llave_file }}
-                                                    {% if form.llave_file.help_text %}
-                                                        <div class="form-text">{{ form.llave_file.help_text }}</div>
-                                                    {% endif %}
-                                                    {% if form.llave_file.errors %}
-                                                        <div class="text-danger">
-                                                            {% for error in form.llave_file.errors %}
-                                                                <small>{{ error }}</small>
-                                                            {% endfor %}
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="{{ form.password_llave.id_for_label }}" class="form-label">
-                                                        {{ form.password_llave.label }}
-                                                        {% if form.password_llave.field.required %}<span class="text-danger">*</span>{% endif %}
-                                                    </label>
-                                                    {{ form.password_llave }}
-                                                    {% if form.password_llave.help_text %}
-                                                        <div class="form-text">{{ form.password_llave.help_text }}</div>
-                                                    {% endif %}
-                                                    {% if form.password_llave.errors %}
-                                                        <div class="text-danger">
-                                                            {% for error in form.password_llave.errors %}
-                                                                <small>{{ error }}</small>
-                                                            {% endfor %}
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Grid de certificados existentes -->
-                                        <div class="mt-4">
-                                            <div class="card">
-                                                <div class="card-header">
-                                                    <h6 class="card-title mb-0">
-                                                        <i class="bi bi-shield-check me-2"></i>Certificados Registrados
-                                                    </h6>
-                                                </div>
-                                                <div class="card-body">
-                                                    <div id="certificadosList">
-                                                        <!-- Los certificados se cargarán dinámicamente aquí -->
-                                                        <div class="text-center text-muted">
-                                                            <i class="bi bi-shield-check fs-1"></i>
-                                                            <p class="mt-2">No hay certificados registrados</p>
-                                                        </div>
+                                            <div class="card-body">
+                                                <div id="emisoresList">
+                                                    <!-- Los emisores se cargarán dinámicamente aquí -->
+                                                    <div class="text-center text-muted">
+                                                        <i class="bi bi-building fs-1"></i>
+                                                        <p class="mt-2">No hay emisores registrados</p>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        
-                                        <!-- Botón Guardar para Certificados -->
-                                        <div class="mt-3">
-                                            <button type="button" class="btn btn-primary btn-sm" onclick="guardarSeccion('certificados')">
-                                                <i class="bi bi-check-lg me-1"></i>Guardar Certificados
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -606,8 +614,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Cargar cuentas bancarias al cargar la página
     cargarCuentasBancarias();
     
-    // Cargar certificados al cargar la página
-    cargarCertificados();
+    // Cargar emisores al cargar la página
+    cargarEmisores();
 });
 
 // Función para cargar las cuentas bancarias
@@ -675,101 +683,80 @@ function cargarCuentasBancarias() {
         });
 }
 
-// Función para cargar los certificados existentes
-function cargarCertificados() {
-    console.log('Cargando certificados...');
-    
-    // Obtener los valores de los campos de certificados
-    const certificadoFile = document.querySelector('input[name="certificado_file"]');
-    const llaveFile = document.querySelector('input[name="llave_file"]');
-    const passwordLlave = document.querySelector('input[name="password_llave"]');
-    
-    const container = document.getElementById('certificadosList');
-    
-    // Verificar si hay certificados cargados en los campos o en el servidor
-    const tieneCertificadoFile = certificadoFile && certificadoFile.files && certificadoFile.files.length > 0;
-    const tieneLlaveFile = llaveFile && llaveFile.files && llaveFile.files.length > 0;
-    const tienePasswordValue = passwordLlave && passwordLlave.value.trim() !== '';
-    
-    // Verificar si hay certificados guardados en el servidor
-    const tieneCertificadoServidor = {{ tiene_certificado|yesno:"true,false" }};
-    const tieneLlaveServidor = {{ tiene_llave|yesno:"true,false" }};
-    const tienePasswordServidor = {{ tiene_password|yesno:"true,false" }};
-    
-    const tieneCertificado = tieneCertificadoFile || tieneCertificadoServidor;
-    const tieneLlave = tieneLlaveFile || tieneLlaveServidor;
-    const tienePassword = tienePasswordValue || tienePasswordServidor;
-    
-    if (tieneCertificado || tieneLlave || tienePassword) {
-        // Obtener nombres de archivos o usar nombres por defecto
-        let nombreCertificado = 'No cargado';
-        let nombreLlave = 'No cargada';
-        
-        if (tieneCertificadoFile) {
-            nombreCertificado = certificadoFile.files[0].name;
-        } else if (tieneCertificadoServidor) {
-            // Usar el nombre del archivo del servidor
-            nombreCertificado = '{{ certificado_nombre|default:"certificado.cer" }}';
-        }
-        
-        if (tieneLlaveFile) {
-            nombreLlave = llaveFile.files[0].name;
-        } else if (tieneLlaveServidor) {
-            // Usar el nombre del archivo del servidor
-            nombreLlave = '{{ llave_nombre|default:"llave.key" }}';
-        }
-        
-        // Mostrar contraseña con asteriscos
-        const passwordDisplay = tienePassword ? '*'.repeat(8) : 'No configurada';
-        
-        container.innerHTML = `
-            <div class="row">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-body">
-                            <h6 class="card-title">
-                                <i class="bi bi-shield-check me-2"></i>Certificado Actual
-                            </h6>
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <strong>Certificado:</strong><br>
-                                    <span class="badge ${tieneCertificado ? 'bg-success' : 'bg-secondary'}">
-                                        ${nombreCertificado}
-                                    </span>
-                                </div>
-                                <div class="col-md-4">
-                                    <strong>Llave:</strong><br>
-                                    <span class="badge ${tieneLlave ? 'bg-success' : 'bg-secondary'}">
-                                        ${nombreLlave}
-                                    </span>
-                                </div>
-                                <div class="col-md-4">
-                                    <strong>Contraseña:</strong><br>
-                                    <span class="badge ${tienePassword ? 'bg-success' : 'bg-secondary'}">
-                                        ${passwordDisplay}
-                                    </span>
+// Función para cargar los emisores existentes
+function cargarEmisores() {
+    console.log('Cargando emisores...');
+    fetch('/ajax/emisores/listar/', {
+        credentials: 'same-origin'  // Incluir cookies de sesión
+    })
+        .then(response => {
+            console.log('Response status para listar emisores:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Datos de emisores recibidos:', data);
+            const container = document.getElementById('emisoresList');
+            if (data.success && data.emisores.length > 0) {
+                console.log(`Actualizando HTML con ${data.emisores.length} emisores`);
+                container.innerHTML = `
+                    <div class="row">
+                        ${data.emisores.map(emisor => `
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h6 class="card-title">
+                                            <i class="bi bi-building me-2"></i>${emisor.razon_social}
+                                        </h6>
+                                        <p class="card-text">
+                                            <strong>RFC:</strong> ${emisor.rfc}<br>
+                                            <strong>Código Postal:</strong> ${emisor.codigo_postal}<br>
+                                            <strong>Serie:</strong> ${emisor.serie || 'A'}<br>
+                                            <strong>Régimen Fiscal:</strong> ${emisor.regimen_fiscal_display || 'N/A'}<br>
+                                            <strong>Certificado:</strong> ${emisor.archivo_certificado ? emisor.archivo_certificado.split('/').pop() : 'No cargado'}<br>
+                                            <strong>Llave:</strong> ${emisor.archivo_llave ? emisor.archivo_llave.split('/').pop() : 'No cargada'}<br>
+                                            <strong>Contraseña Llave:</strong> ${emisor.tiene_password ? 'Configurada' : 'No configurada'}<br>
+                                            <strong class="text-primary">Datos de Timbrado:</strong><br>
+                                            <strong>PAC:</strong> ${emisor.nombre_pac || 'N/A'}<br>
+                                            <strong>Contrato:</strong> ${emisor.contrato || 'N/A'}<br>
+                                            <strong>Usuario PAC:</strong> ${emisor.usuario_pac || 'N/A'}<br>
+                                            <strong>Contraseña PAC:</strong> ${emisor.tiene_password_pac ? 'Configurada' : 'No configurada'}<br>
+                                            <strong>Timbrado:</strong> ${emisor.timbrado_prueba ? '<span class="badge bg-warning">Prueba</span>' : '<span class="badge bg-success">Producción</span>'}
+                                        </p>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted">
+                                                ${emisor.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>'}
+                                            </small>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-danger" onclick="eliminarEmisor(${emisor.codigo})" title="Eliminar">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="mt-3">
-                                <small class="text-muted">
-                                    <i class="bi bi-info-circle me-1"></i>
-                                    Al cargar nuevos certificados, se reemplazarán los existentes.
-                                </small>
-                            </div>
-                        </div>
+                        `).join('')}
                     </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="bi bi-building fs-1"></i>
+                        <p class="mt-2">No hay emisores registrados</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error al cargar emisores:', error);
+            const container = document.getElementById('emisoresList');
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Error al cargar los emisores
                 </div>
-            </div>
-        `;
-    } else {
-        container.innerHTML = `
-            <div class="text-center text-muted">
-                <i class="bi bi-shield-check fs-1"></i>
-                <p class="mt-2">No hay certificados registrados</p>
-                <small>Selecciona los archivos de certificado y llave para comenzar</small>
-            </div>
-        `;
-    }
+            `;
+        });
 }
 
 // Función para agregar cuenta bancaria (llamada desde onclick)
@@ -844,6 +831,153 @@ function agregarCuentaBancaria() {
         btn.disabled = false;
         btn.innerHTML = originalText;
     });
+}
+
+// Función para agregar emisor (llamada desde onclick)
+function agregarEmisor() {
+    console.log('Función agregarEmisor llamada');
+    
+    // Validar campos requeridos
+    const razonSocial = document.getElementById('razonSocial').value.trim();
+    const rfc = document.getElementById('rfc').value.trim();
+    const codigoPostal = document.getElementById('codigoPostal').value.trim();
+    const serie = document.getElementById('serie').value.trim();
+    const regimenFiscal = document.getElementById('regimenFiscal').value.trim();
+    const passwordLlave = document.getElementById('passwordLlave').value.trim();
+    const archivoCertificado = document.getElementById('archivoCertificado').files[0];
+    const archivoLlave = document.getElementById('archivoLlave').files[0];
+    
+    // Campos de timbrado
+    const nombrePac = document.getElementById('nombrePac').value.trim();
+    const contrato = document.getElementById('contrato').value.trim();
+    const usuarioPac = document.getElementById('usuarioPac').value.trim();
+    const passwordPac = document.getElementById('passwordPac').value.trim();
+    const timbradoPrueba = document.getElementById('timbradoPrueba').checked;
+    
+    console.log('Datos capturados:', { razonSocial, rfc, codigoPostal, serie, regimenFiscal, passwordLlave, archivoCertificado, archivoLlave, nombrePac, contrato, usuarioPac, passwordPac, timbradoPrueba });
+    
+    if (!razonSocial || !rfc || !codigoPostal || !serie || !regimenFiscal || !passwordLlave || !archivoCertificado || !archivoLlave) {
+        showNotification('Por favor, complete todos los campos requeridos', 'warning', 3000);
+        return;
+    }
+    
+    // Validar código postal
+    if (!/^\d{5}$/.test(codigoPostal)) {
+        showNotification('El código postal debe tener exactamente 5 dígitos', 'warning', 3000);
+        return;
+    }
+    
+    // Validar extensiones de archivos
+    if (!archivoCertificado.name.endsWith('.cer')) {
+        showNotification('El archivo de certificado debe tener extensión .cer', 'warning', 3000);
+        return;
+    }
+    
+    if (!archivoLlave.name.endsWith('.key')) {
+        showNotification('El archivo de llave debe tener extensión .key', 'warning', 3000);
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('razon_social', razonSocial);
+    formData.append('rfc', rfc);
+    formData.append('codigo_postal', codigoPostal);
+    formData.append('serie', serie);
+    formData.append('regimen_fiscal', regimenFiscal);
+    formData.append('password_llave', passwordLlave);
+    formData.append('archivo_certificado', archivoCertificado);
+    formData.append('archivo_llave', archivoLlave);
+    formData.append('nombre_pac', nombrePac);
+    formData.append('contrato', contrato);
+    formData.append('usuario_pac', usuarioPac);
+    formData.append('password_pac', passwordPac);
+    formData.append('timbrado_prueba', timbradoPrueba);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Deshabilitar botón y mostrar loading
+    const btn = document.getElementById('btnAgregarEmisor');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Agregando...';
+    
+    // Enviar petición AJAX
+    fetch('/ajax/emisores/agregar/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        credentials: 'same-origin'  // Incluir cookies de sesión
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (response.status === 302) {
+            showNotification('Error: Necesita estar autenticado. Por favor, recargue la página.', 'error', 5000);
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.success) {
+            showNotification('Emisor agregado exitosamente', 'success', 3000);
+            // Limpiar formulario
+            document.getElementById('razonSocial').value = '';
+            document.getElementById('rfc').value = '';
+            document.getElementById('codigoPostal').value = '';
+            document.getElementById('regimenFiscal').value = '626'; // Reset to default
+            document.getElementById('passwordLlave').value = '';
+            document.getElementById('archivoCertificado').value = '';
+            document.getElementById('archivoLlave').value = '';
+            document.getElementById('nombrePac').value = 'PRODIGIA'; // Reset to default
+            document.getElementById('contrato').value = '';
+            document.getElementById('usuarioPac').value = '';
+            document.getElementById('passwordPac').value = '';
+            document.getElementById('timbradoPrueba').checked = true; // Reset to default
+            // Recargar lista de emisores con un pequeño delay
+            console.log('Llamando a cargarEmisores después de agregar...');
+            setTimeout(() => {
+                cargarEmisores();
+            }, 500);
+        } else if (data) {
+            showNotification('Error: ' + (data.error || 'Error desconocido'), 'error', 5000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error de conexión. Por favor, intente nuevamente.', 'error', 5000);
+    })
+    .finally(() => {
+        // Restaurar botón
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+// Función para eliminar emisor
+function eliminarEmisor(codigo) {
+    if (confirm('¿Está seguro de que desea eliminar este emisor?')) {
+        fetch(`/ajax/emisores/eliminar/${codigo}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            credentials: 'same-origin'  // Incluir cookies de sesión
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Emisor eliminado exitosamente', 'success', 3000);
+                cargarEmisores();
+            } else {
+                showNotification('Error: ' + (data.error || 'Error desconocido'), 'error', 5000);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error de conexión. Por favor, intente nuevamente.', 'error', 5000);
+        });
+    }
 }
 
 // Función para eliminar cuenta bancaria
@@ -928,18 +1062,6 @@ function guardarSeccion(seccion) {
         } else {
             console.log('DEBUG: No se agregó logo_empresa al FormData');
         }
-    } else if (seccion === 'certificados') {
-        const certificadoFile = document.querySelector('input[name="certificado_file"]');
-        const llaveFile = document.querySelector('input[name="llave_file"]');
-        const passwordLlave = document.querySelector('input[name="password_llave"]');
-        
-        if (certificadoFile && certificadoFile.files[0]) {
-            formData.append('certificado_file', certificadoFile.files[0]);
-        }
-        if (llaveFile && llaveFile.files[0]) {
-            formData.append('llave_file', llaveFile.files[0]);
-        }
-        if (passwordLlave) formData.append('password_llave', passwordLlave.value);
     }
     
     // Mostrar loading en el botón correspondiente
@@ -975,10 +1097,6 @@ function guardarSeccion(seccion) {
     .then(data => {
         if (data && data.success) {
             showNotification(data.message || `Sección ${seccion} guardada exitosamente`, 'success', 3000);
-            // Actualizar grid de certificados si se guardó la sección de certificados
-            if (seccion === 'certificados') {
-                cargarCertificados();
-            }
         } else {
             showNotification('Error al guardar la configuración', 'error', 5000);
         }

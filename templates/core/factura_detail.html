@@ -1,0 +1,569 @@
+{% extends 'base.html' %}
+
+{% block title %}Factura: {{ factura.serie }} - {{ factura.folio|stringformat:"04d" }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-receipt text-primary"></i>
+            Factura: {{ factura.serie }} - {{ factura.folio|stringformat:"04d" }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                {% if not factura.cancelada %}
+                <button type="button" class="btn btn-danger" onclick="mostrarModalCancelacion({{ factura.folio }}, '{{ factura.serie }}', {{ factura.folio }})">
+                    <i class="bi bi-x-circle"></i> Cancelar Factura
+                </button>
+                {% endif %}
+                <button type="button" class="btn btn-primary" onclick="imprimirFactura({{ factura.folio }})">
+                    <i class="bi bi-printer"></i> Imprimir
+                </button>
+                <button type="button" class="btn btn-success" onclick="descargarPDF({{ factura.folio }})">
+                    <i class="bi bi-download"></i> Descargar PDF
+                </button>
+                <a href="{% url 'core:listado_facturas' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a Facturas
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Información de la Factura -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información de la Factura
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Serie:</strong></td>
+                            <td><span class="badge bg-primary">{{ factura.serie }}</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Folio:</strong></td>
+                            <td><span class="badge bg-info">{{ factura.folio|stringformat:"04d" }}</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha de Emisión:</strong></td>
+                            <td>{{ factura.fecha_emision|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Estado:</strong></td>
+                            <td>
+                                {% if factura.cancelada %}
+                                    <span class="badge bg-warning">
+                                        <i class="bi bi-x-circle"></i> Cancelada
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Emitida
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Lugar de Expedición:</strong></td>
+                            <td>{{ factura.lugar_expedicion }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Información del Emisor -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-building"></i> Datos del Emisor
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Razón Social:</strong></td>
+                            <td><strong>{{ factura.emisor.razon_social }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>RFC:</strong></td>
+                            <td>{{ factura.emisor.rfc }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Régimen Fiscal:</strong></td>
+                            <td>{{ factura.emisor.get_regimen_fiscal_display }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Código Postal:</strong></td>
+                            <td>{{ factura.emisor.codigo_postal }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Información del Receptor -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person"></i> Datos del Receptor
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Razón Social:</strong></td>
+                            <td><strong>{{ factura.receptor.razon_social }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>RFC:</strong></td>
+                            <td>{{ factura.receptor.rfc }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Régimen Fiscal:</strong></td>
+                            <td>{{ factura.receptor.get_regimen_fiscal_display }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Código Postal:</strong></td>
+                            <td>{{ factura.receptor.codigo_postal }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Información de Pago -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-credit-card"></i> Información de Pago
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Uso CFDI:</strong></td>
+                            <td>{{ factura.get_uso_cfdi_display }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Exportación:</strong></td>
+                            <td>{{ factura.get_exportacion_display }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Método de Pago:</strong></td>
+                            <td>{{ factura.get_metodo_pago_display }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Forma de Pago:</strong></td>
+                            <td>{{ factura.get_forma_pago_display }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Moneda:</strong></td>
+                            <td>{{ factura.moneda }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tipo de Cambio:</strong></td>
+                            <td>{{ factura.tipo_cambio }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Información de Auditoría -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history"></i> Información de Auditoría
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Creado por:</strong></td>
+                            <td>{{ factura.usuario_creacion.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha de creación:</strong></td>
+                            <td>{{ factura.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% if factura.usuario_modificacion %}
+                        <tr>
+                            <td><strong>Modificado por:</strong></td>
+                            <td>{{ factura.usuario_modificacion.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fecha de modificación:</strong></td>
+                            <td>{{ factura.fecha_modificacion|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if factura.cancelada %}
+                        <tr>
+                            <td><strong>Cancelada:</strong></td>
+                            <td><span class="text-danger fw-bold">Sí</span></td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detalles de la Factura -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list-ul"></i> Detalles de la Factura
+                        <span class="badge bg-secondary ms-2">{{ detalles|length }} concepto(s)</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if detalles %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>No. Identificación</th>
+                                        <th>Concepto</th>
+                                        <th>Cantidad</th>
+                                        <th>Precio</th>
+                                        <th>ClaveProdServ</th>
+                                        <th>Unidad</th>
+                                        <th>Objeto Imp.</th>
+                                        <th>Importe</th>
+                                        <th>Impuesto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for detalle in detalles %}
+                                    <tr>
+                                        <td>
+                                            <span class="fw-bold">{{ detalle.no_identificacion }}</span>
+                                        </td>
+                                        <td>
+                                            <strong>{{ detalle.concepto }}</strong><br>
+                                            <small class="text-muted">{{ detalle.producto_servicio.nombre }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="text-primary fw-bold">{{ detalle.cantidad|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-success fw-bold">${{ detalle.precio|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">{{ detalle.clave_prod_serv }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted">{{ detalle.unidad }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ detalle.get_objeto_impuesto_display }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-success fw-bold">${{ detalle.importe|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-warning fw-bold">${{ detalle.impuesto_concepto|floatformat:2 }}</span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Resumen de Totales -->
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Resumen de Totales</h6>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="text-center">
+                                                    <h6 class="text-muted">Subtotal</h6>
+                                                    <h4 class="text-primary">${{ total_subtotal|floatformat:2 }}</h4>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-center">
+                                                    <h6 class="text-muted">Impuestos</h6>
+                                                    <h4 class="text-warning">${{ total_impuesto|floatformat:2 }}</h4>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-center">
+                                                    <h6 class="text-muted">Total</h6>
+                                                    <h4 class="text-success">${{ total_general|floatformat:2 }}</h4>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-list-ul text-muted" style="font-size: 4rem;"></i>
+                            <h4 class="text-muted mt-3">No hay conceptos registrados</h4>
+                            <p class="text-muted">Esta factura no tiene conceptos asociados.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cancelación de Factura (reutilizado del listado) -->
+<div class="modal fade" id="modalCancelacion" tabindex="-1" aria-labelledby="modalCancelacionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="modalCancelacionLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Cancelar Factura
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formCancelacion">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Advertencia:</strong> Esta acción cancelará permanentemente la factura seleccionada.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Factura a cancelar:</label>
+                        <p class="form-control-plaintext" id="facturaInfo"></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="motivo_cancelacion" class="form-label">
+                            Motivo de cancelación <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="motivo_cancelacion" name="motivo_cancelacion" required>
+                            <option value="">Seleccionar motivo...</option>
+                            <option value="01">01 - Comprobante emitido con errores con relación</option>
+                            <option value="02">02 - Comprobante emitido con errores sin relación</option>
+                            <option value="03">03 - No se llevó a cabo la operación</option>
+                            <option value="04">04 - Operación nominativa relacionada en la factura global</option>
+                        </select>
+                        <div class="form-text">Campo obligatorio. Seleccione el motivo de cancelación según el SAT.</div>
+                        <div class="invalid-feedback" id="error_motivo_cancelacion"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="uuid" class="form-label">
+                            UUID <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="uuid" name="uuid" 
+                               placeholder="Ingrese el UUID de la factura..." required>
+                        <div class="form-text">Campo obligatorio. UUID de la factura a cancelar.</div>
+                        <div class="invalid-feedback" id="error_uuid"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="observaciones" class="form-label">Observaciones</label>
+                        <textarea class="form-control" id="observaciones" name="observaciones" 
+                                  rows="3" placeholder="Observaciones adicionales (opcional)"></textarea>
+                        <div class="form-text">Campo opcional. Observaciones adicionales sobre la cancelación.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-danger" id="btnConfirmarCancelacion">
+                        <i class="bi bi-check-circle"></i> Confirmar Cancelación
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales para la cancelación
+let facturaActual = null;
+
+// Función para mostrar el modal de cancelación
+function mostrarModalCancelacion(folio, serie, folioNum) {
+    facturaActual = folio;
+    
+    // Mostrar información de la factura
+    document.getElementById('facturaInfo').textContent = `Serie: ${serie} - Folio: ${folioNum.toString().padStart(4, '0')}`;
+    
+    // Limpiar formulario
+    document.getElementById('formCancelacion').reset();
+    limpiarErroresValidacion();
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('modalCancelacion'));
+    modal.show();
+}
+
+// Función para limpiar errores de validación
+function limpiarErroresValidacion() {
+    const campos = ['motivo_cancelacion', 'uuid'];
+    campos.forEach(campo => {
+        const elemento = document.getElementById(campo);
+        const errorElemento = document.getElementById(`error_${campo}`);
+        
+        elemento.classList.remove('is-invalid');
+        if (errorElemento) {
+            errorElemento.textContent = '';
+        }
+    });
+}
+
+// Función para mostrar errores de validación
+function mostrarErrorValidacion(campo, mensaje) {
+    const elemento = document.getElementById(campo);
+    const errorElemento = document.getElementById(`error_${campo}`);
+    
+    elemento.classList.add('is-invalid');
+    if (errorElemento) {
+        errorElemento.textContent = mensaje;
+    }
+}
+
+// Función para cancelar factura
+function cancelarFactura() {
+    if (!facturaActual) {
+        alert('Error: No se ha seleccionado una factura para cancelar');
+        return;
+    }
+    
+    // Obtener datos del formulario
+    const motivoCancelacion = document.getElementById('motivo_cancelacion').value.trim();
+    const uuid = document.getElementById('uuid').value.trim();
+    const observaciones = document.getElementById('observaciones').value.trim();
+    
+    // Validar campos requeridos
+    let hayErrores = false;
+    limpiarErroresValidacion();
+    
+    if (!motivoCancelacion) {
+        mostrarErrorValidacion('motivo_cancelacion', 'El motivo de cancelación es requerido');
+        hayErrores = true;
+    }
+    
+    if (!uuid) {
+        mostrarErrorValidacion('uuid', 'El UUID es requerido');
+        hayErrores = true;
+    }
+    
+    if (hayErrores) {
+        return;
+    }
+    
+    // Mostrar loading en el botón
+    const btnConfirmar = document.getElementById('btnConfirmarCancelacion');
+    const textoOriginal = btnConfirmar.innerHTML;
+    btnConfirmar.disabled = true;
+    btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cancelando...';
+    
+    // Obtener token CSRF
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ||
+                     getCookie('csrftoken');
+    
+    if (!csrfToken) {
+        alert('Error: No se pudo obtener el token CSRF');
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = textoOriginal;
+        return;
+    }
+    
+    // Preparar datos
+    const formData = new FormData();
+    formData.append('motivo_cancelacion', motivoCancelacion);
+    formData.append('uuid', uuid);
+    formData.append('observaciones', observaciones);
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    
+    // Enviar solicitud
+    fetch(`/ajax/facturas/${facturaActual}/cancelar/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Mostrar mensaje de éxito
+            alert(data.message);
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalCancelacion'));
+            modal.hide();
+            
+            // Recargar la página para mostrar los cambios
+            window.location.reload();
+        } else {
+            // Mostrar error
+            alert('Error: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error: No se pudo procesar la solicitud');
+    })
+    .finally(() => {
+        // Restaurar botón
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = textoOriginal;
+    });
+}
+
+// Funciones para las acciones de las facturas
+function imprimirFactura(folio) {
+    console.log('Imprimir factura:', folio);
+    alert('Funcionalidad de impresión en desarrollo para factura: ' + folio);
+}
+
+function descargarPDF(folio) {
+    console.log('Descargar PDF de factura:', folio);
+    alert('Funcionalidad de descarga PDF en desarrollo para factura: ' + folio);
+}
+
+// Función para obtener cookie
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Event listener para el formulario de cancelación
+document.addEventListener('DOMContentLoaded', function() {
+    const formCancelacion = document.getElementById('formCancelacion');
+    if (formCancelacion) {
+        formCancelacion.addEventListener('submit', function(e) {
+            e.preventDefault();
+            cancelarFactura();
+        });
+    }
+});
+</script>
+{% endblock %}

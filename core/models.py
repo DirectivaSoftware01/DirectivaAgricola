@@ -1960,3 +1960,185 @@ class GastoDetalle(models.Model):
         """Guardar con validaciones"""
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class Emisor(models.Model):
+    """Modelo para gestión de emisores con sus certificados"""
+    
+    codigo = models.AutoField(primary_key=True, verbose_name="Código")
+    razon_social = models.CharField(
+        max_length=200,
+        verbose_name="Razón Social",
+        help_text="Razón social del emisor"
+    )
+    rfc = models.CharField(
+        max_length=13,
+        validators=[validar_rfc],
+        verbose_name="RFC",
+        help_text="Registro Federal de Contribuyentes del emisor"
+    )
+    codigo_postal = models.CharField(
+        max_length=5,
+        validators=[RegexValidator(
+            regex=r'^\d{5}$',
+            message='El código postal debe tener exactamente 5 dígitos'
+        )],
+        verbose_name="Código Postal",
+        help_text="Código postal de 5 dígitos"
+    )
+    
+    # Régimen Fiscal
+    REGIMEN_FISCAL_CHOICES = [
+        ('601', '601 - General de Ley Personas Morales'),
+        ('603', '603 - Personas Morales con Fines no Lucrativos'),
+        ('605', '605 - Sueldos y Salarios e Ingresos Asimilados a Salarios'),
+        ('606', '606 - Arrendamiento'),
+        ('608', '608 - Demás ingresos'),
+        ('610', '610 - Residentes en el Extranjero sin Establecimiento Permanente en México'),
+        ('611', '611 - Ingresos por Dividendos (socios y accionistas)'),
+        ('612', '612 - Personas Físicas con Actividades Empresariales y Profesionales'),
+        ('614', '614 - Ingresos por intereses'),
+        ('615', '615 - Régimen de los ingresos por obtención de premios'),
+        ('616', '616 - Sin obligaciones fiscales'),
+        ('620', '620 - Sociedades Cooperativas de Producción que optan por diferir sus ingresos'),
+        ('621', '621 - Incorporación Fiscal'),
+        ('622', '622 - Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras'),
+        ('623', '623 - Opcional para Grupos de Sociedades'),
+        ('624', '624 - Coordinados'),
+        ('625', '625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas'),
+        ('626', '626 - Régimen Simplificado de Confianza'),
+        ('628', '628 - Hidrocarburos'),
+        ('629', '629 - De los Regímenes Fiscales Preferentes y de las Empresas Multinacionales'),
+        ('630', '630 - Enajenación de acciones en bolsa de valores'),
+        ('615', '615 - Régimen de los ingresos por obtención de premios'),
+    ]
+    
+    regimen_fiscal = models.CharField(
+        max_length=3,
+        choices=REGIMEN_FISCAL_CHOICES,
+        default='626',
+        verbose_name="Régimen Fiscal",
+        help_text="Régimen fiscal según el SAT"
+    )
+    
+    serie = models.CharField(
+        max_length=10,
+        default='A',
+        verbose_name="Serie",
+        help_text="Serie para las facturas de este emisor"
+    )
+    
+    # Archivos de certificado
+    archivo_certificado = models.FileField(
+        upload_to='certificados/',
+        verbose_name="Archivo de Certificado",
+        help_text="Archivo .cer del certificado"
+    )
+    archivo_llave = models.FileField(
+        upload_to='llaves/',
+        verbose_name="Archivo de Llave",
+        help_text="Archivo .key de la llave privada"
+    )
+    password_llave = models.CharField(
+        max_length=100,
+        verbose_name="Contraseña de la Llave",
+        help_text="Contraseña para la llave privada"
+    )
+    
+    # Datos de timbrado
+    PAC_CHOICES = [
+        ('PRODIGIA', 'Prodigia'),
+    ]
+    
+    nombre_pac = models.CharField(
+        max_length=50,
+        choices=PAC_CHOICES,
+        default='PRODIGIA',
+        verbose_name="Nombre de PAC",
+        help_text="Proveedor Autorizado de Certificación"
+    )
+    
+    contrato = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Contrato",
+        help_text="Número de contrato con el PAC"
+    )
+    
+    usuario_pac = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Usuario PAC",
+        help_text="Usuario para el PAC"
+    )
+    
+    password_pac = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Contraseña PAC",
+        help_text="Contraseña para el PAC"
+    )
+    
+    timbrado_prueba = models.BooleanField(
+        default=True,
+        verbose_name="Timbrado de Prueba",
+        help_text="Indica si el timbrado será en modo prueba o producción"
+    )
+    
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si el emisor está activo en el sistema"
+    )
+    
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Creación")
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Modificación")
+    usuario_creacion = models.ForeignKey(
+        Usuario,
+        on_delete=models.PROTECT,
+        related_name='emisores_creados',
+        verbose_name="Usuario de Creación"
+    )
+    usuario_modificacion = models.ForeignKey(
+        Usuario,
+        on_delete=models.PROTECT,
+        related_name='emisores_modificados',
+        verbose_name="Usuario de Modificación",
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        verbose_name = "Emisor"
+        verbose_name_plural = "Emisores"
+        db_table = 'emisores'
+        ordering = ['razon_social']
+        indexes = [
+            models.Index(fields=['rfc']),
+            models.Index(fields=['razon_social']),
+            models.Index(fields=['activo']),
+        ]
+
+    def __str__(self):
+        return f"{self.razon_social} ({self.rfc})"
+
+    def clean(self):
+        """Validaciones adicionales del modelo"""
+        super().clean()
+        
+        # Normalizar RFC
+        if self.rfc:
+            self.rfc = self.rfc.strip().upper()
+        
+        # Validar que la razón social no esté vacía
+        if self.razon_social:
+            self.razon_social = self.razon_social.strip()
+
+    def save(self, *args, **kwargs):
+        """Guardar con validaciones"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+# Importar modelos de factura
+from .factura_models import Factura, FacturaDetalle

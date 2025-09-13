@@ -1,0 +1,541 @@
+{% extends 'base.html' %}
+
+{% block title %}Listado de Facturas{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <div>
+            <h1 class="h2">
+                <i class="bi bi-receipt text-primary"></i>
+                Listado de Facturas
+            </h1>
+            <p class="text-muted mb-0">
+                <i class="bi bi-calendar3 me-1"></i>
+                Gestiona y consulta todas las facturas emitidas
+            </p>
+        </div>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:facturacion' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Nueva Factura
+                </a>
+                <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver al Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Filtros de búsqueda -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-search"></i> Buscar y Filtrar Facturas
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-2">
+                    <label for="emisor_id" class="form-label">Emisor</label>
+                    <select class="form-select" id="emisor_id" name="emisor_id">
+                        <option value="">Todos los emisores</option>
+                        {% for emisor in emisores %}
+                        <option value="{{ emisor.codigo }}" 
+                                {% if filtros.emisor_id == emisor.codigo %}selected{% endif %}>
+                            {{ emisor.razon_social }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="receptor_id" class="form-label">Receptor</label>
+                    <select class="form-select" id="receptor_id" name="receptor_id">
+                        <option value="">Todos los receptores</option>
+                        {% for receptor in receptores %}
+                        <option value="{{ receptor.codigo }}" 
+                                {% if filtros.receptor_id == receptor.codigo %}selected{% endif %}>
+                            {{ receptor.razon_social }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="fecha_desde" class="form-label">Fecha Desde</label>
+                    <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" 
+                           value="{{ filtros.fecha_desde }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="fecha_hasta" class="form-label">Fecha Hasta</label>
+                    <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" 
+                           value="{{ filtros.fecha_hasta }}">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary me-2">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                    <a href="{% url 'core:listado_facturas' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de facturas -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-list-ul"></i> Lista de Facturas
+                <span class="badge bg-secondary ms-2">{{ facturas|length }} factura(s)</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if facturas %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Serie - Folio</th>
+                                <th>Fecha de Emisión</th>
+                                <th>Emisor</th>
+                                <th>Receptor</th>
+                                <th>Subtotal</th>
+                                <th>Impuesto</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for factura in facturas %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary">{{ factura.serie }} - {{ factura.folio|stringformat:"04d" }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ factura.fecha_emision|date:"d/m/Y H:i" }}</strong>
+                                </td>
+                                <td>
+                                    <strong>{{ factura.emisor.razon_social }}</strong>
+                                    <br><small class="text-muted">{{ factura.emisor.rfc }}</small>
+                                </td>
+                                <td>
+                                    <strong>{{ factura.receptor.razon_social }}</strong>
+                                    <br><small class="text-muted">{{ factura.receptor.rfc }}</small>
+                                </td>
+                                <td>
+                                    <span class="text-success fw-bold">${{ factura.subtotal|floatformat:2 }}</span>
+                                </td>
+                                <td>
+                                    <span class="text-warning fw-bold">${{ factura.impuesto|floatformat:2 }}</span>
+                                </td>
+                                <td>
+                                    <span class="text-primary fw-bold">${{ factura.total|floatformat:2 }}</span>
+                                </td>
+                                <td>
+                                    {% if factura.cancelada %}
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-x-circle"></i> Cancelada
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Emitida
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <!-- Ver detalles -->
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-info" 
+                                                title="Ver detalles"
+                                                onclick="verDetalle({{ factura.folio }})">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        
+                                        <!-- Imprimir -->
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-primary" 
+                                                title="Imprimir"
+                                                onclick="imprimirFactura({{ factura.folio }})">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                        
+                                        <!-- Descargar PDF -->
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-success" 
+                                                title="Descargar PDF"
+                                                onclick="descargarPDF({{ factura.folio }})">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                        
+                                        <!-- Cancelar factura -->
+                                        {% if not factura.cancelada %}
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-danger" 
+                                                title="Cancelar factura"
+                                                onclick="mostrarModalCancelacion({{ factura.folio }}, '{{ factura.serie }}', {{ factura.folio }})">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                {% if page_obj.has_other_pages %}
+                    <nav aria-label="Paginación de facturas">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.emisor_id %}&emisor_id={{ request.GET.emisor_id }}{% endif %}{% if request.GET.receptor_id %}&receptor_id={{ request.GET.receptor_id }}{% endif %}">
+                                        <i class="bi bi-chevron-double-left"></i>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.emisor_id %}&emisor_id={{ request.GET.emisor_id }}{% endif %}{% if request.GET.receptor_id %}&receptor_id={{ request.GET.receptor_id }}{% endif %}">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.emisor_id %}&emisor_id={{ request.GET.emisor_id }}{% endif %}{% if request.GET.receptor_id %}&receptor_id={{ request.GET.receptor_id }}{% endif %}">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.fecha_desde %}&fecha_desde={{ request.GET.fecha_desde }}{% endif %}{% if request.GET.fecha_hasta %}&fecha_hasta={{ request.GET.fecha_hasta }}{% endif %}{% if request.GET.emisor_id %}&emisor_id={{ request.GET.emisor_id }}{% endif %}{% if request.GET.receptor_id %}&receptor_id={{ request.GET.receptor_id }}{% endif %}">
+                                        <i class="bi bi-chevron-double-right"></i>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-receipt text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="text-muted mt-3">No hay facturas registradas</h4>
+                    <p class="text-muted">Comienza creando tu primera factura al sistema.</p>
+                    <a href="{% url 'core:facturacion' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Crear Primera Factura
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal para ver detalle de factura -->
+<div class="modal fade" id="detalleModal" tabindex="-1" aria-labelledby="detalleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalleModalLabel">Detalle de Factura</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="detalleContent">
+                <!-- El contenido se cargará dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="imprimirFactura()">Imprimir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cancelación de Factura -->
+<div class="modal fade" id="modalCancelacion" tabindex="-1" aria-labelledby="modalCancelacionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="modalCancelacionLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Cancelar Factura
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formCancelacion">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Advertencia:</strong> Esta acción cancelará permanentemente la factura seleccionada.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Factura a cancelar:</label>
+                        <p class="form-control-plaintext" id="facturaInfo"></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="motivo_cancelacion" class="form-label">
+                            Motivo de cancelación <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="motivo_cancelacion" name="motivo_cancelacion" required>
+                            <option value="">Seleccionar motivo...</option>
+                            <option value="01">01 - Comprobante emitido con errores con relación</option>
+                            <option value="02">02 - Comprobante emitido con errores sin relación</option>
+                            <option value="03">03 - No se llevó a cabo la operación</option>
+                            <option value="04">04 - Operación nominativa relacionada en la factura global</option>
+                        </select>
+                        <div class="form-text">Campo obligatorio. Seleccione el motivo de cancelación según el SAT.</div>
+                        <div class="invalid-feedback" id="error_motivo_cancelacion"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="uuid" class="form-label">
+                            UUID <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="uuid" name="uuid" 
+                               placeholder="Ingrese el UUID de la factura..." required>
+                        <div class="form-text">Campo obligatorio. UUID de la factura a cancelar.</div>
+                        <div class="invalid-feedback" id="error_uuid"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="observaciones" class="form-label">Observaciones</label>
+                        <textarea class="form-control" id="observaciones" name="observaciones" 
+                                  rows="3" placeholder="Observaciones adicionales (opcional)"></textarea>
+                        <div class="form-text">Campo opcional. Observaciones adicionales sobre la cancelación.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-danger" id="btnConfirmarCancelacion">
+                        <i class="bi bi-check-circle"></i> Confirmar Cancelación
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Funciones para las acciones de las facturas
+function verDetalle(folio) {
+    // Redirigir a la vista de detalles de la factura
+    window.location.href = `/factura/${folio}/`;
+}
+
+function imprimirFactura(folio) {
+    // Implementar lógica para imprimir
+    console.log('Imprimir factura:', folio);
+    // Por ahora mostrar un alert
+    alert('Funcionalidad de impresión en desarrollo para factura: ' + folio);
+}
+
+function descargarPDF(folio) {
+    // Implementar lógica para descargar PDF
+    console.log('Descargar PDF de factura:', folio);
+    // Por ahora mostrar un alert
+    alert('Funcionalidad de descarga PDF en desarrollo para factura: ' + folio);
+}
+
+// Variables globales para la cancelación
+let facturaActual = null;
+
+// Función para mostrar el modal de cancelación
+function mostrarModalCancelacion(folio, serie, folioNum) {
+    facturaActual = folio;
+    
+    // Mostrar información de la factura
+    document.getElementById('facturaInfo').textContent = `Serie: ${serie} - Folio: ${folioNum.toString().padStart(4, '0')}`;
+    
+    // Limpiar formulario
+    document.getElementById('formCancelacion').reset();
+    limpiarErroresValidacion();
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('modalCancelacion'));
+    modal.show();
+}
+
+// Función para limpiar errores de validación
+function limpiarErroresValidacion() {
+    const campos = ['motivo_cancelacion', 'uuid'];
+    campos.forEach(campo => {
+        const elemento = document.getElementById(campo);
+        const errorElemento = document.getElementById(`error_${campo}`);
+        
+        elemento.classList.remove('is-invalid');
+        if (errorElemento) {
+            errorElemento.textContent = '';
+        }
+    });
+}
+
+// Función para mostrar errores de validación
+function mostrarErrorValidacion(campo, mensaje) {
+    const elemento = document.getElementById(campo);
+    const errorElemento = document.getElementById(`error_${campo}`);
+    
+    elemento.classList.add('is-invalid');
+    if (errorElemento) {
+        errorElemento.textContent = mensaje;
+    }
+}
+
+// Función para cancelar factura
+function cancelarFactura() {
+    if (!facturaActual) {
+        alert('Error: No se ha seleccionado una factura para cancelar');
+        return;
+    }
+    
+    // Obtener datos del formulario
+    const motivoCancelacion = document.getElementById('motivo_cancelacion').value.trim();
+    const uuid = document.getElementById('uuid').value.trim();
+    const observaciones = document.getElementById('observaciones').value.trim();
+    
+    // Validar campos requeridos
+    let hayErrores = false;
+    limpiarErroresValidacion();
+    
+    if (!motivoCancelacion) {
+        mostrarErrorValidacion('motivo_cancelacion', 'El motivo de cancelación es requerido');
+        hayErrores = true;
+    }
+    
+    if (!uuid) {
+        mostrarErrorValidacion('uuid', 'El UUID es requerido');
+        hayErrores = true;
+    }
+    
+    if (hayErrores) {
+        return;
+    }
+    
+    // Mostrar loading en el botón
+    const btnConfirmar = document.getElementById('btnConfirmarCancelacion');
+    const textoOriginal = btnConfirmar.innerHTML;
+    btnConfirmar.disabled = true;
+    btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cancelando...';
+    
+    // Obtener token CSRF
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ||
+                     getCookie('csrftoken');
+    
+    if (!csrfToken) {
+        alert('Error: No se pudo obtener el token CSRF');
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = textoOriginal;
+        return;
+    }
+    
+    // Preparar datos
+    const formData = new FormData();
+    formData.append('motivo_cancelacion', motivoCancelacion);
+    formData.append('uuid', uuid);
+    formData.append('observaciones', observaciones);
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    
+    // Enviar solicitud
+    fetch(`/ajax/facturas/${facturaActual}/cancelar/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Mostrar mensaje de éxito
+            alert(data.message);
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalCancelacion'));
+            modal.hide();
+            
+            // Recargar la página para mostrar los cambios
+            window.location.reload();
+        } else {
+            // Mostrar error
+            alert('Error: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error: No se pudo procesar la solicitud');
+    })
+    .finally(() => {
+        // Restaurar botón
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = textoOriginal;
+    });
+}
+
+// Función para obtener cookie (ya existente)
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Auto-submit del formulario de filtros cuando cambian las fechas
+document.addEventListener('DOMContentLoaded', function() {
+    const fechaDesde = document.getElementById('fecha_desde');
+    const fechaHasta = document.getElementById('fecha_hasta');
+    
+    if (fechaDesde && fechaHasta) {
+        fechaDesde.addEventListener('change', function() {
+            if (fechaHasta.value && fechaDesde.value > fechaHasta.value) {
+                fechaHasta.value = '';
+            }
+        });
+        
+        fechaHasta.addEventListener('change', function() {
+            if (fechaDesde.value && fechaHasta.value < fechaDesde.value) {
+                fechaDesde.value = '';
+            }
+        });
+    }
+    
+    // Event listener para el formulario de cancelación
+    const formCancelacion = document.getElementById('formCancelacion');
+    if (formCancelacion) {
+        formCancelacion.addEventListener('submit', function(e) {
+            e.preventDefault();
+            cancelarFactura();
+        });
+    }
+});
+</script>
+{% endblock %}
