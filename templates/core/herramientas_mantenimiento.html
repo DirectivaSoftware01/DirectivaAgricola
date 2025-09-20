@@ -1,0 +1,392 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .maintenance-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+    }
+    
+    .maintenance-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px 10px 0 0;
+    }
+    
+    .tool-section {
+        padding: 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .tool-section:last-child {
+        border-bottom: none;
+    }
+    
+    .output-container {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+        max-height: 400px;
+        overflow-y: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+    }
+    
+    .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+    }
+    
+    .status-ok {
+        background-color: #28a745;
+    }
+    
+    .status-warning {
+        background-color: #ffc107;
+    }
+    
+    .status-error {
+        background-color: #dc3545;
+    }
+    
+    .loading {
+        display: none;
+    }
+    
+    .loading.show {
+        display: inline-block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-tools text-primary"></i>
+            Herramientas de Mantenimiento
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <button type="button" class="btn btn-primary" onclick="verificarEstadoSistema()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Verificar Estado
+            </button>
+        </div>
+    </div>
+
+    <!-- Estado del Sistema -->
+    <div class="maintenance-card">
+        <div class="maintenance-header">
+            <h5 class="mb-0">
+                <i class="bi bi-activity me-2"></i>
+                Estado del Sistema
+            </h5>
+        </div>
+        <div class="tool-section">
+            <div id="estadoSistema">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2">Verificando estado del sistema...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verificación de Certificados -->
+    <div class="maintenance-card">
+        <div class="maintenance-header">
+            <h5 class="mb-0">
+                <i class="bi bi-shield-check me-2"></i>
+                Verificación de Certificados
+            </h5>
+        </div>
+        <div class="tool-section">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="emisorVerificacion" class="form-label">Emisor (opcional)</label>
+                        <select class="form-select" id="emisorVerificacion">
+                            <option value="">Todos los emisores</option>
+                            {% for emisor in emisores %}
+                            <option value="{{ emisor.id }}">{{ emisor.razon_social }} ({{ emisor.rfc }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="diasAdvertencia" class="form-label">Días de Advertencia</label>
+                        <input type="number" class="form-control" id="diasAdvertencia" value="30" min="1" max="365">
+                    </div>
+                </div>
+            </div>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="button" class="btn btn-warning" onclick="verificarCertificados()">
+                    <i class="bi bi-shield-check me-1"></i> Verificar Certificados
+                </button>
+            </div>
+            <div id="outputCertificados" class="output-container mt-3" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Actualización de Catálogos SAT -->
+    <div class="maintenance-card">
+        <div class="maintenance-header">
+            <h5 class="mb-0">
+                <i class="bi bi-download me-2"></i>
+                Actualización de Catálogos SAT
+            </h5>
+        </div>
+        <div class="tool-section">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="catalogoActualizacion" class="form-label">Catálogo (opcional)</label>
+                        <select class="form-select" id="catalogoActualizacion">
+                            <option value="">Todos los catálogos</option>
+                            <option value="regimenes">Régimenes Fiscales</option>
+                            <option value="usos-cfdi">Usos CFDI</option>
+                            <option value="formas-pago">Formas de Pago</option>
+                            <option value="metodos-pago">Métodos de Pago</option>
+                            <option value="monedas">Monedas</option>
+                            <option value="tipos-comprobante">Tipos de Comprobante</option>
+                            <option value="objeto-impuesto">Objeto de Impuesto</option>
+                            <option value="exportacion">Tipos de Exportación</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="forzarActualizacion">
+                            <label class="form-check-label" for="forzarActualizacion">
+                                Forzar actualización
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="button" class="btn btn-success" onclick="actualizarCatalogos()">
+                    <i class="bi bi-download me-1"></i> Actualizar Catálogos
+                </button>
+            </div>
+            <div id="outputCatalogos" class="output-container mt-3" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Prueba de Conexión PAC -->
+    <div class="maintenance-card">
+        <div class="maintenance-header">
+            <h5 class="mb-0">
+                <i class="bi bi-wifi me-2"></i>
+                Prueba de Conexión PAC
+            </h5>
+        </div>
+        <div class="tool-section">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="emisorConexion" class="form-label">Emisor</label>
+                        <select class="form-select" id="emisorConexion" required>
+                            <option value="">Seleccionar emisor...</option>
+                            {% for emisor in emisores %}
+                            <option value="{{ emisor.id }}">{{ emisor.razon_social }} ({{ emisor.rfc }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="button" class="btn btn-info" onclick="probarConexionPAC()">
+                                <i class="bi bi-wifi me-1"></i> Probar Conexión
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="outputConexion" class="output-container mt-3" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Verificar estado del sistema al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    verificarEstadoSistema();
+});
+
+// Verificar estado del sistema
+function verificarEstadoSistema() {
+    const container = document.getElementById('estadoSistema');
+    
+    fetch('/ajax/herramientas/estado-sistema/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let html = '<div class="row">';
+                
+                // Estado de emisores
+                html += '<div class="col-md-6">';
+                html += '<h6><i class="bi bi-building me-2"></i>Emisores</h6>';
+                html += `<p><span class="status-indicator status-${data.emisores.con_problemas > 0 ? 'error' : 'ok'}"></span>Total: ${data.emisores.total}</p>`;
+                html += `<p><span class="status-indicator status-${data.emisores.validos > 0 ? 'ok' : 'error'}"></span>Válidos: ${data.emisores.validos}</p>`;
+                html += `<p><span class="status-indicator status-${data.emisores.con_problemas > 0 ? 'error' : 'ok'}"></span>Con problemas: ${data.emisores.con_problemas}</p>`;
+                html += '</div>';
+                
+                // Estado de catálogos
+                html += '<div class="col-md-6">';
+                html += '<h6><i class="bi bi-list-ul me-2"></i>Catálogos SAT</h6>';
+                html += `<p><span class="status-indicator status-${data.catalogos.actualizados > 0 ? 'ok' : 'warning'}"></span>Actualizados: ${data.catalogos.actualizados}</p>`;
+                html += `<p><span class="status-indicator status-${data.catalogos.desactualizados > 0 ? 'warning' : 'ok'}"></span>Desactualizados: ${data.catalogos.desactualizados}</p>`;
+                html += '</div>';
+                
+                html += '</div>';
+                html += `<small class="text-muted">Última verificación: ${new Date(data.fecha_verificacion).toLocaleString()}</small>`;
+                
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+            }
+        })
+        .catch(error => {
+            container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        });
+}
+
+// Verificar certificados
+function verificarCertificados() {
+    const emisorId = document.getElementById('emisorVerificacion').value;
+    const diasAdvertencia = document.getElementById('diasAdvertencia').value;
+    const output = document.getElementById('outputCertificados');
+    
+    output.style.display = 'block';
+    output.innerHTML = 'Verificando certificados...';
+    
+    const formData = new FormData();
+    if (emisorId) formData.append('emisor_id', emisorId);
+    formData.append('dias_advertencia', diasAdvertencia);
+    
+    fetch('/ajax/herramientas/verificar-certificados/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            output.innerHTML = data.output || 'Verificación completada';
+        } else {
+            output.innerHTML = `Error: ${data.error}\n\n${data.error || ''}`;
+        }
+    })
+    .catch(error => {
+        output.innerHTML = `Error: ${error.message}`;
+    });
+}
+
+// Actualizar catálogos
+function actualizarCatalogos() {
+    const catalogo = document.getElementById('catalogoActualizacion').value;
+    const forzar = document.getElementById('forzarActualizacion').checked;
+    const output = document.getElementById('outputCatalogos');
+    
+    output.style.display = 'block';
+    output.innerHTML = 'Actualizando catálogos...';
+    
+    const formData = new FormData();
+    if (catalogo) formData.append('catalogo', catalogo);
+    formData.append('forzar', forzar);
+    
+    fetch('/ajax/herramientas/actualizar-catalogos/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            output.innerHTML = data.output || 'Actualización completada';
+        } else {
+            output.innerHTML = `Error: ${data.error}\n\n${data.error || ''}`;
+        }
+    })
+    .catch(error => {
+        output.innerHTML = `Error: ${error.message}`;
+    });
+}
+
+// Probar conexión PAC
+function probarConexionPAC() {
+    const emisorId = document.getElementById('emisorConexion').value;
+    const output = document.getElementById('outputConexion');
+    
+    if (!emisorId) {
+        alert('Por favor selecciona un emisor');
+        return;
+    }
+    
+    output.style.display = 'block';
+    output.innerHTML = 'Probando conexión con PAC...';
+    
+    const formData = new FormData();
+    formData.append('emisor_id', emisorId);
+    
+    fetch('/ajax/herramientas/probar-conexion-pac/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.exito) {
+            output.innerHTML = `✅ Conexión exitosa\nTiempo de respuesta: ${data.tiempo_respuesta || 'N/A'} segundos\nMensaje: ${data.mensaje || 'Conexión establecida'}`;
+        } else {
+            output.innerHTML = `❌ Error de conexión\nCódigo: ${data.codigo_error || 'N/A'}\nMensaje: ${data.error || 'Error desconocido'}`;
+        }
+    })
+    .catch(error => {
+        output.innerHTML = `Error: ${error.message}`;
+    });
+}
+
+// Función para obtener cookie CSRF
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

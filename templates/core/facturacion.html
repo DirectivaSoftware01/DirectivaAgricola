@@ -98,6 +98,15 @@
         margin-bottom: 0;
     }
     
+    /* Ocultar datos del emisor para reducir tamaño visual */
+    .datos-emisor-ocultos {
+        visibility: hidden;
+        height: 0;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+    }
+    
     .btn-remove-item {
         position: absolute;
         top: 5px;
@@ -128,6 +137,59 @@
         font-size: 3rem;
         margin-bottom: 15px;
         color: #dee2e6;
+    }
+    
+    /* Estilos para el campo de error de timbrado */
+    #errorTimbradoCard {
+        animation: slideInUp 0.3s ease-out;
+        box-shadow: 0 0.5rem 1rem rgba(220, 53, 69, 0.15);
+        border-left: 4px solid #dc3545;
+    }
+    
+    #errorTimbradoCard .card-header {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        border: none;
+    }
+    
+    #errorTimbradoCard .alert {
+        border: none;
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    
+    #errorTimbradoDetalle {
+        font-family: 'Courier New', monospace;
+        background-color: rgba(0, 0, 0, 0.05);
+        padding: 1rem;
+        border-radius: 0.375rem;
+        border-left: 3px solid #dc3545;
+    }
+    
+    #errorTimbradoDetalle ul {
+        margin-bottom: 0;
+        padding-left: 1.5rem;
+    }
+    
+    #errorTimbradoDetalle li {
+        margin-bottom: 0.25rem;
+    }
+    
+    @keyframes slideInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Botón de cerrar error */
+    .btn-outline-danger:hover {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
     }
 </style>
 {% endblock %}
@@ -176,10 +238,13 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="fechaEmision" class="form-label">
-                                            Fecha y Hora <span class="text-danger">*</span>
+                                        <label class="form-label">
+                                            Fecha y Hora
                                         </label>
-                                        <input type="datetime-local" class="form-control" id="fechaEmision" name="fecha_emision" required>
+                                        <div class="form-control-plaintext">
+                                            <i class="fas fa-calendar-alt text-muted"></i>
+                                            Se establecerá automáticamente al guardar
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -222,7 +287,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="row" id="datosEmisor" style="display: none;">
+                            
+                            <div class="row datos-emisor-ocultos" id="datosEmisor" style="display: none;">
                                 <div class="col-md-3">
                                     <div class="mb-3">
                                         <label class="form-label">Razón Social</label>
@@ -243,8 +309,41 @@
                                 </div>
                                 <div class="col-md-3">
                                     <div class="mb-3">
-                                        <label class="form-label">Código Postal</label>
-                                        <input type="text" class="form-control" id="emisorCodigoPostal" readonly>
+                                        <label class="form-label">Entorno</label>
+                                        <div id="indicadorEntorno">
+                                            <!-- Se llenará dinámicamente -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row datos-emisor-ocultos" id="configuracionEmisor" style="display: none;">
+                                <div class="col-md-12">
+                                    <div class="alert alert-info">
+                                        <h6><i class="bi bi-info-circle me-2"></i>Configuración del Emisor</h6>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <small>
+                                                    <strong>PAC:</strong> <span id="emisorPac"></span><br>
+                                                    <strong>Contrato:</strong> <span id="emisorContrato"></span>
+                                                </small>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <small>
+                                                    <strong>Usuario PAC:</strong> <span id="emisorUsuarioPac"></span><br>
+                                                    <strong>Certificado:</strong> <span id="emisorCertificado"></span>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row datos-emisor-ocultos" id="erroresEmisor" style="display: none;">
+                                <div class="col-md-12">
+                                    <div class="alert alert-danger">
+                                        <h6><i class="bi bi-exclamation-triangle me-2"></i>Errores de Configuración</h6>
+                                        <ul id="listaErroresEmisor" class="mb-0">
+                                            <!-- Se llenará dinámicamente -->
+                                        </ul>
                                     </div>
                                 </div>
                             </div>
@@ -275,30 +374,8 @@
                                         <label for="usoCfdi" class="form-label">
                                             Uso CFDI <span class="text-danger">*</span>
                                         </label>
-                                        <select class="form-select" id="usoCfdi" name="uso_cfdi" required>
-                                            <option value="">Seleccionar uso CFDI...</option>
-                                            <option value="G01">G01 - Adquisición de mercancías</option>
-                                            <option value="G02">G02 - Devoluciones, descuentos o bonificaciones</option>
-                                            <option value="G03">G03 - Gastos en general</option>
-                                            <option value="I01">I01 - Construcciones</option>
-                                            <option value="I02">I02 - Mobilario y equipo de oficina por inversiones</option>
-                                            <option value="I03">I03 - Equipo de transporte</option>
-                                            <option value="I04">I04 - Equipo de computo y accesorios</option>
-                                            <option value="I05">I05 - Dados, troqueles, moldes, matrices y herramental</option>
-                                            <option value="I06">I06 - Comunicaciones telefónicas</option>
-                                            <option value="I07">I07 - Comunicaciones satelitales</option>
-                                            <option value="I08">I08 - Otra maquinaria y equipo</option>
-                                            <option value="D01">D01 - Honorarios médicos, dentales y gastos hospitalarios</option>
-                                            <option value="D02">D02 - Gastos médicos por incapacidad o discapacidad</option>
-                                            <option value="D03">D03 - Gastos funerales</option>
-                                            <option value="D04">D04 - Donativos</option>
-                                            <option value="D05">D05 - Intereses reales efectivamente pagados por créditos hipotecarios (casa habitación)</option>
-                                            <option value="D06">D06 - Aportaciones voluntarias al SAR</option>
-                                            <option value="D07">D07 - Primas por seguros de gastos médicos</option>
-                                            <option value="D08">D08 - Gastos de transportación escolar obligatoria</option>
-                                            <option value="D09">D09 - Depósitos en cuentas para el ahorro, primas que tengan como base planes de pensiones</option>
-                                            <option value="D10">D10 - Pagos por servicios educativos (colegiaturas)</option>
-                                            <option value="P01">P01 - Por definir</option>
+                                        <select class="form-select" id="usoCfdi" name="uso_cfdi" required onchange="manejarCambioUsoCFDI()">
+                                            <option value="">Cargando usos CFDI...</option>
                                         </select>
                                     </div>
                                 </div>
@@ -338,6 +415,68 @@
                                             <option value="02">02 - Definitiva (bloqueado)</option>
                                             <option value="03">03 - Temporal</option>
                                         </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información Global (solo para RFC XAXX010101000) -->
+                        <div class="form-section" id="informacionGlobalSection" style="display: none;">
+                            <h5 class="section-title">
+                                <i class="bi bi-globe me-2"></i>
+                                Información Global
+                                <small class="text-muted">(Requerida para RFC XAXX010101000)</small>
+                            </h5>
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Esta información es requerida cuando el receptor es "PUBLICO EN GENERAL" (RFC: XAXX010101000).
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="periodicidad" class="form-label">
+                                            Periodicidad <span class="text-danger">*</span>
+                                        </label>
+                                        <select class="form-select" id="periodicidad" name="periodicidad">
+                                            <option value="">Seleccionar periodicidad...</option>
+                                            <option value="01">01 - Mensual</option>
+                                            <option value="02">02 - Bimestral</option>
+                                            <option value="03">03 - Trimestral</option>
+                                            <option value="04">04 - Cuatrimestral</option>
+                                            <option value="05">05 - Semestral</option>
+                                            <option value="06">06 - Anual</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="meses" class="form-label">
+                                            Meses <span class="text-danger">*</span>
+                                        </label>
+                                        <select class="form-select" id="meses" name="meses">
+                                            <option value="">Seleccionar mes...</option>
+                                            <option value="01">01 - Enero</option>
+                                            <option value="02">02 - Febrero</option>
+                                            <option value="03">03 - Marzo</option>
+                                            <option value="04">04 - Abril</option>
+                                            <option value="05">05 - Mayo</option>
+                                            <option value="06">06 - Junio</option>
+                                            <option value="07">07 - Julio</option>
+                                            <option value="08">08 - Agosto</option>
+                                            <option value="09">09 - Septiembre</option>
+                                            <option value="10">10 - Octubre</option>
+                                            <option value="11">11 - Noviembre</option>
+                                            <option value="12">12 - Diciembre</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="añoInformacionGlobal" class="form-label">
+                                            Año <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="number" class="form-control" id="añoInformacionGlobal" name="año_informacion_global" 
+                                               min="2020" max="2030" value="2024">
                                     </div>
                                 </div>
                             </div>
@@ -441,13 +580,13 @@
                                     <div class="col-md-2">
                                         <div class="mb-3">
                                             <label for="cantidad" class="form-label">Cantidad</label>
-                                            <input type="number" class="form-control" id="cantidad" step="0.01" min="0" onchange="calcularImporte()">
+                                            <input type="number" class="form-control" id="cantidad" step="0.000001" min="0" max="999999999.999999" onchange="calcularImporte()">
                                         </div>
                                     </div>
                                     <div class="col-md-2">
                                         <div class="mb-3">
                                             <label for="precio" class="form-label">Precio</label>
-                                            <input type="number" class="form-control" id="precio" step="0.01" min="0" onchange="calcularImporte()">
+                                            <input type="number" class="form-control" id="precio" step="0.000001" min="0" max="999999999.999999" onchange="calcularImporte()">
                                         </div>
                                     </div>
                                     <div class="col-md-2">
@@ -520,8 +659,11 @@
                                 </div>
                                 <div class="col-md-4 text-end">
                                     <div class="d-grid gap-2">
-                                        <button type="button" class="btn btn-success btn-lg" onclick="guardarFactura()">
-                                            <i class="bi bi-save me-2"></i> Guardar Factura
+                                        <button type="button" class="btn btn-warning btn-lg" onclick="timbrarFactura()" id="btnTimbrar">
+                                            <i class="bi bi-stamp me-2"></i> Timbrar CFDI
+                                        </button>
+                                        <button type="button" class="btn btn-info" onclick="validarFactura()" id="btnValidar">
+                                            <i class="bi bi-check-circle me-2"></i> Validar CFDI
                                         </button>
                                         <button type="button" class="btn btn-primary" onclick="imprimirFactura()">
                                             <i class="bi bi-printer me-2"></i> Imprimir
@@ -536,6 +678,7 @@
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -545,16 +688,72 @@ let contadorProductos = 0;
 
 // Inicializar fecha actual
 document.addEventListener('DOMContentLoaded', function() {
-    const now = new Date();
-    const fechaActual = now.toISOString().slice(0, 16);
-    document.getElementById('fechaEmision').value = fechaActual;
+    // La fecha se establecerá automáticamente en el backend
+    cargarUsosCFDI();
 });
+
+// Cargar catálogo de usos CFDI desde el SAT
+function cargarUsosCFDI() {
+    fetch('/ajax/catalogos/usos-cfdi/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('usoCfdi');
+            select.innerHTML = '<option value="">Seleccionar uso CFDI...</option>';
+            
+            if (data.success) {
+                data.usos_cfdi.forEach(uso => {
+                    const option = document.createElement('option');
+                    option.value = uso.codigo;
+                    option.textContent = uso.texto_completo;
+                    select.appendChild(option);
+                });
+            } else {
+                console.error('Error cargando usos CFDI:', data.error);
+                // Fallback a opciones básicas
+                const opcionesBasicas = [
+                    {codigo: 'G01', descripcion: 'Adquisición de mercancías'},
+                    {codigo: 'G02', descripcion: 'Devoluciones, descuentos o bonificaciones'},
+                    {codigo: 'G03', descripcion: 'Gastos en general'},
+                    {codigo: 'P01', descripcion: 'Por definir'}
+                ];
+                
+                opcionesBasicas.forEach(uso => {
+                    const option = document.createElement('option');
+                    option.value = uso.codigo;
+                    option.textContent = `${uso.codigo} - ${uso.descripcion}`;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando usos CFDI:', error);
+            // Fallback a opciones básicas
+            const select = document.getElementById('usoCfdi');
+            select.innerHTML = '<option value="">Seleccionar uso CFDI...</option>';
+            const opcionesBasicas = [
+                {codigo: 'G01', descripcion: 'Adquisición de mercancías'},
+                {codigo: 'G02', descripcion: 'Devoluciones, descuentos o bonificaciones'},
+                {codigo: 'G03', descripcion: 'Gastos en general'},
+                {codigo: 'P01', descripcion: 'Por definir'}
+            ];
+            
+            opcionesBasicas.forEach(uso => {
+                const option = document.createElement('option');
+                option.value = uso.codigo;
+                option.textContent = `${uso.codigo} - ${uso.descripcion}`;
+                select.appendChild(option);
+            });
+        });
+}
 
 // Cargar datos del emisor
 function cargarDatosEmisor() {
     const emisorId = document.getElementById('emisorSelect').value;
     if (!emisorId) {
-        document.getElementById('datosEmisor').style.display = 'none';
+        // No cambiar display de elementos ocultos, solo deshabilitar botón
+        document.getElementById('btnTimbrar').disabled = true;
+        
+        // Limpiar error de timbrado al cambiar emisor
         return;
     }
 
@@ -562,13 +761,40 @@ function cargarDatosEmisor() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                document.getElementById('emisorRazonSocial').value = data.emisor.razon_social;
-                document.getElementById('emisorRfc').value = data.emisor.rfc;
+                console.log('Datos del emisor recibidos:', data.emisor);
+                
+                // Cargar solo campos visibles
                 document.getElementById('serie').value = data.emisor.serie || 'A';
-                document.getElementById('emisorRegimenFiscal').value = data.emisor.regimen_fiscal_display;
-                document.getElementById('emisorCodigoPostal').value = data.emisor.codigo_postal;
-                document.getElementById('lugarExpedicion').value = data.emisor.codigo_postal;
-                document.getElementById('datosEmisor').style.display = 'block';
+                
+                // Llenar lugar de expedición
+                const lugarExpedicion = document.getElementById('lugarExpedicion');
+                console.log('Campo lugarExpedicion encontrado:', lugarExpedicion);
+                console.log('Valor a asignar:', data.emisor.codigo_postal);
+                if (lugarExpedicion) {
+                    lugarExpedicion.value = data.emisor.codigo_postal;
+                    console.log('Valor asignado al campo:', lugarExpedicion.value);
+                } else {
+                    console.error('Campo lugarExpedicion no encontrado');
+                }
+                
+                // Llenar campos ocultos (para funcionalidad interna)
+                try {
+                    document.getElementById('emisorRazonSocial').value = data.emisor.razon_social;
+                    document.getElementById('emisorRfc').value = data.emisor.rfc;
+                    document.getElementById('emisorRegimenFiscal').value = data.emisor.regimen_fiscal_display;
+                    document.getElementById('emisorCodigoPostal').value = data.emisor.codigo_postal;
+                } catch (e) {
+                    console.log('Algunos campos ocultos no están disponibles:', e.message);
+                }
+                
+                // Mostrar indicador de entorno
+                mostrarIndicadorEntorno(data.emisor.timbrado_prueba);
+                
+                // Mostrar configuración del emisor
+                mostrarConfiguracionEmisor(data.emisor);
+                
+                // Validar configuración
+                validarConfiguracionEmisor(emisorId);
             }
         })
         .catch(error => {
@@ -577,11 +803,102 @@ function cargarDatosEmisor() {
         });
 }
 
+// Mostrar indicador de entorno
+function mostrarIndicadorEntorno(esPrueba) {
+    const indicador = document.getElementById('indicadorEntorno');
+    
+    if (esPrueba) {
+        indicador.innerHTML = `
+            <span class="badge bg-warning text-dark">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                PRUEBAS
+            </span>
+            <small class="text-muted d-block">Facturas de prueba</small>
+        `;
+    } else {
+        indicador.innerHTML = `
+            <span class="badge bg-success">
+                <i class="bi bi-check-circle me-1"></i>
+                PRODUCCIÓN
+            </span>
+            <small class="text-muted d-block">Facturas válidas</small>
+        `;
+    }
+}
+
+// Mostrar configuración del emisor
+function mostrarConfiguracionEmisor(emisor) {
+    document.getElementById('emisorPac').textContent = emisor.nombre_pac || 'No configurado';
+    document.getElementById('emisorContrato').textContent = emisor.contrato || 'No configurado';
+    document.getElementById('emisorUsuarioPac').textContent = emisor.usuario_pac || 'No configurado';
+    document.getElementById('emisorCertificado').textContent = emisor.archivo_certificado ? 'Configurado' : 'No configurado';
+    
+    // No mostrar el elemento ya que está oculto visualmente
+}
+
+// Validar configuración del emisor
+function validarConfiguracionEmisor(emisorId) {
+    fetch(`/ajax/emisores/${emisorId}/validar/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.valido) {
+                // No cambiar display de elementos ocultos
+                document.getElementById('btnTimbrar').disabled = false;
+                
+                if (data.advertencias && data.advertencias.length > 0) {
+                    mostrarNotificacion(data.advertencias.join(', '), 'warning');
+                }
+            } else {
+                // Mostrar errores
+                const listaErrores = document.getElementById('listaErroresEmisor');
+                listaErrores.innerHTML = '';
+                data.errores.forEach(error => {
+                    const li = document.createElement('li');
+                    li.textContent = error;
+                    listaErrores.appendChild(li);
+                });
+                
+                // No mostrar el elemento ya que está oculto visualmente
+                document.getElementById('btnTimbrar').disabled = true;
+            }
+        })
+        .catch(error => {
+            console.error('Error validando emisor:', error);
+            document.getElementById('btnTimbrar').disabled = true;
+        });
+}
+
+// Manejar cambio de UsoCFDI
+function manejarCambioUsoCFDI() {
+    const usoCfdi = document.getElementById('usoCfdi').value;
+    const clienteRfc = document.getElementById('clienteRfc').value;
+    
+    // Si se selecciona S01 y el receptor es PUBLICO EN GENERAL, mostrar información global
+    if (usoCfdi === 'S01' && clienteRfc === 'XAXX010101000') {
+        document.getElementById('informacionGlobalSection').style.display = 'block';
+        // Establecer valores por defecto si no están establecidos
+        if (!document.getElementById('periodicidad').value) {
+            document.getElementById('periodicidad').value = '01';
+        }
+        if (!document.getElementById('meses').value) {
+            const mesActual = new Date().getMonth() + 1;
+            document.getElementById('meses').value = mesActual.toString().padStart(2, '0');
+        }
+        if (!document.getElementById('añoInformacionGlobal').value) {
+            document.getElementById('añoInformacionGlobal').value = new Date().getFullYear();
+        }
+    } else if (usoCfdi !== 'S01' && clienteRfc === 'XAXX010101000') {
+        // Si se cambia a otro UsoCFDI que no sea S01, ocultar información global
+        document.getElementById('informacionGlobalSection').style.display = 'none';
+    }
+}
+
 // Cargar datos del cliente
 function cargarDatosCliente() {
     const clienteId = document.getElementById('receptorSelect').value;
     if (!clienteId) {
         document.getElementById('datosCliente').style.display = 'none';
+        document.getElementById('informacionGlobalSection').style.display = 'none';
         return;
     }
 
@@ -594,6 +911,28 @@ function cargarDatosCliente() {
                 document.getElementById('clienteCodigoPostal').value = data.cliente.codigo_postal;
                 document.getElementById('clienteRegimenFiscal').value = data.cliente.regimen_fiscal_display;
                 document.getElementById('datosCliente').style.display = 'block';
+                
+                // Mostrar/ocultar sección de Información Global para RFC XAXX010101000
+                if (data.cliente.rfc === 'XAXX010101000') {
+                    document.getElementById('informacionGlobalSection').style.display = 'block';
+                    // Establecer valores por defecto
+                    document.getElementById('periodicidad').value = '01'; // Mensual
+                    const mesActual = new Date().getMonth() + 1;
+                    document.getElementById('meses').value = mesActual.toString().padStart(2, '0');
+                    document.getElementById('añoInformacionGlobal').value = new Date().getFullYear();
+                    
+                    // Establecer UsoCFDI automáticamente a S01
+                    document.getElementById('usoCfdi').value = 'S01';
+                } else {
+                    document.getElementById('informacionGlobalSection').style.display = 'none';
+                    // Limpiar campos
+                    document.getElementById('periodicidad').value = '';
+                    document.getElementById('meses').value = '';
+                    document.getElementById('añoInformacionGlobal').value = '';
+                    
+                    // Limpiar UsoCFDI si no es RFC genérico
+                    document.getElementById('usoCfdi').value = '';
+                }
             }
         })
         .catch(error => {
@@ -735,8 +1074,16 @@ function agregarProducto() {
         mostrarNotificacion('La cantidad debe ser mayor a 0', 'warning');
         return;
     }
+    if (cantidad > 999999999.999999) { // 9 dígitos antes del punto decimal
+        mostrarNotificacion('La cantidad no puede exceder 999,999,999.999999', 'warning');
+        return;
+    }
     if (precio <= 0) {
         mostrarNotificacion('El precio debe ser mayor a 0', 'warning');
+        return;
+    }
+    if (precio > 999999999.999999) { // 9 dígitos antes del punto decimal
+        mostrarNotificacion('El precio no puede exceder 999,999,999.999999', 'warning');
         return;
     }
 
@@ -856,77 +1203,73 @@ function actualizarTotales() {
     document.getElementById('total').innerHTML = `<strong>$${total.toFixed(2)}</strong>`;
 }
 
-// Guardar factura
-function guardarFactura() {
-    // Validar campos requeridos
-    const serie = document.getElementById('serie').value.trim();
-    const fechaEmision = document.getElementById('fechaEmision').value;
-    const emisorId = document.getElementById('emisorSelect').value;
-    const receptorId = document.getElementById('receptorSelect').value;
-    const usoCfdi = document.getElementById('usoCfdi').value;
-
-    if (!serie || !fechaEmision || !emisorId || !receptorId || !usoCfdi) {
-        mostrarNotificacion('Faltan campos requeridos', 'warning');
+// Validar CFDI
+function validarFactura() {
+    if (!validarFormulario()) {
         return;
     }
-
-    if (productosAgregados.length === 0) {
-        mostrarNotificacion('Debe agregar al menos un producto', 'warning');
-        return;
-    }
-
-    // Preparar datos
-    const formData = new FormData();
-    formData.append('serie', serie);
-    formData.append('fecha_emision', fechaEmision);
-    formData.append('emisor_id', emisorId);
-    formData.append('lugar_expedicion', document.getElementById('lugarExpedicion').value);
-    formData.append('receptor_id', receptorId);
-    formData.append('uso_cfdi', usoCfdi);
-    formData.append('exportacion', document.getElementById('exportacion').value);
-    formData.append('metodo_pago', document.getElementById('metodoPago').value);
-    formData.append('moneda', document.getElementById('moneda').value);
-    formData.append('forma_pago', document.getElementById('formaPago').value);
-    formData.append('tipo_cambio', document.getElementById('tipoCambio').value);
-    formData.append('detalles', JSON.stringify(productosAgregados));
-
-    // Obtener token CSRF
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
-                     document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ||
-                     getCookie('csrftoken');
     
-    if (!csrfToken) {
-        mostrarNotificacion('Error: No se pudo obtener el token CSRF', 'error');
-        return;
-    }
-
-    // Enviar datos
-    fetch('/ajax/facturas/guardar/', {
+    mostrarNotificacion('Validando CFDI...', 'info');
+    
+    // Preparar datos para validación
+    const datosValidacion = prepararDatosFactura();
+    
+    fetch('/ajax/facturas/validar/', {
         method: 'POST',
-        body: formData,
         headers: {
-            'X-CSRFToken': csrfToken
-        }
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(datosValidacion)
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            mostrarNotificacion(`Factura ${data.serie_folio} guardada exitosamente`, 'success');
-            limpiarFormulario();
+        if (data.valido) {
+            mostrarNotificacion('CFDI válido - Listo para timbrar', 'success');
+            document.getElementById('btnTimbrar').disabled = false;
         } else {
-            mostrarNotificacion(data.error || 'Error al guardar la factura', 'error');
+            mostrarNotificacion('CFDI inválido: ' + data.errores.join(', '), 'error');
+            document.getElementById('btnTimbrar').disabled = true;
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        mostrarNotificacion('Error al guardar la factura', 'error');
+        mostrarNotificacion('Error al validar CFDI', 'error');
     });
+}
+
+// Timbrar CFDI - Función principal
+
+// Preparar datos de la factura para validación/timbrado
+function prepararDatosFactura() {
+    const emisorId = document.getElementById('emisorSelect').value;
+    const receptorId = document.getElementById('receptorSelect').value;
+    const serie = document.getElementById('serie').value;
+    
+    if (!emisorId || !receptorId || !serie) {
+        throw new Error('Faltan datos obligatorios');
+    }
+    
+    return {
+        emisor_id: emisorId,
+        receptor_id: receptorId,
+        serie: serie,
+        fecha_emision: new Date().toISOString(), // Fecha actual
+        lugar_expedicion: document.getElementById('lugarExpedicion').value,
+        uso_cfdi: document.getElementById('usoCfdi').value,
+        exportacion: document.getElementById('exportacion').value,
+        metodo_pago: document.getElementById('metodoPago').value,
+        moneda: document.getElementById('moneda').value,
+        forma_pago: document.getElementById('formaPago').value,
+        tipo_cambio: document.getElementById('tipoCambio').value,
+        detalles: productosAgregados
+    };
 }
 
 // Limpiar formulario
 function limpiarFormulario() {
     document.getElementById('facturaForm').reset();
-    document.getElementById('fechaEmision').value = new Date().toISOString().slice(0, 16);
+    // La fecha se establecerá automáticamente en el backend
     document.getElementById('moneda').value = 'MXN';
     document.getElementById('tipoCambio').value = '1.0000';
     document.getElementById('metodoPago').value = 'PUE';
@@ -939,8 +1282,10 @@ function limpiarFormulario() {
     actualizarListaProductos();
     actualizarTotales();
     
-    document.getElementById('datosEmisor').style.display = 'none';
+    // No cambiar display de elementos ocultos
     document.getElementById('datosCliente').style.display = 'none';
+    
+    // Limpiar error de timbrado
 }
 
 // Imprimir factura
@@ -970,10 +1315,237 @@ function getCookie(name) {
     return cookieValue;
 }
 
-// Mostrar notificación
-function mostrarNotificacion(mensaje, tipo) {
-    // Implementar sistema de notificaciones
-    alert(mensaje);
+// Validar formulario
+function validarFormulario() {
+    // Validar emisor
+    const emisorSelect = document.getElementById('emisorSelect');
+    if (!emisorSelect.value) {
+        mostrarNotificacion('Debe seleccionar un emisor', 'error');
+        emisorSelect.focus();
+        return false;
+    }
+    
+    // Validar receptor
+    const receptorSelect = document.getElementById('receptorSelect');
+    if (!receptorSelect.value) {
+        mostrarNotificacion('Debe seleccionar un receptor', 'error');
+        receptorSelect.focus();
+        return false;
+    }
+    
+    // La fecha se validará automáticamente en el backend
+    
+    // Validar lugar de expedición
+    const lugarExpedicion = document.getElementById('lugarExpedicion');
+    if (!lugarExpedicion.value) {
+        mostrarNotificacion('Debe ingresar el lugar de expedición', 'error');
+        lugarExpedicion.focus();
+        return false;
+    }
+    
+    // Validar que el lugar de expedición sea un código postal válido
+    const codigoPostalRegex = /^\d{5}$/;
+    if (!codigoPostalRegex.test(lugarExpedicion.value)) {
+        mostrarNotificacion('El lugar de expedición debe ser un código postal de 5 dígitos', 'error');
+        lugarExpedicion.focus();
+        return false;
+    }
+    
+    // Validar que se hayan agregado productos a la factura
+    if (productosAgregados.length === 0) {
+        mostrarNotificacion('Debe agregar al menos un producto a la factura', 'error');
+        return false;
+    }
+    
+    return true;
 }
+
+// Función principal para timbrar CFDI (guarda y timbra en un solo proceso)
+function timbrarFactura() {
+    console.log('Iniciando función timbrarFactura');
+    
+    // Validar formulario
+    if (!validarFormulario()) {
+        console.log('Validación de formulario falló');
+        return;
+    }
+    
+    // Obtener el botón y mostrar estado de carga
+    const boton = document.getElementById('btnTimbrar');
+    const textoOriginal = boton.innerHTML;
+    boton.innerHTML = '<i class="bi bi-hourglass-split me-2"></i> Procesando...';
+    boton.disabled = true;
+    
+    // Mostrar notificación de inicio
+    mostrarNotificacion('Iniciando proceso de timbrado...', 'info');
+    
+    // Limpiar error anterior
+    
+    // Preparar datos de la factura
+    const formData = new FormData();
+    formData.append('serie', document.getElementById('serie').value);
+    formData.append('emisor_id', document.getElementById('emisorSelect').value);
+    formData.append('fecha_emision', new Date().toISOString());
+    formData.append('lugar_expedicion', document.getElementById('lugarExpedicion').value);
+    formData.append('receptor_id', document.getElementById('receptorSelect').value);
+    formData.append('uso_cfdi', document.getElementById('usoCfdi').value);
+    formData.append('exportacion', document.getElementById('exportacion').value);
+    formData.append('metodo_pago', document.getElementById('metodoPago').value);
+    formData.append('moneda', document.getElementById('moneda').value);
+    formData.append('forma_pago', document.getElementById('formaPago').value);
+    formData.append('tipo_cambio', document.getElementById('tipoCambio').value);
+    formData.append('detalles', JSON.stringify(productosAgregados));
+    
+    // Información Global (solo si está visible)
+    if (document.getElementById('informacionGlobalSection').style.display !== 'none') {
+        formData.append('periodicidad', document.getElementById('periodicidad').value);
+        formData.append('meses', document.getElementById('meses').value);
+        formData.append('año_informacion_global', document.getElementById('añoInformacionGlobal').value);
+    }
+    
+    // Obtener token CSRF
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                     document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ||
+                     getCookie('csrftoken');
+    
+    if (!csrfToken) {
+        mostrarNotificacion('Error: No se pudo obtener el token CSRF', 'error');
+        boton.innerHTML = textoOriginal;
+        boton.disabled = false;
+        return;
+    }
+    
+    // Paso 1: Guardar la factura
+    mostrarNotificacion('Guardando factura...', 'info');
+    
+    fetch('/ajax/facturas/guardar/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarNotificacion('Factura guardada, iniciando timbrado...', 'success');
+            
+            // Paso 2: Timbrar la factura
+            return fetch(`/ajax/facturas/timbrar/${data.factura_id}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json',
+                }
+            });
+        } else {
+            throw new Error(data.error || 'Error al guardar la factura');
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarNotificacion(`¡CFDI timbrado exitosamente! Serie: ${data.serie_folio}`, 'success');
+            
+            // Limpiar formulario
+            limpiarFormulario();
+            
+            // Redireccionar al listado después de 3 segundos
+            setTimeout(() => {
+                window.location.href = '/listado-facturas/';
+            }, 3000);
+               } else {
+                   console.log('Error en timbrado:', data);
+                   
+                   // Mostrar error específico del timbrado
+                   let mensajeError = data.error || 'Error desconocido al timbrar';
+                   let codigoError = data.codigo_error || 'UNKNOWN_ERROR';
+                   let detalles = data.detalles || [];
+                   
+                   console.log('Mostrando error:', { mensajeError, codigoError, detalles });
+                   
+                   // Mostrar error en el campo del pie de página
+                   mostrarErrorTimbrado(mensajeError, codigoError, detalles);
+                   
+                   // También mostrar en consola para debugging
+                   console.error('Error detallado del timbrado:', {
+                       codigo: codigoError,
+                       error: mensajeError,
+                       detalles: detalles
+                   });
+                   
+                   // NO limpiar formulario ni redireccionar automáticamente
+                   // Permitir al usuario revisar el error y corregir
+               }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarNotificacion(`Error en el proceso: ${error.message}`, 'error');
+    })
+    .finally(() => {
+        // Restaurar botón
+        boton.innerHTML = textoOriginal;
+        boton.disabled = false;
+    });
+}
+
+
+// Mostrar notificación
+function mostrarNotificacion(mensaje, tipo = 'info', tiempo = null) {
+    // Limpiar notificaciones existentes para evitar que se encimen
+    const notificacionesExistentes = document.querySelectorAll('.alert.position-fixed');
+    notificacionesExistentes.forEach(notif => notif.remove());
+    
+    // Crear elemento de notificación
+    const notificacion = document.createElement('div');
+    notificacion.className = `alert alert-${tipo} alert-dismissible fade show position-fixed`;
+    
+    // Ajustar tamaño según el tipo de mensaje
+    if (mensaje.includes('\n') || mensaje.length > 100) {
+        // Mensaje largo o con saltos de línea
+        notificacion.style.cssText = 'bottom: 20px; left: 20px; z-index: 9999; min-width: 500px; max-width: 700px; max-height: 400px; overflow-y: auto; white-space: pre-line;';
+    } else {
+        // Mensaje corto
+        notificacion.style.cssText = 'bottom: 20px; left: 20px; z-index: 9999; min-width: 300px; max-width: 400px;';
+    }
+    
+    notificacion.innerHTML = `
+        <div style="white-space: pre-line;">${mensaje}</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Agregar al DOM
+    document.body.appendChild(notificacion);
+    
+    // Auto-remover después del tiempo especificado o por defecto
+    const tiempoFinal = tiempo || (tipo === 'error' ? 5000 : 3000);
+    setTimeout(() => {
+        if (notificacion.parentNode) {
+            notificacion.remove();
+        }
+    }, tiempoFinal);
+}
+
+// Mostrar error de timbrado solo con notificaciones
+function mostrarErrorTimbrado(error, codigoError = '', detalles = []) {
+    console.log('mostrarErrorTimbrado llamada con:', { error, codigoError, detalles });
+    
+    // Construir mensaje de error detallado
+    let mensajeError = `Error al timbrar: ${error}`;
+    
+    if (codigoError) {
+        mensajeError += ` (Código: ${codigoError})`;
+    }
+    
+    if (detalles && detalles.length > 0) {
+        mensajeError += ` - ${detalles.join(', ')}`;
+    }
+    
+    console.log('Mensaje de error construido:', mensajeError);
+    
+    // Mostrar notificación con duración de 5 segundos
+    mostrarNotificacion(mensajeError, 'error', 5000);
+}
+
 </script>
 {% endblock %}

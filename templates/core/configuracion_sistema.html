@@ -698,46 +698,112 @@ function cargarEmisores() {
             const container = document.getElementById('emisoresList');
             if (data.success && data.emisores.length > 0) {
                 console.log(`Actualizando HTML con ${data.emisores.length} emisores`);
-                container.innerHTML = `
-                    <div class="row">
-                        ${data.emisores.map(emisor => `
-                            <div class="col-md-6 col-lg-4 mb-3">
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <h6 class="card-title">
-                                            <i class="bi bi-building me-2"></i>${emisor.razon_social}
-                                        </h6>
-                                        <p class="card-text">
-                                            <strong>RFC:</strong> ${emisor.rfc}<br>
-                                            <strong>Código Postal:</strong> ${emisor.codigo_postal}<br>
-                                            <strong>Serie:</strong> ${emisor.serie || 'A'}<br>
-                                            <strong>Régimen Fiscal:</strong> ${emisor.regimen_fiscal_display || 'N/A'}<br>
-                                            <strong>Certificado:</strong> ${emisor.archivo_certificado ? emisor.archivo_certificado.split('/').pop() : 'No cargado'}<br>
-                                            <strong>Llave:</strong> ${emisor.archivo_llave ? emisor.archivo_llave.split('/').pop() : 'No cargada'}<br>
-                                            <strong>Contraseña Llave:</strong> ${emisor.tiene_password ? 'Configurada' : 'No configurada'}<br>
-                                            <strong class="text-primary">Datos de Timbrado:</strong><br>
-                                            <strong>PAC:</strong> ${emisor.nombre_pac || 'N/A'}<br>
-                                            <strong>Contrato:</strong> ${emisor.contrato || 'N/A'}<br>
-                                            <strong>Usuario PAC:</strong> ${emisor.usuario_pac || 'N/A'}<br>
-                                            <strong>Contraseña PAC:</strong> ${emisor.tiene_password_pac ? 'Configurada' : 'No configurada'}<br>
-                                            <strong>Timbrado:</strong> ${emisor.timbrado_prueba ? '<span class="badge bg-warning">Prueba</span>' : '<span class="badge bg-success">Producción</span>'}
-                                        </p>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <small class="text-muted">
-                                                ${emisor.activo ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-secondary">Inactivo</span>'}
-                                            </small>
-                                            <div class="btn-group btn-group-sm">
-                                                <button type="button" class="btn btn-outline-danger" onclick="eliminarEmisor(${emisor.codigo})" title="Eliminar">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
+                
+                // Separar emisores activos e inactivos
+                const emisoresActivos = data.emisores.filter(emisor => emisor.activo);
+                const emisoresInactivos = data.emisores.filter(emisor => !emisor.activo);
+                
+                let html = '';
+                
+                // Mostrar emisores activos
+                if (emisoresActivos.length > 0) {
+                    html += `
+                        <div class="mb-4">
+                            <h6 class="text-success mb-3">
+                                <i class="bi bi-check-circle me-2"></i>Emisores Activos (${emisoresActivos.length})
+                            </h6>
+                            <div class="row">
+                                ${emisoresActivos.map(emisor => `
+                                    <div class="col-md-6 col-lg-4 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title">
+                                                    <i class="bi bi-building me-2"></i>${emisor.razon_social}
+                                                </h6>
+                                                <p class="card-text">
+                                                    <strong>RFC:</strong> ${emisor.rfc}<br>
+                                                    <strong>Código Postal:</strong> ${emisor.codigo_postal}<br>
+                                                    <strong>Serie:</strong> ${emisor.serie || 'A'}<br>
+                                                    <strong>Régimen Fiscal:</strong> ${emisor.regimen_fiscal_display || 'N/A'}<br>
+                                                    <strong>Certificado:</strong> ${emisor.archivo_certificado ? (emisor.nombre_archivo_certificado && emisor.nombre_archivo_certificado.trim() ? emisor.nombre_archivo_certificado : 'certificado.cer') + ' (' + Math.round(emisor.archivo_certificado.length / 1024) + ' KB)' : 'No cargado'}<br>
+                                                    <strong>Llave:</strong> ${emisor.archivo_llave ? (emisor.nombre_archivo_llave && emisor.nombre_archivo_llave.trim() ? emisor.nombre_archivo_llave : 'llave.key') + ' (' + Math.round(emisor.archivo_llave.length / 1024) + ' KB)' : 'No cargada'}<br>
+                                                    <strong>Contraseña Llave:</strong> ${emisor.password_llave ? 'Configurada' : 'No configurada'}<br>
+                                                    <strong class="text-primary">Datos de Timbrado:</strong><br>
+                                                    <strong>PAC:</strong> ${emisor.nombre_pac || 'N/A'}<br>
+                                                    <strong>Contrato:</strong> ${emisor.contrato || 'N/A'}<br>
+                                                    <strong>Usuario PAC:</strong> ${emisor.usuario_pac || 'N/A'}<br>
+                                                    <strong>Contraseña PAC:</strong> ${emisor.password_pac ? 'Configurada' : 'No configurada'}<br>
+                                                    <strong>Timbrado:</strong> ${emisor.timbrado_prueba ? '<span class="badge bg-warning">Prueba</span>' : '<span class="badge bg-success">Producción</span>'}
+                                                </p>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <small class="text-muted">
+                                                        <span class="badge bg-success">Activo</span>
+                                                    </small>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button type="button" class="btn btn-outline-danger" onclick="eliminarEmisor(${emisor.codigo})" title="Desactivar">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                `).join('')}
                             </div>
-                        `).join('')}
-                    </div>
-                `;
+                        </div>
+                    `;
+                }
+                
+                // Mostrar emisores inactivos
+                if (emisoresInactivos.length > 0) {
+                    html += `
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-3">
+                                <i class="bi bi-pause-circle me-2"></i>Emisores Inactivos (${emisoresInactivos.length})
+                            </h6>
+                            <div class="row">
+                                ${emisoresInactivos.map(emisor => `
+                                    <div class="col-md-6 col-lg-4 mb-3">
+                                        <div class="card h-100 border-secondary">
+                                            <div class="card-body">
+                                                <h6 class="card-title text-muted">
+                                                    <i class="bi bi-building me-2"></i>${emisor.razon_social}
+                                                </h6>
+                                                <p class="card-text text-muted">
+                                                    <strong>RFC:</strong> ${emisor.rfc}<br>
+                                                    <strong>Código Postal:</strong> ${emisor.codigo_postal}<br>
+                                                    <strong>Serie:</strong> ${emisor.serie || 'A'}<br>
+                                                    <strong>Régimen Fiscal:</strong> ${emisor.regimen_fiscal_display || 'N/A'}<br>
+                                                    <strong>Certificado:</strong> ${emisor.archivo_certificado ? (emisor.nombre_archivo_certificado && emisor.nombre_archivo_certificado.trim() ? emisor.nombre_archivo_certificado : 'certificado.cer') + ' (' + Math.round(emisor.archivo_certificado.length / 1024) + ' KB)' : 'No cargado'}<br>
+                                                    <strong>Llave:</strong> ${emisor.archivo_llave ? (emisor.nombre_archivo_llave && emisor.nombre_archivo_llave.trim() ? emisor.nombre_archivo_llave : 'llave.key') + ' (' + Math.round(emisor.archivo_llave.length / 1024) + ' KB)' : 'No cargada'}<br>
+                                                    <strong>Contraseña Llave:</strong> ${emisor.password_llave ? 'Configurada' : 'No configurada'}<br>
+                                                    <strong class="text-primary">Datos de Timbrado:</strong><br>
+                                                    <strong>PAC:</strong> ${emisor.nombre_pac || 'N/A'}<br>
+                                                    <strong>Contrato:</strong> ${emisor.contrato || 'N/A'}<br>
+                                                    <strong>Usuario PAC:</strong> ${emisor.usuario_pac || 'N/A'}<br>
+                                                    <strong>Contraseña PAC:</strong> ${emisor.password_pac ? 'Configurada' : 'No configurada'}<br>
+                                                    <strong>Timbrado:</strong> ${emisor.timbrado_prueba ? '<span class="badge bg-warning">Prueba</span>' : '<span class="badge bg-success">Producción</span>'}
+                                                </p>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <small class="text-muted">
+                                                        <span class="badge bg-secondary">Inactivo</span>
+                                                    </small>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button type="button" class="btn btn-outline-success" onclick="reactivarEmisor(${emisor.codigo})" title="Reactivar">
+                                                            <i class="bi bi-arrow-clockwise"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                container.innerHTML = html;
             } else {
                 container.innerHTML = `
                     <div class="text-center text-muted">
@@ -953,9 +1019,9 @@ function agregarEmisor() {
     });
 }
 
-// Función para eliminar emisor
+// Función para eliminar emisor (desactivar)
 function eliminarEmisor(codigo) {
-    if (confirm('¿Está seguro de que desea eliminar este emisor?')) {
+    if (confirm('¿Está seguro de que desea desactivar este emisor?')) {
         fetch(`/ajax/emisores/eliminar/${codigo}/`, {
             method: 'POST',
             headers: {
@@ -967,7 +1033,34 @@ function eliminarEmisor(codigo) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showNotification('Emisor eliminado exitosamente', 'success', 3000);
+                showNotification(data.message || 'Emisor desactivado exitosamente', 'success', 3000);
+                cargarEmisores();
+            } else {
+                showNotification('Error: ' + (data.error || 'Error desconocido'), 'error', 5000);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error de conexión. Por favor, intente nuevamente.', 'error', 5000);
+        });
+    }
+}
+
+// Función para reactivar emisor
+function reactivarEmisor(codigo) {
+    if (confirm('¿Está seguro de que desea reactivar este emisor?')) {
+        fetch(`/ajax/emisores/reactivar/${codigo}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            credentials: 'same-origin'  // Incluir cookies de sesión
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message || 'Emisor reactivado exitosamente', 'success', 3000);
                 cargarEmisores();
             } else {
                 showNotification('Error: ' + (data.error || 'Error desconocido'), 'error', 5000);

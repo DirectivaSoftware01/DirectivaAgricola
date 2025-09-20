@@ -37,17 +37,36 @@ from .views import (
     PresupuestoGastoFormView, PresupuestoGastosReporteView,
     # Vistas AJAX
     get_cultivos_ajax, cancelar_remision_ajax, actualizar_estado_cobranza_ajax,
+    # Vistas AJAX de Emisores
+    listar_emisores_ajax, agregar_emisor_ajax, obtener_emisor_ajax, validar_emisor_ajax,
     agregar_cuenta_bancaria_ajax, listar_cuentas_bancarias_ajax, eliminar_cuenta_bancaria_ajax,
     capturar_pago_ajax, reporte_pagos_view, clasificaciones_gastos_ajax, presupuesto_detalle_ajax,
     proveedores_ajax, clasificaciones_gastos_presupuesto_ajax,
-    # Vistas AJAX para Emisores
-    listar_emisores_ajax, agregar_emisor_ajax, eliminar_emisor_ajax
+    eliminar_emisor_ajax,
+    reactivar_emisor_ajax
 )
 
 # Importar vistas de facturación
 from .factura_views import (
-    FacturacionView, ListadoFacturasView, FacturaDetailView, obtener_emisor_ajax, obtener_cliente_ajax, 
-    obtener_producto_ajax, guardar_factura_ajax, cancelar_factura_ajax
+    FacturacionView, ListadoFacturasView, FacturaDetailView,
+    validar_emisor_ajax, validar_cfdi_ajax, timbrar_factura_ajax, cancelar_factura_ajax,
+    consultar_estatus_factura_ajax, probar_conexion_pac_ajax,
+    generar_pdf_factura, vista_previa_pdf_factura, descargar_xml_factura
+)
+from .factura_ajax_views import (
+    obtener_emisor_ajax, obtener_cliente_ajax, obtener_producto_ajax, guardar_factura_ajax, timbrar_factura_ajax,
+    probar_conexion_pac_ajax
+)
+from .catalogos_ajax_views import obtener_usos_cfdi_ajax
+# Importar vistas de herramientas de mantenimiento
+from .views.herramientas import (
+    estado_sistema, verificar_certificados, actualizar_catalogos, probar_conexion_pac
+)
+from .views.herramientas_mantenimiento import HerramientasMantenimientoView
+from .pago_views import (
+    ComplementoPagoView, EstadoCuentaView, listado_estados_cuenta,
+    registrar_pago, obtener_historial_pagos, obtener_info_factura_ajax,
+    imprimir_estado_cuenta
 )
 
 app_name = 'core'
@@ -190,15 +209,50 @@ urlpatterns = [
     # URLs AJAX para Emisores
     path('ajax/emisores/listar/', listar_emisores_ajax, name='listar_emisores_ajax'),
     path('ajax/emisores/agregar/', agregar_emisor_ajax, name='agregar_emisor_ajax'),
+    path('ajax/emisores/<int:codigo>/', obtener_emisor_ajax, name='obtener_emisor_ajax'),
+    path('ajax/emisores/<int:codigo>/validar/', validar_emisor_ajax, name='validar_emisor_ajax'),
     path('ajax/emisores/eliminar/<int:codigo>/', eliminar_emisor_ajax, name='eliminar_emisor_ajax'),
+    path('ajax/emisores/reactivar/<int:codigo>/', reactivar_emisor_ajax, name='reactivar_emisor_ajax'),
     
     # URLs para Facturación
     path('facturacion/', FacturacionView.as_view(), name='facturacion'),
     path('listado-facturas/', ListadoFacturasView.as_view(), name='listado_facturas'),
     path('factura/<int:folio>/', FacturaDetailView.as_view(), name='factura_detail'),
+    path('factura/<int:folio>/pdf/', generar_pdf_factura, name='generar_pdf_factura'),
+    path('factura/<int:folio>/vista-previa/', vista_previa_pdf_factura, name='vista_previa_pdf_factura'),
+    path('factura/<int:folio>/xml/', descargar_xml_factura, name='descargar_xml_factura'),
     path('ajax/emisores/<str:codigo>/', obtener_emisor_ajax, name='obtener_emisor_ajax'),
     path('ajax/clientes/<str:codigo>/', obtener_cliente_ajax, name='obtener_cliente_ajax'),
     path('ajax/productos/<str:codigo>/', obtener_producto_ajax, name='obtener_producto_ajax'),
     path('ajax/facturas/guardar/', guardar_factura_ajax, name='guardar_factura_ajax'),
     path('ajax/facturas/<int:folio>/cancelar/', cancelar_factura_ajax, name='cancelar_factura_ajax'),
+    
+    # URLs AJAX para validación y timbrado
+    path('ajax/emisores/<str:codigo>/validar/', validar_emisor_ajax, name='validar_emisor_ajax'),
+    path('ajax/facturas/validar/', validar_cfdi_ajax, name='validar_cfdi_ajax'),
+    path('ajax/facturas/timbrar/<int:folio>/', timbrar_factura_ajax, name='timbrar_factura_ajax'),
+    path('ajax/facturas/<int:factura_id>/cancelar/', cancelar_factura_ajax, name='cancelar_factura_ajax'),
+    path('ajax/facturas/<int:factura_id>/estatus/', consultar_estatus_factura_ajax, name='consultar_estatus_factura_ajax'),
+    path('ajax/emisores/<int:emisor_id>/probar-conexion/', probar_conexion_pac_ajax, name='probar_conexion_pac_ajax'),
+    
+    # URLs AJAX para catálogos
+    path('ajax/catalogos/usos-cfdi/', obtener_usos_cfdi_ajax, name='obtener_usos_cfdi_ajax'),
+    
+    # URLs para herramientas de mantenimiento
+    path('herramientas/', HerramientasMantenimientoView.as_view(), name='herramientas_mantenimiento'),
+    path('ajax/herramientas/estado-sistema/', estado_sistema, name='estado_sistema_ajax'),
+    path('ajax/herramientas/verificar-certificados/', verificar_certificados, name='verificar_certificados_ajax'),
+    path('ajax/herramientas/actualizar-catalogos/', actualizar_catalogos, name='actualizar_catalogos_ajax'),
+    path('ajax/herramientas/probar-conexion-pac/', probar_conexion_pac, name='probar_conexion_pac_ajax'),
+    
+    # URLs para complemento de pago
+    path('complemento-pago/', ComplementoPagoView.as_view(), name='complemento_pago'),
+    path('estado-cuenta/<int:cliente_id>/', EstadoCuentaView.as_view(), name='estado_cuenta'),
+    path('estado-cuenta/<int:cliente_id>/imprimir/', imprimir_estado_cuenta, name='imprimir_estado_cuenta'),
+    path('estados-cuenta/', listado_estados_cuenta, name='listado_estados_cuenta'),
+    
+    # URLs AJAX para pagos
+    path('ajax/factura/<int:factura_id>/registrar-pago/', registrar_pago, name='registrar_pago_ajax'),
+    path('ajax/factura/<int:factura_id>/historial-pagos/', obtener_historial_pagos, name='historial_pagos_ajax'),
+    path('ajax/factura/<int:factura_id>/info/', obtener_info_factura_ajax, name='info_factura_ajax'),
 ]

@@ -7,14 +7,15 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponseRedirect
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, get_object_or_404
 import json
 from django.db.models import Sum, Count
 from django.db import models
 from django.contrib import messages
 from datetime import datetime
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Emisor, Factura, FacturaDetalle
-from .forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm, PresupuestoGastoForm, PresupuestoGastoSearchForm, PresupuestoForm, PresupuestoDetalleForm, PresupuestoSearchForm, GastoForm, GastoDetalleForm
+from ..models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Emisor, Factura, FacturaDetalle
+from ..forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm, PresupuestoGastoForm, PresupuestoGastoSearchForm, PresupuestoForm, PresupuestoDetalleForm, PresupuestoSearchForm, GastoForm, GastoDetalleForm
 
 # Create your views here.
 
@@ -82,6 +83,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -443,6 +445,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -653,6 +656,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -863,6 +867,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -1052,6 +1057,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -1253,6 +1259,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -1450,6 +1457,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -1656,6 +1664,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -1862,6 +1871,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -2079,6 +2089,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -2293,6 +2304,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -2497,6 +2509,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -2701,6 +2714,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -2889,6 +2903,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -3088,6 +3103,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -3304,6 +3320,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -3508,6 +3525,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -3712,6 +3730,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -3900,6 +3919,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -4099,6 +4119,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -4313,6 +4334,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -4517,6 +4539,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -4721,6 +4744,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -4909,6 +4933,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -5108,6 +5133,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -5322,6 +5348,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -5526,6 +5553,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -5730,6 +5758,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -5918,6 +5947,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -6117,6 +6147,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -6331,6 +6362,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -6535,6 +6567,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -6739,6 +6772,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -6927,6 +6961,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -7126,6 +7161,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -7345,6 +7381,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -7550,6 +7587,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -7756,6 +7794,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -7945,6 +7984,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -8146,6 +8186,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -8523,6 +8564,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -8732,6 +8774,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -8929,6 +8972,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -9126,6 +9170,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -9318,6 +9363,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -9518,6 +9564,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -9780,6 +9827,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -10081,6 +10129,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -10381,6 +10430,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -10571,6 +10621,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -10765,6 +10816,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -10982,6 +11034,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -11202,6 +11255,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -11415,6 +11469,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -11619,6 +11674,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -11802,6 +11858,7 @@ def cancelar_remision_ajax(request, pk):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -12109,6 +12166,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -12303,6 +12361,7 @@ def actualizar_estado_cobranza_ajax(request, pk):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -12617,6 +12676,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -12800,6 +12860,7 @@ def agregar_cuenta_bancaria_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -12962,6 +13023,7 @@ def listar_cuentas_bancarias_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -13119,6 +13181,7 @@ def eliminar_cuenta_bancaria_ajax(request, codigo):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -13328,6 +13391,7 @@ def capturar_pago_ajax(request, remision_id):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -13657,6 +13721,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -13855,6 +13920,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -14059,6 +14125,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -14338,6 +14405,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -14555,6 +14623,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -14867,6 +14936,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -15212,6 +15282,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -15409,6 +15480,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -15604,6 +15676,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -15785,6 +15858,7 @@ def eliminar_emisor_ajax(request, codigo):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -16004,6 +16078,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -16199,6 +16274,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -16465,6 +16541,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:
@@ -16695,6 +16772,7 @@ def listar_emisores_ajax(request):
 
 
 @login_required
+@csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if not request.user.is_staff:

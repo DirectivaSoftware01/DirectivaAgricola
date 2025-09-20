@@ -23,6 +23,11 @@
                 <button type="button" class="btn btn-success" onclick="descargarPDF({{ factura.folio }})">
                     <i class="bi bi-download"></i> Descargar PDF
                 </button>
+                {% if factura.xml_timbrado %}
+                <button type="button" class="btn btn-info" onclick="descargarXML({{ factura.folio }})">
+                    <i class="bi bi-file-code"></i> Descargar XML
+                </button>
+                {% endif %}
                 <a href="{% url 'core:listado_facturas' %}" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Volver a Facturas
                 </a>
@@ -133,7 +138,7 @@
                         </tr>
                         <tr>
                             <td><strong>Régimen Fiscal:</strong></td>
-                            <td>{{ factura.receptor.get_regimen_fiscal_display }}</td>
+                            <td>{{ factura.receptor.regimen_fiscal.descripcion }}</td>
                         </tr>
                         <tr>
                             <td><strong>Código Postal:</strong></td>
@@ -530,13 +535,30 @@ function cancelarFactura() {
 
 // Funciones para las acciones de las facturas
 function imprimirFactura(folio) {
+    // Abrir vista previa del PDF en nueva ventana
     console.log('Imprimir factura:', folio);
-    alert('Funcionalidad de impresión en desarrollo para factura: ' + folio);
+    const url = `/factura/${folio}/vista-previa/`;
+    window.open(url, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
 }
 
 function descargarPDF(folio) {
+    // Descargar PDF de la factura
     console.log('Descargar PDF de factura:', folio);
-    alert('Funcionalidad de descarga PDF en desarrollo para factura: ' + folio);
+    
+    // Crear enlace de descarga
+    const url = `/factura/${folio}/pdf/`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `factura_${folio}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function descargarXML(folio) {
+    console.log('Descargar XML de factura:', folio);
+    // Redirigir a la URL de descarga de XML
+    window.location.href = `/factura/${folio}/xml/`;
 }
 
 // Función para obtener cookie

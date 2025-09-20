@@ -1,26 +1,29 @@
-from django.shortcuts import render, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.views.generic import TemplateView
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-from django.utils.decorators import method_decorator
-from django.views import View
+"""
+Vistas para facturación electrónica CFDI 4.0
+"""
+
 import json
 from datetime import datetime
-from decimal import Decimal
+from django.shortcuts import get_object_or_404, render
+from django.http import JsonResponse, HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.views.generic import TemplateView, ListView, DetailView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
+from django.utils import timezone
 from .models import Emisor, Cliente, ProductoServicio, Factura, FacturaDetalle
-from django.core.paginator import Paginator
+from .services.pdf_service import PDFService
 
+
+# Vistas principales de facturación
 
 class FacturacionView(LoginRequiredMixin, TemplateView):
-    """Vista para crear facturas"""
+    """Vista principal para crear facturas"""
     template_name = 'core/facturacion.html'
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Facturación'
+        context['title'] = 'Facturación CFDI 4.0'
         
         # Obtener emisores activos
         context['emisores'] = Emisor.objects.filter(activo=True).order_by('razon_social')
@@ -34,341 +37,375 @@ class FacturacionView(LoginRequiredMixin, TemplateView):
         return context
 
 
+class ListadoFacturasView(LoginRequiredMixin, ListView):
+    """Vista para listar facturas agrupadas por Emisor y Receptor"""
+    model = Factura
+    template_name = 'core/listado_facturas.html'
+    context_object_name = 'facturas'
+    paginate_by = 20
+    
+    def get_queryset(self):
+        queryset = Factura.objects.select_related('emisor', 'receptor').order_by('-fecha_emision', 'serie', 'folio')
+        
+        # Filtros de búsqueda
+        search = self.request.GET.get('search', '')
+        if search:
+            queryset = queryset.filter(
+                Q(serie__icontains=search) |
+                Q(folio__icontains=search) |
+                Q(emisor__razon_social__icontains=search) |
+                Q(receptor__razon_social__icontains=search) |
+                Q(uuid__icontains=search)
+            )
+        
+        # Filtro por estado de timbrado
+        estado = self.request.GET.get('estado', '')
+        if estado:
+            queryset = queryset.filter(estado_timbrado=estado)
+        
+        # Filtro por emisor
+        emisor_id = self.request.GET.get('emisor_id', '')
+        if emisor_id:
+            queryset = queryset.filter(emisor__codigo=emisor_id)
+        
+        # Filtro por receptor
+        receptor_id = self.request.GET.get('receptor_id', '')
+        if receptor_id:
+            queryset = queryset.filter(receptor__codigo=receptor_id)
+        
+        # Filtro por fecha desde
+        fecha_desde = self.request.GET.get('fecha_desde', '')
+        if fecha_desde:
+            queryset = queryset.filter(fecha_emision__date__gte=fecha_desde)
+        
+        # Filtro por fecha hasta
+        fecha_hasta = self.request.GET.get('fecha_hasta', '')
+        if fecha_hasta:
+            queryset = queryset.filter(fecha_emision__date__lte=fecha_hasta)
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Listado de Facturas'
+        context['emisores'] = Emisor.objects.filter(activo=True).order_by('razon_social')
+        context['receptores'] = Cliente.objects.filter(activo=True).order_by('razon_social')
+        context['estados_timbrado'] = Factura.ESTADO_TIMBRADO_CHOICES
+        
+        # Agregar filtros para el template
+        context['filtros'] = {
+            'emisor_id': self.request.GET.get('emisor_id', ''),
+            'receptor_id': self.request.GET.get('receptor_id', ''),
+            'fecha_desde': self.request.GET.get('fecha_desde', ''),
+            'fecha_hasta': self.request.GET.get('fecha_hasta', ''),
+        }
+        
+        return context
+
+
+class FacturaDetailView(LoginRequiredMixin, DetailView):
+    """Vista para mostrar detalles de una factura"""
+    model = Factura
+    template_name = 'core/factura_detail.html'
+    context_object_name = 'factura'
+    pk_url_kwarg = 'folio'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f'Factura: {self.object.serie} - {self.object.folio:06d}'
+        context['detalles'] = self.object.detalles.all()
+        return context
+
+
+# Vistas para PDF
+
 @login_required
-def obtener_emisor_ajax(request, codigo):
-    """Vista AJAX para obtener datos del emisor"""
+def generar_pdf_factura(request, folio):
+    """Vista para generar PDF de una factura"""
+    if not request.user.is_staff:
+        return HttpResponse('No tienes permisos para acceder a esta sección', status=403)
+    
+    try:
+        factura = get_object_or_404(Factura, folio=folio)
+        return PDFService.generar_pdf_factura(factura)
+    except Exception as e:
+        return HttpResponse(f'Error generando PDF: {str(e)}', status=500)
+
+
+@login_required
+def vista_previa_pdf_factura(request, folio):
+    """Vista para mostrar vista previa del PDF de una factura"""
+    if not request.user.is_staff:
+        return HttpResponse('No tienes permisos para acceder a esta sección', status=403)
+    
+    try:
+        factura = get_object_or_404(Factura, folio=folio)
+        html_content = PDFService.generar_vista_previa_pdf(factura)
+        return HttpResponse(html_content, content_type='text/html; charset=utf-8')
+    except Exception as e:
+        return HttpResponse(f'Error generando vista previa: {str(e)}', status=500)
+
+
+@login_required
+def descargar_xml_factura(request, folio):
+    """Vista para descargar XML timbrado de una factura"""
+    if not request.user.is_staff:
+        return HttpResponse('No tienes permisos para acceder a esta sección', status=403)
+    
+    try:
+        factura = get_object_or_404(Factura, folio=folio)
+        
+        # Verificar que la factura esté timbrada
+        if not factura.xml_timbrado:
+            return HttpResponse('Esta factura no tiene XML timbrado', status=404)
+        
+        # Crear respuesta con el XML
+        response = HttpResponse(
+            factura.xml_timbrado,
+            content_type='application/xml; charset=utf-8'
+        )
+        
+        # Configurar headers para descarga
+        filename = f"CFDI_{factura.serie}_{factura.folio:06d}_{factura.uuid}.xml"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = len(factura.xml_timbrado.encode('utf-8'))
+        
+        return response
+        
+    except Exception as e:
+        return HttpResponse(f'Error descargando XML: {str(e)}', status=500)
+
+
+# Vistas AJAX existentes
+
+
+@login_required
+def validar_emisor_ajax(request, codigo):
+    """Vista AJAX para validar configuración de emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
     try:
-        emisor = get_object_or_404(Emisor, codigo=codigo, activo=True)
+        from .services.configuracion_entorno import ConfiguracionEntornoService
+        from .services.certificado_service import CertificadoService
         
-        data = {
-            'success': True,
-            'emisor': {
-                'codigo': emisor.codigo,
-                'razon_social': emisor.razon_social,
-                'rfc': emisor.rfc,
-                'regimen_fiscal': emisor.regimen_fiscal,
-                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
-                'codigo_postal': emisor.codigo_postal,
-                'serie': emisor.serie,
-            }
-        }
-        return JsonResponse(data)
+        # Obtener el emisor
+        emisor = get_object_or_404(Emisor, codigo=codigo)
+        
+        # Validar configuración
+        config_validacion = ConfiguracionEntornoService.validar_configuracion_emisor(emisor)
+        
+        # Si la configuración es válida, validar certificado
+        if config_validacion['valido']:
+            cert_validacion = CertificadoService.validar_certificado_completo(emisor)
+            if not cert_validacion['valido']:
+                config_validacion['errores'].extend(cert_validacion['errores'])
+                config_validacion['valido'] = False
+            if cert_validacion.get('advertencias'):
+                config_validacion['advertencias'].extend(cert_validacion['advertencias'])
+        
+        return JsonResponse(config_validacion)
         
     except Exception as e:
         return JsonResponse({
-            'error': f'Error interno del servidor: {str(e)}'
+            'valido': False,
+            'errores': [f'Error interno del servidor: {str(e)}'],
+            'advertencias': []
         }, status=500)
 
 
 @login_required
-def obtener_cliente_ajax(request, codigo):
-    """Vista AJAX para obtener datos del cliente"""
-    if request.method != 'GET':
-        return JsonResponse({'error': 'Método no permitido'}, status=405)
+def validar_cfdi_ajax(request):
+    """Vista AJAX para validar CFDI"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
     
-    try:
-        cliente = get_object_or_404(Cliente, codigo=codigo, activo=True)
-        
-        data = {
-            'success': True,
-            'cliente': {
-                'codigo': cliente.codigo,
-                'razon_social': cliente.razon_social,
-                'rfc': cliente.rfc,
-                'codigo_postal': cliente.codigo_postal,
-                'regimen_fiscal': cliente.regimen_fiscal.regimen if cliente.regimen_fiscal else '',
-                'regimen_fiscal_display': cliente.regimen_fiscal.descripcion if cliente.regimen_fiscal else '',
-            }
-        }
-        return JsonResponse(data)
-        
-    except Exception as e:
-        return JsonResponse({
-            'error': f'Error interno del servidor: {str(e)}'
-        }, status=500)
-
-
-@login_required
-def obtener_producto_ajax(request, codigo):
-    """Vista AJAX para obtener datos del producto"""
-    if request.method != 'GET':
-        return JsonResponse({'error': 'Método no permitido'}, status=405)
-    
-    try:
-        producto = get_object_or_404(ProductoServicio, codigo=codigo, activo=True)
-        
-        # Calcular tasa de impuesto según el tipo
-        tasa_impuesto = 0.0
-        if producto.impuesto == 'IVA_16':
-            tasa_impuesto = 0.16
-        elif producto.impuesto in ['IVA_0', 'IVA_EXENTO']:
-            tasa_impuesto = 0.0
-        
-        data = {
-            'success': True,
-            'producto': {
-                'codigo': producto.codigo,
-                'descripcion': producto.descripcion,
-                'clave_prod_serv': producto.clave_sat,  # Clave SAT
-                'unidad_medida': producto.unidad_medida,
-                'impuesto': producto.impuesto,  # Tipo de impuesto (IVA_16, IVA_0, etc.)
-                'tasa_impuesto': tasa_impuesto,  # Tasa calculada (0.16, 0.0)
-            }
-        }
-        return JsonResponse(data)
-        
-    except Exception as e:
-        return JsonResponse({
-            'error': f'Error interno del servidor: {str(e)}'
-        }, status=500)
-
-
-@login_required
-def guardar_factura_ajax(request):
-    """Vista AJAX para guardar factura"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
     try:
-        # Obtener datos del formulario
-        serie = request.POST.get('serie', '').strip()
-        fecha_emision = request.POST.get('fecha_emision', '').strip()
-        emisor_id = request.POST.get('emisor_id', '').strip()
-        lugar_expedicion = request.POST.get('lugar_expedicion', '').strip()
-        receptor_id = request.POST.get('receptor_id', '').strip()
-        uso_cfdi = request.POST.get('uso_cfdi', '').strip()
-        exportacion = request.POST.get('exportacion', '01').strip()
-        metodo_pago = request.POST.get('metodo_pago', 'PUE').strip()
-        moneda = request.POST.get('moneda', 'MXN').strip()
-        forma_pago = request.POST.get('forma_pago', '99').strip()
-        tipo_cambio = request.POST.get('tipo_cambio', '1.0000').strip()
+        from .validators.cfdi_validator import CFDIValidator
         
-        # Validar campos requeridos
-        if not serie or not fecha_emision or not emisor_id or not receptor_id:
-            return JsonResponse({'error': 'Faltan campos requeridos'}, status=400)
+        # Obtener datos del request
+        data = json.loads(request.body)
         
-        # Obtener emisor y receptor
-        emisor = get_object_or_404(Emisor, codigo=emisor_id, activo=True)
-        receptor = get_object_or_404(Cliente, codigo=receptor_id, activo=True)
+        # Crear objetos temporales para validación
+        emisor = get_object_or_404(Emisor, codigo=data['emisor_id'])
+        receptor = get_object_or_404(Cliente, id=data['receptor_id'])
         
-        # Crear factura
-        factura = Factura.objects.create(
-            serie=serie,
-            fecha_emision=datetime.strptime(fecha_emision, '%Y-%m-%dT%H:%M'),
+        # Crear factura temporal
+        factura = Factura(
+            serie=data['serie'],
+            folio=1,  # Temporal
+            fecha_emision=timezone.now(),  # Fecha actual con zona horaria de México
             emisor=emisor,
-            lugar_expedicion=lugar_expedicion,
+            lugar_expedicion=data['lugar_expedicion'],
             receptor=receptor,
-            uso_cfdi=uso_cfdi,
-            exportacion=exportacion,
-            metodo_pago=metodo_pago,
-            moneda=moneda,
-            forma_pago=forma_pago,
-            tipo_cambio=Decimal(str(tipo_cambio)),
-            usuario_creacion=request.user
+            uso_cfdi=data['uso_cfdi'],
+            exportacion=data['exportacion'],
+            metodo_pago=data['metodo_pago'],
+            moneda=data['moneda'],
+            forma_pago=data['forma_pago'],
+            tipo_cambio=float(data['tipo_cambio']),
+            subtotal=0,  # Se calculará
+            impuesto=0,  # Se calculará
+            total=0  # Se calculará
         )
         
-        # Obtener detalles de la factura
-        detalles_data = json.loads(request.POST.get('detalles', '[]'))
-        subtotal = Decimal('0')
-        impuesto_total = Decimal('0')
+        # Crear detalles temporales
+        detalles = []
+        subtotal = 0
+        impuesto = 0
         
-        for detalle_data in detalles_data:
-            producto = get_object_or_404(ProductoServicio, codigo=detalle_data['producto_id'])
+        for detalle_data in data['detalles']:
+            producto = get_object_or_404(ProductoServicio, id=detalle_data['producto_id'])
             
-            cantidad = Decimal(str(detalle_data['cantidad']))
-            precio = Decimal(str(detalle_data['precio']))
-            importe = cantidad * precio
-            
-            # Calcular impuesto según la tasa del producto
-            impuesto_concepto = Decimal('0')
-            if detalle_data.get('objeto_impuesto') == '02':
-                # Obtener la tasa de impuesto del producto
-                if producto.impuesto == 'IVA_16':
-                    impuesto_concepto = importe * Decimal('0.16')
-                elif producto.impuesto in ['IVA_0', 'IVA_EXENTO']:
-                    impuesto_concepto = Decimal('0')
-            
-            # Crear detalle
-            FacturaDetalle.objects.create(
+            detalle = FacturaDetalle(
                 factura=factura,
                 producto_servicio=producto,
                 no_identificacion=detalle_data['no_identificacion'],
                 concepto=detalle_data['concepto'],
-                cantidad=cantidad,
-                precio=precio,
+                cantidad=float(detalle_data['cantidad']),
+                precio=float(detalle_data['precio']),
                 clave_prod_serv=detalle_data['clave_prod_serv'],
                 unidad=detalle_data['unidad'],
-                objeto_impuesto=detalle_data.get('objeto_impuesto', '02'),
-                importe=importe,
-                impuesto_concepto=impuesto_concepto
+                objeto_impuesto=detalle_data['objeto_impuesto']
             )
             
-            subtotal += importe
-            impuesto_total += impuesto_concepto
+            # Calcular importe e impuesto
+            detalle.importe = detalle.cantidad * detalle.precio
+            from core.utils.tax_utils import calcular_impuesto_concepto
+            detalle.impuesto_concepto = calcular_impuesto_concepto(
+                detalle.importe, 
+                producto.impuesto, 
+                detalle.objeto_impuesto
+            )
+            
+            subtotal += detalle.importe
+            impuesto += detalle.impuesto_concepto
+            detalles.append(detalle)
         
         # Actualizar totales
         factura.subtotal = subtotal
-        factura.impuesto = impuesto_total
-        factura.total = subtotal + impuesto_total
-        factura.save()
+        factura.impuesto = impuesto
+        factura.total = subtotal + impuesto
         
-        data = {
-            'success': True,
-            'factura_id': factura.folio,
-            'serie_folio': str(factura),
-            'total': float(factura.total)
-        }
-        return JsonResponse(data)
+        # Validar CFDI
+        validacion = CFDIValidator.validar_factura_completa(factura, detalles)
+        
+        return JsonResponse(validacion)
         
     except Exception as e:
         return JsonResponse({
-            'error': f'Error interno del servidor: {str(e)}'
+            'valido': False,
+            'errores': [f'Error interno del servidor: {str(e)}'],
+            'advertencias': []
         }, status=500)
 
 
-class ListadoFacturasView(LoginRequiredMixin, TemplateView):
-    """Vista para listar facturas emitidas"""
-    template_name = 'core/listado_facturas.html'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Obtener parámetros de filtrado
-        fecha_desde = self.request.GET.get('fecha_desde', '')
-        fecha_hasta = self.request.GET.get('fecha_hasta', '')
-        emisor_id = self.request.GET.get('emisor_id', '')
-        receptor_id = self.request.GET.get('receptor_id', '')
-        
-        # Construir consulta
-        facturas = Factura.objects.select_related('emisor', 'receptor').order_by('-fecha_creacion')
-        
-        # Aplicar filtros
-        if fecha_desde:
-            try:
-                fecha_desde_obj = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
-                facturas = facturas.filter(fecha_emision__date__gte=fecha_desde_obj)
-            except ValueError:
-                pass
-        
-        if fecha_hasta:
-            try:
-                fecha_hasta_obj = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
-                facturas = facturas.filter(fecha_emision__date__lte=fecha_hasta_obj)
-            except ValueError:
-                pass
-        
-        if emisor_id:
-            facturas = facturas.filter(emisor__codigo=emisor_id)
-        
-        if receptor_id:
-            facturas = facturas.filter(receptor__codigo=receptor_id)
-        
-        # Paginación
-        paginator = Paginator(facturas, 20)  # 20 facturas por página
-        page_number = self.request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
-        
-        # Obtener emisores y receptores para los filtros
-        emisores = Emisor.objects.filter(activo=True).order_by('razon_social')
-        receptores = Cliente.objects.filter(activo=True).order_by('razon_social')
-        
-        # Calcular totales
-        total_subtotal = sum(factura.subtotal for factura in page_obj)
-        total_impuesto = sum(factura.impuesto for factura in page_obj)
-        total_general = total_subtotal + total_impuesto
-        
-        context.update({
-            'page_obj': page_obj,
-            'facturas': page_obj,
-            'emisores': emisores,
-            'receptores': receptores,
-            'total_subtotal': total_subtotal,
-            'total_impuesto': total_impuesto,
-            'total_general': total_general,
-            'filtros': {
-                'fecha_desde': fecha_desde,
-                'fecha_hasta': fecha_hasta,
-                'emisor_id': emisor_id,
-                'receptor_id': receptor_id,
-            }
-        })
-        
-        return context
-
-
 @login_required
-def cancelar_factura_ajax(request, folio):
-    """Vista AJAX para cancelar una factura"""
+def timbrar_factura_ajax(request, factura_id):
+    """Vista AJAX para timbrar factura"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
     try:
-        # Obtener la factura
-        factura = get_object_or_404(Factura, folio=folio)
+        from .services.facturacion_service import FacturacionService
         
-        # Verificar que no esté ya cancelada
-        if factura.cancelada:
-            return JsonResponse({'error': 'La factura ya está cancelada'}, status=400)
+        # Timbrar la factura
+        resultado = FacturacionService.timbrar_factura(factura_id)
         
-        # Obtener datos del formulario
-        motivo_cancelacion = request.POST.get('motivo_cancelacion', '').strip()
-        uuid = request.POST.get('uuid', '').strip()
-        observaciones = request.POST.get('observaciones', '').strip()
-        
-        # Validar campos requeridos
-        if not motivo_cancelacion:
-            return JsonResponse({'error': 'El motivo de cancelación es requerido'}, status=400)
-        
-        if not uuid:
-            return JsonResponse({'error': 'El UUID es requerido'}, status=400)
-        
-        # Actualizar la factura
-        factura.cancelada = True
-        factura.usuario_modificacion = request.user
-        factura.save()
-        
-        # Aquí podrías guardar los datos de cancelación en un modelo separado si lo necesitas
-        # Por ahora solo actualizamos el estado de cancelada
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Factura {factura.serie}-{factura.folio:04d} cancelada exitosamente'
-        })
+        return JsonResponse(resultado)
         
     except Exception as e:
         return JsonResponse({
-            'error': f'Error interno del servidor: {str(e)}'
+            'exito': False,
+            'error': f'Error interno del servidor: {str(e)}',
+            'codigo_error': 'INTERNAL_ERROR'
         }, status=500)
 
 
-class FacturaDetailView(LoginRequiredMixin, TemplateView):
-    """Vista para mostrar los detalles de una factura"""
-    template_name = 'core/factura_detail.html'
+@login_required
+def cancelar_factura_ajax(request, factura_id):
+    """Vista AJAX para cancelar factura"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        from .services.facturacion_service import FacturacionService
         
-        # Obtener la factura por folio
-        folio = self.kwargs.get('folio')
-        factura = get_object_or_404(Factura, folio=folio)
+        # Obtener datos del request
+        data = json.loads(request.body)
+        motivo = data.get('motivo', '')
+        folio_sustitucion = data.get('folio_sustitucion', None)
         
-        # Obtener los detalles de la factura
-        detalles = factura.detalles.all().order_by('id')
+        # Cancelar la factura
+        resultado = FacturacionService.cancelar_factura(factura_id, motivo, folio_sustitucion)
         
-        # Calcular totales
-        total_subtotal = sum(detalle.importe for detalle in detalles)
-        total_impuesto = sum(detalle.impuesto_concepto for detalle in detalles)
-        total_general = total_subtotal + total_impuesto
+        return JsonResponse(resultado)
         
-        context.update({
-            'factura': factura,
-            'detalles': detalles,
-            'total_subtotal': total_subtotal,
-            'total_impuesto': total_impuesto,
-            'total_general': total_general,
-        })
+    except Exception as e:
+        return JsonResponse({
+            'exito': False,
+            'error': f'Error interno del servidor: {str(e)}',
+            'codigo_error': 'INTERNAL_ERROR'
+        }, status=500)
+
+
+@login_required
+def consultar_estatus_factura_ajax(request, factura_id):
+    """Vista AJAX para consultar estatus de factura"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        from .services.facturacion_service import FacturacionService
         
-        return context
+        # Consultar estatus
+        resultado = FacturacionService.consultar_estatus_factura(factura_id)
+        
+        return JsonResponse(resultado)
+        
+    except Exception as e:
+        return JsonResponse({
+            'exito': False,
+            'error': f'Error interno del servidor: {str(e)}',
+            'codigo_error': 'INTERNAL_ERROR'
+        }, status=500)
+
+
+@login_required
+def probar_conexion_pac_ajax(request, emisor_id):
+    """Vista AJAX para probar conexión con PAC"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        from .services.facturacion_service import FacturacionService
+        
+        # Probar conexión
+        resultado = FacturacionService.probar_conexion_pac(emisor_id)
+        
+        return JsonResponse(resultado)
+        
+    except Exception as e:
+        return JsonResponse({
+            'exito': False,
+            'error': f'Error interno del servidor: {str(e)}',
+            'codigo_error': 'INTERNAL_ERROR'
+        }, status=500)

@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Factura {{ factura.serie }} - {{ factura.folio|stringformat:"06d" }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 10px;
+            line-height: 1.2;
+            color: #333;
+            margin-top: 10px;
+            {% if es_vista_previa %}
+            margin: 20px;
+            background-color: #f5f5f5;
+            {% endif %}
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+            padding-top: 3px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #2c5aa0;
+        }
+        
+        .company-info {
+            flex: 1;
+        }
+        
+        .company-logo-section {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        
+        .company-logo-img {
+            height: 100px;
+            width: auto;
+            margin-right: 15px;
+        }
+        
+        .company-text {
+            flex: 1;
+        }
+        
+        .company-logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 3px;
+        }
+        
+        .company-slogan {
+            font-size: 10px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .company-details {
+            font-size: 9px;
+            line-height: 1.1;
+        }
+        
+        .document-info {
+            text-align: right;
+            flex: 0 0 200px;
+            background-color: #f8f9fa;
+            padding: 6px;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+        }
+        
+        .document-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 6px;
+        }
+        
+        .document-number {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .document-date {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .document-uuid {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+        
+        .document-cert {
+            font-size: 10px;
+            color: #666;
+        }
+        
+        .page-info {
+            text-align: right;
+            font-size: 9px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .disclaimer {
+            font-size: 8px;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+        }
+        
+        .sections-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .section {
+            flex: 1;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+            padding: 4px;
+            background-color: #f8f9fa;
+        }
+        
+        .section-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 6px;
+            padding-bottom: 2px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 9px;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .info-value {
+            color: #333;
+        }
+        
+        .cfdi-section {
+            flex: 0 0 200px;
+        }
+        
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 6px 0;
+            font-size: 8px;
+        }
+        
+        .details-table th {
+            background-color: #e9ecef;
+            border: 1px solid #dee2e6;
+            padding: 2px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 7px;
+        }
+        
+        .details-table td {
+            border: 1px solid #dee2e6;
+            padding: 2px;
+            text-align: center;
+        }
+        
+        .details-table .text-left {
+            text-align: left;
+        }
+        
+        .details-table .text-right {
+            text-align: right;
+        }
+        
+        .totals-section {
+            margin-top: 6px;
+            text-align: right;
+        }
+        
+        .totals-container {
+            display: inline-block;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+            padding: 8px;
+            min-width: 200px;
+        }
+        
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 10px;
+        }
+        
+        .total-label {
+            font-weight: bold;
+        }
+        
+        .total-value {
+            font-weight: bold;
+        }
+        
+        .total-final {
+            font-size: 12px;
+            border-top: 2px solid #333;
+            padding-top: 5px;
+            margin-top: 5px;
+        }
+        
+        .payment-info {
+            margin-top: 6px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 8px;
+        }
+        
+        .payment-left {
+            flex: 1;
+        }
+        
+        .payment-right {
+            flex: 1;
+            text-align: right;
+        }
+        
+        .amount-in-words {
+            margin-top: 10px;
+            font-size: 9px;
+            font-style: italic;
+            color: #666;
+        }
+        
+        .digital-seals {
+            margin-top: 8px;
+            font-size: 7px;
+            color: #666;
+        }
+        
+        .seal-row {
+            margin-bottom: 3px;
+            word-break: break-all;
+        }
+        
+        .seal-label {
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        
+        .seal-value {
+            font-family: monospace;
+            font-size: 7px;
+        }
+        
+        .qr-section {
+            text-align: center;
+            margin-top: 8px;
+        }
+        
+        .qr-code {
+            width: 120px;
+            height: 120px;
+            border: 1px solid #ccc;
+            display: inline-block;
+            background-color: #f8f9fa;
+        }
+        
+        .footer {
+            margin-top: 8px;
+            text-align: center;
+            font-size: 7px;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 4px;
+        }
+        
+        {% if es_vista_previa %}
+        .page-container {
+            background-color: white;
+            max-width: 21cm;
+            height: 29.7cm;
+            margin: 0 auto;
+            padding: 0.8cm;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        {% endif %}
+    </style>
+</head>
+{% load currency_utils %}
+<body>
+    {% if es_vista_previa %}
+    <div class="page-container">
+    {% endif %}
+    <!-- Header -->
+    <div class="header">
+        <div class="company-info">
+            <div class="company-logo-section">
+                {% if logo_empresa %}
+                    <img src="{{ logo_empresa }}" alt="{{ configuracion.razon_social|default:'Empresa' }}" class="company-logo-img">
+                {% else %}
+                    <img src="/static/images/logoAgroDam.png" alt="{{ configuracion.razon_social|default:'Empresa' }}" class="company-logo-img">
+                {% endif %}
+                <div class="company-text">
+                </div>
+            </div>
+        </div>
+        <div class="document-info">
+            <div class="document-title">Factura</div>
+            <div class="document-number">{{ factura.serie }} {{ factura.folio|stringformat:"04d" }}</div>
+            <div class="document-date">{{ factura.fecha_emision|date:"Y-m-d\TH:i:s" }}</div>
+            {% if factura.no_certificado_sat %}
+            <div class="document-cert">Cert. SAT: {{ factura.no_certificado_sat }}</div>
+            {% endif %}
+            {% if factura.uuid %}
+            <div class="document-uuid">UUID: {{ factura.uuid }}</div>
+            {% endif %}
+            <div class="page-info">PAGINA 1 DE 1</div>
+            <div class="disclaimer">Este documento es una representación impresa de un CFDI 4.0</div>
+    </div>
+    </div>
+
+    <!-- Secciones de Información -->
+    <div class="sections-container">
+        <div class="section">
+            <div class="section-title">Emisor</div>
+                <div class="info-row">
+                <span class="info-label">Nombre/RFC:</span>
+                <span class="info-value">{{ factura.emisor.rfc }} - {{ factura.emisor.razon_social }}</span>
+                </div>
+                <div class="info-row">
+                <span class="info-label">Régimen fiscal:</span>
+                <span class="info-value">{{ factura.emisor.get_regimen_fiscal_display }}</span>
+                </div>
+                <div class="info-row">
+                <span class="info-label">Lugar expedición:</span>
+                    <span class="info-value">{{ factura.lugar_expedicion }}</span>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Receptor</div>
+                <div class="info-row">
+                    <span class="info-label">Nombre:</span>
+                <span class="info-value">{{ factura.receptor.razon_social }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Régimen fiscal:</span>
+                <span class="info-value">{{ factura.receptor.regimen_fiscal.descripcion }}</span>
+                </div>
+                <div class="info-row">
+                <span class="info-label">Rfc:</span>
+                    <span class="info-value">{{ factura.receptor.rfc }}</span>
+                </div>
+                <div class="info-row">
+                <span class="info-label">C.P.:</span>
+                    <span class="info-value">{{ factura.receptor.codigo_postal }}</span>
+                </div>
+        </div>
+        
+        <div class="section cfdi-section">
+            <div class="section-title">CFDI</div>
+                <div class="info-row">
+                <span class="info-label">Uso cfdi:</span>
+                <span class="info-value">{{ factura.get_uso_cfdi_display }}</span>
+                </div>
+                <div class="info-row">
+                <span class="info-label">Exportación:</span>
+                <span class="info-value">{{ factura.get_exportacion_display }}</span>
+                </div>
+            <div class="info-row">
+                <span class="info-label">Tipo comprobante:</span>
+                <span class="info-value">I - Ingreso</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Detalles -->
+    <table class="details-table">
+        <thead>
+            <tr>
+                <th>Sku</th>
+                <th>Cant.</th>
+                <th>Medida</th>
+                <th>Clave SAT</th>
+                <th>Descripción</th>
+                <th>Precio</th>
+                <th>Importe</th>
+                <th>IVA</th>
+                <th>Obj. Imp.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for detalle in detalles %}
+            <tr>
+                <td>{{ detalle.no_identificacion }}</td>
+                <td>{{ detalle.cantidad|floatformat:2 }}</td>
+                <td>{{ detalle.unidad }}</td>
+                <td>{{ detalle.clave_prod_serv }}</td>
+                <td class="text-left">{{ detalle.concepto }}</td>
+                <td class="text-right">${{ detalle.precio|floatformat:2 }}</td>
+                <td class="text-right">${{ detalle.importe|floatformat:2 }}</td>
+                <td class="text-right">${{ detalle.impuesto_concepto|floatformat:2 }}</td>
+                <td>{{ detalle.objeto_impuesto }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Totales -->
+    <div class="totals-section">
+        <div class="totals-container">
+            <div class="total-row">
+                <span class="total-label">Moneda:</span>
+                <span class="total-value">{{ factura.moneda }}</span>
+            </div>
+        <div class="total-row">
+            <span class="total-label">Subtotal:</span>
+            <span class="total-value">${{ factura.subtotal|floatformat:2 }}</span>
+        </div>
+        <div class="total-row">
+                <span class="total-label">IVA 16%:</span>
+            <span class="total-value">${{ factura.impuesto|floatformat:2 }}</span>
+        </div>
+        <div class="total-row total-final">
+            <span class="total-label">Total:</span>
+            <span class="total-value">${{ factura.total|floatformat:2 }}</span>
+        </div>
+    </div>
+        </div>
+
+    <!-- Información de Pago -->
+    <div class="payment-info">
+        <div class="payment-left">
+        <div class="info-row">
+            <span class="info-label">Forma de Pago:</span>
+            <span class="info-value">{{ factura.get_forma_pago_display }}</span>
+        </div>
+        <div class="info-row">
+                <span class="info-label">Método de pago:</span>
+            <span class="info-value">{{ factura.get_metodo_pago_display }}</span>
+            </div>
+            {% if factura.fecha_timbrado %}
+            <div class="info-row">
+                <span class="info-label">Fecha certificación:</span>
+                <span class="info-value">{{ factura.fecha_timbrado|date:"Y-m-d\TH:i:s" }}</span>
+            </div>
+            {% endif %}
+        </div>
+        <div class="payment-right">
+            <div class="amount-in-words">
+                <strong>Importe con letra:</strong><br>
+                {{ factura.total|currency_in_words }} M.N.
+            </div>
+        </div>
+    </div>
+
+    <!-- Sellos Digitales -->
+    {% if factura.sello or factura.sello_sat or factura.cadena_original_sat %}
+    <div class="digital-seals">
+        {% if factura.sello %}
+        <div class="seal-row">
+            <div class="seal-label">Sello digital del Emisor:</div>
+            <div class="seal-value">{{ factura.sello }}</div>
+        </div>
+        {% endif %}
+        {% if factura.sello_sat %}
+        <div class="seal-row">
+            <div class="seal-label">Sello digital del SAT:</div>
+            <div class="seal-value">{{ factura.sello_sat }}</div>
+        </div>
+        {% endif %}
+        {% if factura.cadena_original_sat %}
+        <div class="seal-row">
+            <div class="seal-label">Cadena Original complemento SAT:</div>
+            <div class="seal-value">{{ factura.cadena_original_sat }}</div>
+        </div>
+        {% endif %}
+        {% if factura.no_certificado_sat %}
+        <div class="seal-row">
+            <div class="seal-label">Certificado del Emisor:</div>
+            <div class="seal-value">{{ factura.no_certificado_sat }}</div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- QR Code -->
+    <div class="qr-section">
+        <div class="qr-code">
+            {% if codigo_qr %}
+                <img src="{{ codigo_qr }}" alt="Código QR de verificación CFDI" style="width: 100%; height: 100%; object-fit: contain;">
+            {% else %}
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 8px;">
+                    QR Code
+                </div>
+        {% endif %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Generado el {{ fecha_actual }}</p>
+    </div>
+    {% if es_vista_previa %}
+    </div>
+    {% endif %}
+</body>
+</html>

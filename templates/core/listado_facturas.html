@@ -149,9 +149,17 @@
                                         <span class="badge bg-warning">
                                             <i class="bi bi-x-circle"></i> Cancelada
                                         </span>
-                                    {% else %}
+                                    {% elif factura.estado_timbrado == 'TIMBRADO' %}
                                         <span class="badge bg-success">
-                                            <i class="bi bi-check-circle"></i> Emitida
+                                            <i class="bi bi-check-circle"></i> Timbrada
+                                        </span>
+                                    {% elif factura.estado_timbrado == 'ERROR' %}
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-exclamation-triangle"></i> Error
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-clock"></i> Pendiente
                                         </span>
                                     {% endif %}
                                 </td>
@@ -173,6 +181,7 @@
                                             <i class="bi bi-printer"></i>
                                         </button>
                                         
+                                        
                                         <!-- Descargar PDF -->
                                         <button type="button" 
                                                 class="btn btn-sm btn-outline-success" 
@@ -180,6 +189,26 @@
                                                 onclick="descargarPDF({{ factura.folio }})">
                                             <i class="bi bi-download"></i>
                                         </button>
+                                        
+                                        <!-- Descargar XML -->
+                                        {% if factura.xml_timbrado %}
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-info" 
+                                                title="Descargar XML"
+                                                onclick="descargarXML({{ factura.folio }})">
+                                            <i class="bi bi-file-code"></i>
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <!-- Timbrar factura -->
+                                        {% if factura.estado_timbrado == 'PENDIENTE' %}
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-warning" 
+                                                title="Timbrar factura"
+                                                onclick="timbrarFactura({{ factura.folio }})">
+                                            <i class="bi bi-stamp"></i>
+                                        </button>
+                                        {% endif %}
                                         
                                         <!-- Cancelar factura -->
                                         {% if not factura.cancelada %}
@@ -345,17 +374,88 @@ function verDetalle(folio) {
 }
 
 function imprimirFactura(folio) {
-    // Implementar lógica para imprimir
+    // Abrir vista previa del PDF en nueva ventana
     console.log('Imprimir factura:', folio);
-    // Por ahora mostrar un alert
-    alert('Funcionalidad de impresión en desarrollo para factura: ' + folio);
+    const url = `/factura/${folio}/vista-previa/`;
+    window.open(url, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
 }
 
 function descargarPDF(folio) {
-    // Implementar lógica para descargar PDF
+    // Descargar PDF de la factura
     console.log('Descargar PDF de factura:', folio);
-    // Por ahora mostrar un alert
-    alert('Funcionalidad de descarga PDF en desarrollo para factura: ' + folio);
+    
+    // Crear enlace de descarga
+    const url = `/factura/${folio}/pdf/`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `factura_${folio}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+
+function descargarXML(folio) {
+    // Descargar XML de la factura
+    console.log('Descargar XML de factura:', folio);
+    
+    // Crear enlace de descarga
+    const url = `/factura/${folio}/xml/`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `CFDI_${folio}.xml`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Función para timbrar factura
+function timbrarFactura(folio) {
+    if (!confirm(`¿Está seguro de que desea timbrar la factura ${folio}?`)) {
+        return;
+    }
+    
+    // Mostrar indicador de carga
+    const boton = event.target.closest('button');
+    const iconoOriginal = boton.innerHTML;
+    boton.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    boton.disabled = true;
+    
+    // Realizar petición AJAX para timbrar
+    fetch(`/ajax/facturas/timbrar/${folio}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Mostrar mensaje de éxito
+            mostrarNotificacion(`Factura ${data.serie_folio} timbrada exitosamente`, 'success');
+            
+            // Recargar la página para mostrar el nuevo estado
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            // Mostrar mensaje de error
+            mostrarNotificacion(`Error al timbrar: ${data.error}`, 'error');
+            
+            // Restaurar botón
+            boton.innerHTML = iconoOriginal;
+            boton.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarNotificacion('Error de conexión al timbrar la factura', 'error');
+        
+        // Restaurar botón
+        boton.innerHTML = iconoOriginal;
+        boton.disabled = false;
+    });
 }
 
 // Variables globales para la cancelación
@@ -491,6 +591,28 @@ function cancelarFactura() {
         btnConfirmar.disabled = false;
         btnConfirmar.innerHTML = textoOriginal;
     });
+}
+
+// Función para mostrar notificaciones
+function mostrarNotificacion(mensaje, tipo = 'info') {
+    // Crear elemento de notificación
+    const notificacion = document.createElement('div');
+    notificacion.className = `alert alert-${tipo} alert-dismissible fade show position-fixed`;
+    notificacion.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notificacion.innerHTML = `
+        ${mensaje}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Agregar al DOM
+    document.body.appendChild(notificacion);
+    
+    // Auto-remover después de 5 segundos
+    setTimeout(() => {
+        if (notificacion.parentNode) {
+            notificacion.remove();
+        }
+    }, 5000);
 }
 
 // Función para obtener cookie (ya existente)

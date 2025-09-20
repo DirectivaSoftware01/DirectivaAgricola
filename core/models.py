@@ -921,6 +921,14 @@ class ConfiguracionSistema(models.Model):
         verbose_name="Usuario de modificación"
     )
     
+    # Control de catálogos SAT
+    ultima_actualizacion_catalogos = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Última actualización de catálogos",
+        help_text="Fecha y hora de la última actualización de catálogos SAT"
+    )
+    
     class Meta:
         verbose_name = "Configuración del Sistema"
         verbose_name_plural = "Configuraciones del Sistema"
@@ -2028,16 +2036,32 @@ class Emisor(models.Model):
         help_text="Serie para las facturas de este emisor"
     )
     
-    # Archivos de certificado
-    archivo_certificado = models.FileField(
-        upload_to='certificados/',
-        verbose_name="Archivo de Certificado",
-        help_text="Archivo .cer del certificado"
+    # Archivos de certificado (almacenados en base64)
+    archivo_certificado = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Archivo de Certificado (Base64)",
+        help_text="Archivo .cer del certificado codificado en base64"
     )
-    archivo_llave = models.FileField(
-        upload_to='llaves/',
-        verbose_name="Archivo de Llave",
-        help_text="Archivo .key de la llave privada"
+    nombre_archivo_certificado = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Nombre del Archivo de Certificado",
+        help_text="Nombre original del archivo .cer"
+    )
+    archivo_llave = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Archivo de Llave (Base64)",
+        help_text="Archivo .key de la llave privada codificado en base64"
+    )
+    nombre_archivo_llave = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Nombre del Archivo de Llave",
+        help_text="Nombre original del archivo .key"
     )
     password_llave = models.CharField(
         max_length=100,
@@ -2142,3 +2166,120 @@ class Emisor(models.Model):
 
 # Importar modelos de factura
 from .factura_models import Factura, FacturaDetalle
+
+
+class PagoFactura(models.Model):
+    """Modelo para gestionar pagos de facturas con método PPD (crédito)"""
+    
+    TIPO_PAGO_CHOICES = [
+        ('PARCIAL', 'Pago Parcial'),
+        ('COMPLETO', 'Pago Completo'),
+        ('ABONO', 'Abono a Cuenta'),
+    ]
+    
+    factura = models.ForeignKey(
+        Factura,
+        on_delete=models.CASCADE,
+        related_name='pagos',
+        verbose_name="Factura",
+        help_text="Factura a la que corresponde el pago"
+    )
+    
+    fecha_pago = models.DateTimeField(
+        default=timezone.now,
+        verbose_name="Fecha de Pago",
+        help_text="Fecha y hora del pago"
+    )
+    
+    monto_pago = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name="Monto del Pago",
+        help_text="Monto pagado en esta transacción"
+    )
+    
+    tipo_pago = models.CharField(
+        max_length=10,
+        choices=TIPO_PAGO_CHOICES,
+        default='PARCIAL',
+        verbose_name="Tipo de Pago",
+        help_text="Tipo de pago realizado"
+    )
+    
+    referencia_pago = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="Referencia de Pago",
+        help_text="Referencia bancaria, transferencia, etc."
+    )
+    
+    observaciones = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones",
+        help_text="Observaciones adicionales del pago"
+    )
+    
+    usuario_registro = models.ForeignKey(
+        Usuario,
+        on_delete=models.PROTECT,
+        verbose_name="Usuario que Registró",
+        help_text="Usuario que registró el pago"
+    )
+    
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de Creación"
+    )
+    
+    fecha_modificacion = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Fecha de Modificación"
+    )
+    
+    class Meta:
+        verbose_name = "Pago de Factura"
+        verbose_name_plural = "Pagos de Facturas"
+        db_table = 'pagos_factura'
+        ordering = ['-fecha_pago']
+    
+    def __str__(self):
+        return f"Pago {self.monto_pago} - {self.factura.serie} {self.factura.folio} ({self.fecha_pago.strftime('%d/%m/%Y')})"
+    
+    def clean(self):
+        """Validaciones del modelo"""
+        super().clean()
+        
+        # Validar que la factura sea PPD
+        if self.factura and self.factura.metodo_pago != 'PPD':
+            raise ValidationError("Solo se pueden registrar pagos para facturas con método PPD (crédito)")
+        
+        # Validar monto positivo
+        if self.monto_pago <= 0:
+            raise ValidationError("El monto del pago debe ser mayor a cero")
+        
+        # Validar que el pago no exceda el saldo pendiente
+        if self.factura:
+            saldo_pendiente = self.factura.obtener_saldo_pendiente()
+            if self.monto_pago > saldo_pendiente:
+                raise ValidationError(f"El monto del pago (${self.monto_pago}) no puede exceder el saldo pendiente (${saldo_pendiente})")
+    
+    def save(self, *args, **kwargs):
+        """Guardar con validaciones"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    @property
+    def saldo_anterior(self):
+        """Obtiene el saldo antes de este pago"""
+        pagos_anteriores = self.factura.pagos.filter(
+            fecha_pago__lt=self.fecha_pago
+        ).aggregate(total=models.Sum('monto_pago'))['total'] or 0
+        
+        return self.factura.total - pagos_anteriores
+    
+    @property
+    def saldo_despues(self):
+        """Obtiene el saldo después de este pago"""
+        return self.saldo_anterior - self.monto_pago

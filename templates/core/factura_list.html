@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Lista de Facturas{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Lista de Facturas</h1>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            {% if facturas %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Serie - Folio</th>
+                                <th>Fecha de Emisión</th>
+                                <th>Emisor</th>
+                                <th>Receptor</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for factura in facturas %}
+                            <tr>
+                                <td>{{ factura.serie }} - {{ factura.folio|stringformat:"04d" }}</td>
+                                <td>{{ factura.fecha_emision|date:"d/m/Y H:i" }}</td>
+                                <td>{{ factura.emisor.razon_social }}</td>
+                                <td>{{ factura.receptor.razon_social }}</td>
+                                <td>${{ factura.total|floatformat:2 }}</td>
+                                <td>
+                                    {% if factura.cancelada %}
+                                        <span class="badge bg-warning">Cancelada</span>
+                                    {% elif factura.estado_timbrado == 'TIMBRADO' %}
+                                        <span class="badge bg-success">Timbrada</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Pendiente</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <h4 class="text-muted">No hay facturas registradas</h4>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

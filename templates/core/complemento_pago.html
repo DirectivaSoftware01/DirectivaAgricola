@@ -1,0 +1,476 @@
+{% extends 'base.html' %}
+
+{% block title %}Complemento de Pago{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-credit-card text-primary"></i>
+            Complemento de Pago
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <button type="button" class="btn btn-outline-secondary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Actualizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Resumen General -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up"></i> Resumen General
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-primary">{{ clientes_data|length }}</h4>
+                                <p class="text-muted mb-0">Clientes con Crédito</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-success">${{ total_general_facturado|floatformat:2 }}</h4>
+                                <p class="text-muted mb-0">Total Facturado</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-info">${{ total_general_pagado|floatformat:2 }}</h4>
+                                <p class="text-muted mb-0">Total Pagado</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-warning">${{ total_general_pendiente|floatformat:2 }}</h4>
+                            <p class="text-muted mb-0">Saldo Pendiente</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Clientes con Facturas PPD -->
+    {% if clientes_data %}
+        {% for cliente_data in clientes_data %}
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-person-circle"></i>
+                                {{ cliente_data.cliente.razon_social }}
+                            </h5>
+                            <small class="text-muted">
+                                RFC: {{ cliente_data.cliente.rfc }} | 
+                                {{ cliente_data.facturas|length }} factura(s) de crédito
+                            </small>
+                        </div>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="verEstadoCuenta({{ cliente_data.cliente.codigo }})">
+                                <i class="bi bi-file-text"></i> Estado de Cuenta
+                            </button>
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="registrarPagoCliente({{ cliente_data.cliente.codigo }})">
+                                <i class="bi bi-plus-circle"></i> Registrar Pago
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Resumen del Cliente -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h6 class="text-muted">Total Facturado</h6>
+                                    <h5 class="text-success">${{ cliente_data.total_facturado|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h6 class="text-muted">Total Pagado</h6>
+                                    <h5 class="text-info">${{ cliente_data.total_pagado|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h6 class="text-muted">Saldo Pendiente</h6>
+                                    <h5 class="text-warning">${{ cliente_data.saldo_pendiente|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h6 class="text-muted">% Pagado</h6>
+                                    <h5 class="text-primary">
+                                        {% if cliente_data.total_facturado > 0 %}
+                                            {{ cliente_data.porcentaje_pagado|floatformat:1 }}%
+                                        {% else %}
+                                            0%
+                                        {% endif %}
+                                    </h5>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tabla de Facturas -->
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Factura</th>
+                                        <th>Fecha</th>
+                                        <th>Total</th>
+                                        <th>Pagado</th>
+                                        <th>Saldo</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for factura_info in cliente_data.facturas %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ factura_info.factura.serie }} {{ factura_info.factura.folio|stringformat:"04d" }}</strong>
+                                        </td>
+                                        <td>{{ factura_info.factura.fecha_emision|date:"d/m/Y" }}</td>
+                                        <td>${{ factura_info.factura.total|floatformat:2 }}</td>
+                                        <td>${{ factura_info.total_pagado|floatformat:2 }}</td>
+                                        <td>
+                                            <span class="{% if factura_info.saldo_pendiente > 0 %}text-warning{% else %}text-success{% endif %}">
+                                                ${{ factura_info.saldo_pendiente|floatformat:2 }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if factura_info.estado_pago == 'Pagada' %}
+                                                <span class="badge bg-success">{{ factura_info.estado_pago }}</span>
+                                            {% elif factura_info.estado_pago == 'Pago parcial' %}
+                                                <span class="badge bg-warning">{{ factura_info.estado_pago }}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{{ factura_info.estado_pago }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary" onclick="verHistorialPagos({{ factura_info.factura.folio }})">
+                                                    <i class="bi bi-clock-history"></i>
+                                                </button>
+                                                {% if factura_info.saldo_pendiente > 0 %}
+                                                <button type="button" class="btn btn-outline-success" onclick="registrarPagoFactura({{ factura_info.factura.folio }})">
+                                                    <i class="bi bi-plus-circle"></i>
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="bi bi-credit-card display-1 text-muted"></i>
+                        <h4 class="text-muted mt-3">No hay facturas de crédito</h4>
+                        <p class="text-muted">No se encontraron facturas con método de pago PPD (crédito).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal para Registrar Pago -->
+<div class="modal fade" id="modalRegistrarPago" tabindex="-1" aria-labelledby="modalRegistrarPagoLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRegistrarPagoLabel">
+                    <i class="bi bi-plus-circle"></i> Registrar Pago
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formRegistrarPago">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="facturaInfo" class="form-label">Factura</label>
+                        <input type="text" class="form-control" id="facturaInfo" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="saldoPendiente" class="form-label">Saldo Pendiente</label>
+                        <input type="text" class="form-control" id="saldoPendiente" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="montoPago" class="form-label">Monto del Pago *</label>
+                        <input type="number" class="form-control" id="montoPago" step="0.01" min="0.01" required>
+                        <div class="form-text">Monto a pagar en esta transacción</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="tipoPago" class="form-label">Tipo de Pago</label>
+                        <select class="form-select" id="tipoPago">
+                            <option value="PARCIAL">Pago Parcial</option>
+                            <option value="COMPLETO">Pago Completo</option>
+                            <option value="ABONO">Abono a Cuenta</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="referenciaPago" class="form-label">Referencia de Pago</label>
+                        <input type="text" class="form-control" id="referenciaPago" placeholder="Referencia bancaria, transferencia, etc.">
+                    </div>
+                    <div class="mb-3">
+                        <label for="observaciones" class="form-label">Observaciones</label>
+                        <textarea class="form-control" id="observaciones" rows="3" placeholder="Observaciones adicionales del pago"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="guardarPago()">
+                    <i class="bi bi-check-circle"></i> Registrar Pago
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Historial de Pagos -->
+<div class="modal fade" id="modalHistorialPagos" tabindex="-1" aria-labelledby="modalHistorialPagosLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalHistorialPagosLabel">
+                    <i class="bi bi-clock-history"></i> Historial de Pagos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="contenidoHistorialPagos">
+                    <!-- Contenido cargado dinámicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let facturaActual = null;
+
+function verEstadoCuenta(clienteId) {
+    // Abrir ventana popup para estado de cuenta (como en cobranza)
+    window.open(`/estado-cuenta/${clienteId}/`, 'EstadoCuenta', 'width=1000,height=700,scrollbars=yes,resizable=yes,menubar=no,toolbar=no,location=no,status=no');
+}
+
+function registrarPagoCliente(clienteId) {
+    // Redirigir a la vista de estado de cuenta del cliente (ventana popup)
+    window.open(`/estado-cuenta/${clienteId}/`, 'EstadoCuenta', 'width=1000,height=700,scrollbars=yes,resizable=yes,menubar=no,toolbar=no,location=no,status=no');
+}
+
+function registrarPagoFactura(folio) {
+    facturaActual = folio;
+    
+    // Obtener información de la factura
+    fetch(`/ajax/factura/${folio}/info/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('facturaInfo').value = `${data.factura.serie} ${data.factura.folio}`;
+                document.getElementById('saldoPendiente').value = `$${data.factura.saldo_pendiente}`;
+                document.getElementById('montoPago').max = data.factura.saldo_pendiente;
+                document.getElementById('montoPago').value = data.factura.saldo_pendiente;
+                
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('modalRegistrarPago'));
+                modal.show();
+            } else {
+                mostrarNotificacion('Error al obtener información de la factura', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarNotificacion('Error al obtener información de la factura', 'error');
+        });
+}
+
+function verHistorialPagos(folio) {
+    // Cargar historial de pagos
+    fetch(`/ajax/factura/${folio}/historial-pagos/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarHistorialPagos(data);
+            } else {
+                mostrarNotificacion('Error al obtener historial de pagos', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarNotificacion('Error al obtener historial de pagos', 'error');
+        });
+}
+
+function mostrarHistorialPagos(data) {
+    const contenido = document.getElementById('contenidoHistorialPagos');
+    
+    let html = `
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <strong>Factura:</strong> ${data.factura.serie} ${data.factura.folio}
+            </div>
+            <div class="col-md-6">
+                <strong>Total:</strong> $${data.factura.total}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <strong>Total Pagado:</strong> $${data.factura.total_pagado}
+            </div>
+            <div class="col-md-6">
+                <strong>Saldo Pendiente:</strong> $${data.factura.saldo_pendiente}
+            </div>
+        </div>
+    `;
+    
+    if (data.pagos.length > 0) {
+        html += `
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Monto</th>
+                            <th>Tipo</th>
+                            <th>Referencia</th>
+                            <th>Usuario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        data.pagos.forEach(pago => {
+            html += `
+                <tr>
+                    <td>${pago.fecha_pago}</td>
+                    <td>$${pago.monto}</td>
+                    <td><span class="badge bg-info">${pago.tipo}</span></td>
+                    <td>${pago.referencia || '-'}</td>
+                    <td>${pago.usuario}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } else {
+        html += '<p class="text-muted text-center">No hay pagos registrados para esta factura.</p>';
+    }
+    
+    contenido.innerHTML = html;
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('modalHistorialPagos'));
+    modal.show();
+}
+
+function guardarPago() {
+    if (!facturaActual) {
+        mostrarNotificacion('No se ha seleccionado una factura', 'error');
+        return;
+    }
+    
+    const montoPago = parseFloat(document.getElementById('montoPago').value);
+    const tipoPago = document.getElementById('tipoPago').value;
+    const referenciaPago = document.getElementById('referenciaPago').value;
+    const observaciones = document.getElementById('observaciones').value;
+    
+    if (!montoPago || montoPago <= 0) {
+        mostrarNotificacion('El monto del pago debe ser mayor a cero', 'error');
+        return;
+    }
+    
+    // Obtener token CSRF
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    // Preparar datos
+    const formData = new FormData();
+    formData.append('monto_pago', montoPago);
+    formData.append('tipo_pago', tipoPago);
+    formData.append('referencia_pago', referenciaPago);
+    formData.append('observaciones', observaciones);
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    
+    // Enviar pago
+    fetch(`/ajax/factura/${facturaActual}/registrar-pago/`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            mostrarNotificacion('Pago registrado correctamente', 'success');
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalRegistrarPago'));
+            modal.hide();
+            // Recargar página
+            location.reload();
+        } else {
+            mostrarNotificacion(data.error || 'Error al registrar el pago', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarNotificacion('Error al registrar el pago', 'error');
+    });
+}
+
+function mostrarNotificacion(mensaje, tipo) {
+    // Crear notificación
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${tipo === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${mensaje}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insertar al inicio del contenido
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-remover después de 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}
