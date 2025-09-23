@@ -8,6 +8,8 @@ import qrcode
 import base64
 from io import BytesIO
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 from django.template.loader import render_to_string
 from django.http import HttpResponse
 from django.conf import settings
@@ -541,4 +543,46 @@ class PDFService:
             
         except Exception as e:
             logger.error(f"Error generando vista previa de factura {factura.folio}: {e}")
+            return f"<p>Error generando vista previa: {str(e)}</p>"
+    
+    @classmethod
+    def generar_vista_previa_complemento_pago(cls, pago) -> str:
+        """
+        Genera una vista previa HTML del PDF del complemento de pago
+        
+        Args:
+            pago: Instancia del modelo PagoFactura
+            
+        Returns:
+            str: HTML de la vista previa
+        """
+        try:
+            # Debug: verificar estado del pago
+            logger.info(f"Debug complemento pago {pago.id}: uuid={pago.uuid}, xml_timbrado={bool(pago.xml_timbrado)}")
+            
+            # Verificar que el pago esté timbrado
+            if not pago.uuid or not pago.xml_timbrado:
+                logger.warning(f"Complemento de pago {pago.id} no está timbrado: uuid={pago.uuid}, xml_timbrado={bool(pago.xml_timbrado)}")
+                return f"<p>El complemento de pago no está timbrado (UUID: {pago.uuid}, XML: {bool(pago.xml_timbrado)})</p>"
+            
+            # Decodificar el XML timbrado
+            import base64
+            xml_timbrado = base64.b64decode(pago.xml_timbrado).decode('utf-8')
+            
+            # Preparar contexto para el template
+            context = {
+                'pago': pago,
+                'factura': pago.factura,
+                'xml_timbrado': xml_timbrado,
+                'fecha_actual': datetime.now().strftime('%d/%m/%Y %H:%M'),
+                'es_vista_previa': True,
+            }
+            
+            # Renderizar template HTML
+            html_string = render_to_string('core/complemento_pago_pdf.html', context)
+            
+            return html_string
+            
+        except Exception as e:
+            logger.error(f"Error generando vista previa de complemento de pago {pago.id}: {e}")
             return f"<p>Error generando vista previa: {str(e)}</p>"

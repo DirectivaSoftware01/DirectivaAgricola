@@ -2221,6 +2221,19 @@ class PagoFactura(models.Model):
         help_text="Observaciones adicionales del pago"
     )
     
+    num_parcialidad = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Número de Parcialidad",
+        help_text="Número de parcialidad del pago"
+    )
+    
+    forma_pago = models.CharField(
+        max_length=2,
+        default='03',
+        verbose_name="Forma de Pago",
+        help_text="Código de forma de pago según catálogo SAT"
+    )
+    
     usuario_registro = models.ForeignKey(
         Usuario,
         on_delete=models.PROTECT,
@@ -2236,6 +2249,66 @@ class PagoFactura(models.Model):
     fecha_modificacion = models.DateTimeField(
         auto_now=True,
         verbose_name="Fecha de Modificación"
+    )
+    
+    # Campos para timbrado del complemento de pago
+    uuid = models.CharField(
+        max_length=36,
+        blank=True,
+        null=True,
+        verbose_name="UUID",
+        help_text="UUID del complemento de pago timbrado"
+    )
+    
+    xml_timbrado = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="XML Timbrado",
+        help_text="XML del complemento de pago timbrado en Base64"
+    )
+    
+    sello = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Sello CFD",
+        help_text="Sello del complemento de pago"
+    )
+    
+    sello_sat = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Sello SAT",
+        help_text="Sello del timbre fiscal digital"
+    )
+    
+    no_certificado_sat = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="No. Certificado SAT",
+        help_text="Número de certificado del SAT"
+    )
+    
+    fecha_timbrado = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name="Fecha Timbrado",
+        help_text="Fecha de timbrado del complemento de pago"
+    )
+    
+    codigo_qr = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Código QR",
+        help_text="Código QR del complemento de pago en Base64"
+    )
+    
+    cadena_original_sat = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Cadena Original complemento SAT",
+        help_text="Cadena original del complemento SAT (SelloCFD del timbre fiscal)"
     )
     
     class Meta:

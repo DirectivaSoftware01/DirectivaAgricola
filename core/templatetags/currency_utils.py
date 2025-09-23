@@ -32,3 +32,29 @@ def currency_in_words(value):
     except (ValueError, TypeError, AttributeError):
         return str(value)  # Devolver valor original si hay error
 
+@register.filter
+def currency_format(value):
+    """
+    Formatea una cantidad monetaria con separadores de miles
+    
+    Args:
+        value: Cantidad decimal (float, Decimal o string)
+        
+    Returns:
+        str: Cantidad formateada como $ ###,###,###,##0.00
+    """
+    try:
+        # Convertir a Decimal para manejo preciso
+        if isinstance(value, str):
+            amount = Decimal(value)
+        elif isinstance(value, (int, float)):
+            amount = Decimal(str(value))
+        else:
+            amount = value
+            
+        # Formatear con 2 decimales
+        formatted = f"{amount:,.2f}"
+        return f"${formatted}"
+    except (ValueError, TypeError, AttributeError):
+        return str(value)  # Devolver valor original si hay error
+

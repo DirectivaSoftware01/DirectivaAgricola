@@ -31,6 +31,53 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['total_clientes'] = Cliente.objects.count()
         context['usuarios_activos'] = Usuario.objects.filter(is_active=True).count()
         
+        # Estadísticas de preliquidaciones (remisiones)
+        # Preliquidada se determina con el método de modelo esta_liquidada()
+        # PENDIENTE: no cancelada, no pagada y NO esta_liquidada()
+        # PRELIQUIDADA: no cancelada, no pagada y SI esta_liquidada()
+        remisiones_qs = Remision.objects.filter(cancelada=False)
+        pendientes = 0
+        preliquidadas = 0
+        diagnostico_pendientes = []
+        for remision in remisiones_qs:
+            if remision.pagado:
+                continue
+            if remision.esta_liquidada():
+                preliquidadas += 1
+            else:
+                pendientes += 1
+                # Diagnóstico de por qué no está preliquidada
+                detalles = remision.detalles.all()
+                if not detalles.exists():
+                    razon = 'Sin detalles'
+                else:
+                    tiene_valores = False
+                    tiene_auditoria = False
+                    for d in detalles:
+                        if (getattr(d, 'kgs_liquidados', 0) > 0 or
+                            getattr(d, 'kgs_merma', 0) > 0 or
+                            getattr(d, 'precio', 0) > 0 or
+                            getattr(d, 'importe_liquidado', 0) > 0):
+                            tiene_valores = True
+                        if getattr(d, 'usuario_liquidacion', None) is not None and getattr(d, 'fecha_liquidacion', None) is not None:
+                            tiene_auditoria = True
+                    if not tiene_valores:
+                        razon = 'Sin valores de liquidación en detalles'
+                    elif not tiene_auditoria:
+                        razon = 'Falta auditoría (usuario/fecha) en detalles'
+                    else:
+                        razon = 'Condiciones de liquidación no cumplidas'
+                diagnostico_pendientes.append({
+                    'id': remision.pk,
+                    'ciclo': remision.ciclo,
+                    'folio': remision.folio,
+                    'cliente': getattr(remision.cliente, 'razon_social', ''),
+                    'razon': razon,
+                })
+        context['remisiones_pendientes'] = pendientes
+        context['remisiones_preliquidadas'] = preliquidadas
+        context['diagnostico_remisiones_pendientes'] = diagnostico_pendientes
+        
         return context
 
 
@@ -9980,7 +10027,7 @@ class RemisionCreateView(LoginRequiredMixin, CreateView):
             form.instance.usuario_creacion = self.request.user
             
             # Obtener el ciclo actual de la configuración
-            from .models import ConfiguracionSistema
+            from ..models import ConfiguracionSistema
             configuracion = ConfiguracionSistema.objects.first()
             if configuracion and configuracion.ciclo_actual:
                 form.instance.ciclo = configuracion.ciclo_actual
@@ -10011,7 +10058,7 @@ class RemisionCreateView(LoginRequiredMixin, CreateView):
         # Crear cada detalle
         for detalle_data in detalles_data:
             try:
-                from .models import RemisionDetalle, Cultivo
+                from ..models import RemisionDetalle, Cultivo
                 
                 # Obtener el cultivo
                 cultivo = Cultivo.objects.get(pk=detalle_data['cultivo']['id'])
@@ -12816,7 +12863,7 @@ def agregar_cuenta_bancaria_ajax(request):
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
     try:
-        from .models import CuentaBancaria
+        from ..models import CuentaBancaria
         
         # Obtener datos del formulario
         nombre_banco = request.POST.get('nombre_banco', '').strip()
@@ -12996,7 +13043,7 @@ def listar_cuentas_bancarias_ajax(request):
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
     try:
-        from .models import CuentaBancaria
+        from ..models import CuentaBancaria
         
         # Obtener todas las cuentas bancarias activas
         cuentas = CuentaBancaria.objects.filter(activo=True).order_by('nombre_corto')
@@ -13159,7 +13206,7 @@ def eliminar_cuenta_bancaria_ajax(request, codigo):
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
     try:
-        from .models import CuentaBancaria
+        from ..models import CuentaBancaria
         
         # Obtener la cuenta bancaria
         cuenta = get_object_or_404(CuentaBancaria, codigo=codigo)

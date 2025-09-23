@@ -1,0 +1,487 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Complemento de Pago {{ pago.factura.serie }} - {{ pago.factura.folio|stringformat:"06d" }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 10px;
+            line-height: 1.2;
+            color: #333;
+            margin-top: 10px;
+            {% if es_vista_previa %}
+            margin: 20px;
+            background-color: #f5f5f5;
+            {% endif %}
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+            padding-top: 3px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #2c5aa0;
+        }
+        
+        .company-info {
+            flex: 1;
+        }
+        
+        .company-logo-section {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        
+        .company-logo-img {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            margin-right: 12px;
+        }
+        
+        .company-details {
+            flex: 1;
+        }
+        
+        .company-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 2px;
+        }
+        
+        .company-address {
+            font-size: 8px;
+            color: #666;
+            line-height: 1.1;
+        }
+        
+        .document-info {
+            text-align: right;
+            min-width: 200px;
+        }
+        
+        {% if es_vista_previa %}
+        .document-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        {% endif %}
+        
+        .document-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 4px;
+        }
+        
+        .document-details {
+            font-size: 9px;
+            color: #333;
+        }
+        
+        .document-details div {
+            margin-bottom: 1px;
+        }
+        
+        .section {
+            margin-bottom: 8px;
+        }
+        
+        .section-title {
+            font-size: 11px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 4px;
+            padding: 2px 4px;
+            background-color: #f0f4f8;
+            border-left: 3px solid #2c5aa0;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info-label {
+            font-size: 8px;
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 1px;
+        }
+        
+        .info-value {
+            font-size: 9px;
+            color: #333;
+            padding: 2px 4px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        
+        .payment-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+        
+        .payment-table th,
+        .payment-table td {
+            border: 1px solid #ddd;
+            padding: 3px 4px;
+            text-align: left;
+            font-size: 8px;
+        }
+        
+        .payment-table th {
+            background-color: #2c5aa0;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .payment-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .totals-section {
+            margin-top: 8px;
+            padding: 4px;
+            background-color: #f0f4f8;
+            border: 1px solid #2c5aa0;
+        }
+        
+        .totals-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .total-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        
+        .total-label {
+            font-size: 9px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .total-value {
+            font-size: 9px;
+            color: #2c5aa0;
+            font-weight: bold;
+        }
+        
+        .footer {
+            margin-top: 12px;
+            padding-top: 6px;
+            border-top: 1px solid #ddd;
+            font-size: 8px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .uuid-section {
+            background-color: #e8f4fd;
+            padding: 4px;
+            border: 1px solid #2c5aa0;
+            margin-top: 6px;
+        }
+        
+        .uuid-label {
+            font-size: 8px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 2px;
+        }
+        
+        .uuid-value {
+            font-size: 9px;
+            color: #333;
+            font-family: monospace;
+        }
+        
+        .qr-seals-section {
+            display: flex;
+            margin-top: 12px;
+            gap: 20px;
+        }
+        
+        .qr-container {
+            flex: 0 0 120px;
+        }
+        
+        .qr-title {
+            font-size: 8px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+        
+        .qr-code {
+            width: 120px;
+            height: 120px;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f9f9f9;
+        }
+        
+        .digital-seals {
+            flex: 1;
+        }
+        
+        .seal-row {
+            margin-bottom: 6px;
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .seal-row:last-child {
+            border-bottom: none;
+        }
+        
+        .seal-label {
+            font-size: 8px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 2px;
+        }
+        
+        .seal-value {
+            font-size: 7px;
+            color: #333;
+            font-family: monospace;
+            word-break: break-all;
+            line-height: 1.2;
+        }
+    </style>
+</head>
+<body>
+    {% if es_vista_previa %}
+    <div class="document-container">
+    {% endif %}
+    
+    <div class="header">
+        <div class="company-info">
+            <div class="company-logo-section">
+                <img src="{% static 'images/logoAgroDam.png' %}" alt="Logo Empresa" class="company-logo-img">
+                <div class="company-details">
+                    <div class="company-address">
+                        {{ pago.factura.emisor.direccion }}<br>
+                        {{ pago.factura.emisor.ciudad }}, {{ pago.factura.emisor.estado }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="document-info">
+            <div class="document-title">COMPLEMENTO DE PAGO</div>
+            <div class="document-details">
+                <div><strong>Serie:</strong> {{ pago.factura.serie }}</div>
+                <div><strong>Folio:</strong> {{ pago.factura.folio|stringformat:"06d" }}</div>
+                <div><strong>Fecha:</strong> {{ pago.fecha_creacion|date:"d/m/Y H:i" }}</div>
+                <div><strong>UUID:</strong> {{ pago.uuid }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">INFORMACIÓN DEL EMISOR</div>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Razón Social</div>
+                <div class="info-value">{{ pago.factura.emisor.razon_social }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">RFC</div>
+                <div class="info-value">{{ pago.factura.emisor.rfc }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Código Postal</div>
+                <div class="info-value">{{ pago.factura.emisor.codigo_postal }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">INFORMACIÓN DEL RECEPTOR</div>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Razón Social</div>
+                <div class="info-value">{{ pago.factura.receptor.razon_social }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">RFC</div>
+                <div class="info-value">{{ pago.factura.receptor.rfc }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Código Postal</div>
+                <div class="info-value">{{ pago.factura.receptor.codigo_postal }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">INFORMACIÓN DEL PAGO</div>
+        <table class="payment-table">
+            <thead>
+                <tr>
+                    <th>Concepto</th>
+                    <th>Monto</th>
+                    <th>Parcialidad</th>
+                    <th>Forma de Pago</th>
+                    <th>Moneda</th>
+                    <th>Fecha de Pago</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Complemento de Pago - {{ pago.factura.serie }}{{ pago.factura.folio|stringformat:"06d" }}</td>
+                    <td>${{ pago.monto_pago|floatformat:2 }}</td>
+                    <td>{{ pago.num_parcialidad }}</td>
+                    <td>
+                        {% if pago.forma_pago == '01' %}Efectivo
+                        {% elif pago.forma_pago == '02' %}Cheque nominativo
+                        {% elif pago.forma_pago == '03' %}Transferencia electrónica
+                        {% elif pago.forma_pago == '04' %}Tarjeta de crédito
+                        {% elif pago.forma_pago == '28' %}Tarjeta de débito
+                        {% else %}{{ pago.forma_pago|default:"No especificado" }}
+                        {% endif %}
+                    </td>
+                    <td>MXN</td>
+                    <td>{{ pago.fecha_pago|date:"d/m/Y H:i" }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">DOCUMENTO RELACIONADO</div>
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Serie</div>
+                <div class="info-value">{{ pago.factura.serie }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Folio</div>
+                <div class="info-value">{{ pago.factura.folio|stringformat:"06d" }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">UUID</div>
+                <div class="info-value">{{ pago.factura.uuid }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Parcialidad</div>
+                <div class="info-value">{{ pago.num_parcialidad }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Saldo Anterior</div>
+                <div class="info-value">${{ pago.saldo_anterior|floatformat:2 }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Importe Pagado</div>
+                <div class="info-value">${{ pago.monto_pago|floatformat:2 }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Saldo Insoluto</div>
+                <div class="info-value">${{ pago.saldo_despues|floatformat:2 }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Referencia</div>
+                <div class="info-value">{{ pago.referencia_pago|default:"-" }}</div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="uuid-section">
+        <div class="uuid-label">UUID del Complemento de Pago:</div>
+        <div class="uuid-value">{{ pago.uuid }}</div>
+    </div>
+
+    <!-- QR Code y Sellos Digitales -->
+    <div class="qr-seals-section">
+        <div class="qr-container">
+            <div class="qr-title">Código QR de Verificación</div>
+            <div class="qr-code">
+                {% if pago.codigo_qr %}
+                    <img src="{{ pago.codigo_qr }}" alt="Código QR de verificación CFDI" style="width: 100%; height: 100%; object-fit: contain;">
+                {% else %}
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 8px;">
+                        QR Code
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="digital-seals">
+            {% if pago.sello or pago.sello_sat or pago.cadena_original_sat %}
+                {% if pago.sello %}
+                <div class="seal-row">
+                    <div class="seal-label">Sello digital del Emisor:</div>
+                    <div class="seal-value">{{ pago.sello }}</div>
+                </div>
+                {% endif %}
+                {% if pago.sello_sat %}
+                <div class="seal-row">
+                    <div class="seal-label">Sello digital del SAT:</div>
+                    <div class="seal-value">{{ pago.sello_sat }}</div>
+                </div>
+                {% endif %}
+                {% if pago.cadena_original_sat %}
+                <div class="seal-row">
+                    <div class="seal-label">Cadena Original complemento SAT:</div>
+                    <div class="seal-value">{{ pago.cadena_original_sat }}</div>
+                </div>
+                {% endif %}
+                {% if pago.no_certificado_sat %}
+                <div class="seal-row">
+                    <div class="seal-label">Certificado del Emisor:</div>
+                    <div class="seal-value">{{ pago.no_certificado_sat }}</div>
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Este documento es una representación impresa del Complemento de Pago CFDI 4.0</p>
+        <p>Fecha de timbrado: {{ pago.fecha_timbrado|default:"-" }}</p>
+        <p>Generado el: {% now "d/m/Y H:i:s" %}</p>
+    </div>
+    
+    {% if es_vista_previa %}
+    </div>
+    {% endif %}
+</body>
+</html>

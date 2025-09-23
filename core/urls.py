@@ -66,7 +66,8 @@ from .views.herramientas_mantenimiento import HerramientasMantenimientoView
 from .pago_views import (
     ComplementoPagoView, EstadoCuentaView, listado_estados_cuenta,
     registrar_pago, obtener_historial_pagos, obtener_info_factura_ajax,
-    imprimir_estado_cuenta
+    guardar_complemento_pago_ajax, imprimir_estado_cuenta, descargar_debug_xml,
+    imprimir_complemento_pago, descargar_xml_complemento_pago, vista_previa_complemento_pago
 )
 
 app_name = 'core'
@@ -255,4 +256,13 @@ urlpatterns = [
     path('ajax/factura/<int:factura_id>/registrar-pago/', registrar_pago, name='registrar_pago_ajax'),
     path('ajax/factura/<int:factura_id>/historial-pagos/', obtener_historial_pagos, name='historial_pagos_ajax'),
     path('ajax/factura/<int:factura_id>/info/', obtener_info_factura_ajax, name='info_factura_ajax'),
+    path('ajax/factura/<int:factura_id>/complemento-pago/', guardar_complemento_pago_ajax, name='guardar_complemento_pago_ajax'),
+    
+    # URLs para debugging
+    path('debug/xml/<str:tipo>/<str:factura_folio>/<str:timestamp>/', descargar_debug_xml, name='descargar_debug_xml'),
+    
+    # URLs para complemento de pago
+    path('complemento-pago/<int:pago_id>/vista-previa/', vista_previa_complemento_pago, name='vista_previa_complemento_pago'),
+    path('complemento-pago/<int:pago_id>/imprimir/', imprimir_complemento_pago, name='imprimir_complemento_pago'),
+    path('complemento-pago/<int:pago_id>/xml/', descargar_xml_complemento_pago, name='descargar_xml_complemento_pago'),
 ]

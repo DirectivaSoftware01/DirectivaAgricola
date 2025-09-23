@@ -1,13 +1,10 @@
-"""
-Servicio de timbrado CFDI 4.0
-Maneja la comunicación con PAC Prodigia usando SOAP
-"""
-
+import logging
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime
-from typing import Dict, Any, Optional
-import logging
+from typing import Dict, Any
+from cryptography.hazmat.primitives import serialization
+from .configuracion_entorno import ConfiguracionEntornoService
+from .certificado_service import CertificadoService
 
 logger = logging.getLogger(__name__)
 
@@ -15,19 +12,24 @@ logger = logging.getLogger(__name__)
 class TimbradoService:
     """Servicio para timbrado de CFDI con PAC Prodigia"""
     
-    def __init__(self, configuracion: Dict[str, Any], emisor=None):
+    def __init__(self, configuracion: Dict[str, Any], emisor):
         """
         Inicializa el servicio de timbrado
         
         Args:
-            configuracion: Configuración del PAC obtenida de ConfiguracionEntornoService
-            emisor: Objeto Emisor con certificados (opcional)
+            configuracion: Configuración del PAC
+            emisor: Emisor del CFDI
         """
         self.configuracion = configuracion
-        self.url_base = configuracion['url']
-        self.credenciales = configuracion['credenciales']
-        self.timeout = configuracion.get('timeout', 30)
         self.emisor = emisor
+        self.url_base = configuracion.get('url', '')
+        self.credenciales = configuracion.get('credenciales', {})
+        self.timeout = 30
+        
+        logger.info(f"TimbradoService inicializado para emisor {emisor.rfc}")
+        logger.info(f"URL PAC: {self.url_base}")
+        logger.info(f"Usuario PAC: {self.credenciales.get('usuario', 'N/A')}")
+        logger.info(f"Contrato PAC: {self.credenciales.get('contrato', 'N/A')}")
     
     def timbrar_cfdi(self, xml_cfdi: str) -> Dict[str, Any]:
         """
@@ -80,7 +82,7 @@ class TimbradoService:
                 logger.error(f"Respuesta vacía del PAC. Status: {response.status_code}, Headers: {dict(response.headers)}")
                 return {
                     'exito': False,
-                    'error': f'El PAC devolvió una respuesta vacía (Status: {response.status_code})',
+                    'error': f'Respuesta vacía del PAC (Status: {response.status_code})',
                     'codigo_error': 'EMPTY_RESPONSE'
                 }
             
@@ -106,120 +108,108 @@ class TimbradoService:
                 'codigo_error': 'UNKNOWN_ERROR'
             }
     
-    def _construir_soap_envelope(self, xml_cfdi: str) -> str:
-        """
-        Construye el envelope SOAP para el timbrado usando la función TimbradoCfdi
-        
-        Args:
-            xml_cfdi: XML del CFDI a timbrar
-            
-        Returns:
-            str: SOAP envelope completo
-        """
-        # Determinar si es modo prueba basado en la configuración
-        es_prueba = self.configuracion.get('entorno', 'pruebas') == 'pruebas'
-        
-        # Remover la declaración XML si existe
-        if xml_cfdi.strip().startswith('<?xml'):
-            xml_cfdi = xml_cfdi.split('>', 1)[1].strip()
-        
-        # Usar CDATA para evitar problemas de escape
-        xml_escaped = xml_cfdi
-        
-        # Obtener certificados del emisor si están disponibles
-        cert_base64 = ""
-        key_base64 = ""
-        key_pass = ""
-        
-        if hasattr(self, 'emisor') and self.emisor:
-            if self.emisor.archivo_certificado:
-                cert_base64 = self.emisor.archivo_certificado
-            if self.emisor.archivo_llave:
-                key_base64 = self.emisor.archivo_llave
-            if self.emisor.password_llave:
-                key_pass = self.emisor.password_llave
-        
-        soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tim="timbrado.ws.pade.mx">
-    <soapenv:Header/>
-    <soapenv:Body>
-        <tim:timbradoCfdi>
-            <contrato>{self.credenciales['contrato']}</contrato>
-            <usuario>{self.credenciales['usuario']}</usuario>
-            <passwd>{self.credenciales['password']}</passwd>
-            <cfdiXml><![CDATA[{xml_escaped}]]></cfdiXml>
-            <cert>{cert_base64}</cert>
-            <key>{key_base64}</key>
-            <keyPass>{key_pass}</keyPass>
-            <prueba>{str(es_prueba).lower()}</prueba>
-            <opciones>CALCULAR_SELLO</opciones>
-        </tim:timbradoCfdi>
-    </soapenv:Body>
-</soapenv:Envelope>"""
-        
-        return soap_envelope
-    
     def _firmar_xml_cfdi(self, xml_cfdi: str) -> str:
         """
-        Firma digitalmente el XML CFDI con el sello del emisor
+        Firma el XML CFDI con el certificado del emisor
         
         Args:
-            xml_cfdi: XML del CFDI sin firmar
+            xml_cfdi: XML del CFDI a firmar
             
         Returns:
-            str: XML CFDI con sello digital
+            str: XML firmado
         """
         try:
-            if not self.emisor or not self.emisor.archivo_certificado or not self.emisor.archivo_llave:
-                logger.warning("No se puede firmar el XML: emisor sin certificados")
-                return xml_cfdi
-            
-            # Importar servicios necesarios
-            from .certificado_service import CertificadoService
-            from .xml_builder import XMLCFDIBuilder
-            
             # Obtener datos del certificado
-            datos_cert = CertificadoService.extraer_datos_certificado(self.emisor)
-            if not datos_cert['valido']:
-                logger.error(f"No se puede firmar: certificado inválido - {datos_cert.get('error')}")
+            certificado_data = CertificadoService.extraer_datos_certificado(self.emisor)
+            
+            if not certificado_data or not certificado_data.get('valido'):
+                logger.warning(f"Certificado no válido para emisor {self.emisor.rfc}: {certificado_data.get('error', 'Error desconocido')}")
                 return xml_cfdi
             
             # Cargar llave privada
             llave_privada = CertificadoService.cargar_llave_privada(self.emisor)
             if not llave_privada:
-                logger.error("No se puede firmar: no se pudo cargar la llave privada")
+                logger.warning(f"No se pudo cargar la llave privada para emisor {self.emisor.rfc}")
                 return xml_cfdi
             
-            # Generar cadena original del CFDI
+            # Generar cadena original
+            from .xml_builder import XMLCFDIBuilder
             cadena_original = XMLCFDIBuilder.generar_cadena_original(xml_cfdi)
-            if not cadena_original:
-                logger.error("No se puede firmar: no se pudo generar la cadena original")
-                return xml_cfdi
             
             # Generar sello digital
-            sello_digital = CertificadoService.generar_sello_digital(cadena_original, llave_privada)
-            if not sello_digital:
-                logger.error("No se puede firmar: no se pudo generar el sello digital")
+            sello = CertificadoService.generar_sello_digital(cadena_original, llave_privada)
+            
+            if not sello:
+                logger.warning(f"No se pudo generar el sello digital para emisor {self.emisor.rfc}")
                 return xml_cfdi
             
-            # Actualizar el XML con el sello digital y certificado
+            # Actualizar XML con sello y certificado
             xml_firmado = XMLCFDIBuilder.actualizar_sello_y_certificado(
                 xml_cfdi, 
-                sello_digital, 
-                datos_cert['no_certificado'],
-                datos_cert['certificado_base64']
+                sello, 
+                certificado_data['no_certificado'], 
+                certificado_data['certificado_base64']
             )
             
-            logger.info("XML CFDI firmado exitosamente")
+            logger.info(f"XML firmado exitosamente para emisor {self.emisor.rfc}")
             return xml_firmado
             
         except Exception as e:
-            logger.error(f"Error firmando XML CFDI: {e}")
+            logger.error(f"Error firmando XML: {e}")
             return xml_cfdi
+    
+    def _construir_soap_envelope(self, xml_cfdi: str) -> str:
+        """
+        Construye el envelope SOAP para el timbrado
+        
+        Args:
+            xml_cfdi: XML del CFDI a timbrar
+            
+        Returns:
+            str: Envelope SOAP
+        """
+        # Obtener certificados en base64
+        certificado_data = CertificadoService.extraer_datos_certificado(self.emisor)
+        certificado_base64 = certificado_data.get('certificado_base64', '') if certificado_data else ''
+        
+        # Obtener llave privada en base64
+        llave_privada = CertificadoService.cargar_llave_privada(self.emisor)
+        llave_base64 = ''
+        if llave_privada:
+            import base64
+            # Serializar la llave privada a bytes primero
+            llave_bytes = llave_privada.private_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+            llave_base64 = base64.b64encode(llave_bytes).decode('utf-8')
+        
+        # Construir envelope SOAP según documentación oficial de Prodigia
+        soap_envelope = f"""<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tim="timbrado.ws.pade.mx">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <tim:timbradoCfdi>
+            <contrato>{self.credenciales.get('contrato', '')}</contrato>
+            <usuario>{self.credenciales.get('usuario', '')}</usuario>
+            <passwd>{self.credenciales.get('password', '')}</passwd>
+            <cfdiXml><![CDATA[{xml_cfdi}]]></cfdiXml>
+            <cert>{certificado_base64}</cert>
+            <key>{llave_base64}</key>
+            <keyPass>{self.emisor.password_llave or ''}</keyPass>
+            <prueba>{str(self.credenciales.get('prueba', 'true')).lower()}</prueba>
+            <opciones>CALCULAR_SELLO</opciones>
+        </tim:timbradoCfdi>
+    </soapenv:Body>
+</soapenv:Envelope>"""
+        
+        logger.info(f"Request SOAP generado: {soap_envelope[:500]}...")
+        return soap_envelope
     
     def _procesar_respuesta_servicio_timbrado(self, xml_respuesta: str) -> Dict[str, Any]:
         """
-        Procesa la respuesta del servicio de timbrado
+        Procesa la respuesta del servicio de timbrado usando la misma lógica que PACProdigiaClient
         
         Args:
             xml_respuesta: XML de respuesta del servicio de timbrado
@@ -239,156 +229,108 @@ class TimbradoService:
             logger.info(f"Respuesta decodificada: {xml_decoded}")
             
             # Parsear el XML de respuesta
-            root = ET.fromstring(xml_decoded)
+            try:
+                root = ET.fromstring(xml_decoded)
+            except ET.ParseError as e:
+                logger.error(f"Error parseando XML de respuesta: {e}")
+                logger.error(f"XML recibido: {xml_decoded[:500]}...")
+                return {
+                    'exito': False,
+                    'error': f'Error parseando respuesta del PAC: {str(e)}',
+                    'codigo_error': 'XML_PARSE_ERROR'
+                }
             
-            # Log de la estructura del XML parseado
-            logger.info(f"Elemento raíz: {root.tag}")
-            logger.info(f"Atributos del elemento raíz: {root.attrib}")
-            logger.info(f"Elementos hijos: {[child.tag for child in root]}")
-            
-            # Buscar elementos de la respuesta con diferentes nombres posibles
-            timbrado_ok = root.find('timbradoOk')
-            if timbrado_ok is None:
-                timbrado_ok = root.find('timbradoOK')
-            if timbrado_ok is None:
-                timbrado_ok = root.find('TimbradoOk')
-            if timbrado_ok is None:
-                timbrado_ok = root.find('TimbradoOK')
-            
-            codigo = root.find('codigo')
-            if codigo is None:
-                codigo = root.find('Codigo')
-            
-            mensaje = root.find('mensaje')
-            if mensaje is None:
-                mensaje = root.find('Mensaje')
-            
-            id_respuesta = root.find('id')
-            if id_respuesta is None:
-                id_respuesta = root.find('Id')
-            
-            # Log de los elementos encontrados
-            logger.info(f"timbrado_ok: {timbrado_ok.text if timbrado_ok is not None else 'No encontrado'}")
-            logger.info(f"codigo: {codigo.text if codigo is not None else 'No encontrado'}")
-            logger.info(f"mensaje: {mensaje.text if mensaje is not None else 'No encontrado'}")
-            logger.info(f"id_respuesta: {id_respuesta.text if id_respuesta is not None else 'No encontrado'}")
-            
-            if timbrado_ok is not None and timbrado_ok.text == 'true':
-                # Timbrado exitoso - buscar el XML timbrado en xmlBase64 (según documentación del PAC)
-                xml_base64 = root.find('xmlBase64')
-                if xml_base64 is None:
-                    xml_base64 = root.find('XMLBase64')
-                if xml_base64 is None:
-                    xml_base64 = root.find('xmlTimbrado')
-                if xml_base64 is None:
-                    xml_base64 = root.find('XmlTimbrado')
-                if xml_base64 is None:
-                    xml_base64 = root.find('XMLTimbrado')
-                if xml_base64 is None:
-                    xml_base64 = root.find('cfdiXml')
-                if xml_base64 is None:
-                    xml_base64 = root.find('cfdiXML')
+            # Verificar si hay error (usando la misma lógica que PACProdigiaClient)
+            error_elem = root.find('.//Error')
+            if error_elem is not None:
+                codigo = error_elem.get('Codigo', 'UNKNOWN')
+                mensaje = error_elem.text or 'Error desconocido'
                 
-                logger.info(f"xml_base64 encontrado: {xml_base64 is not None}")
-                if xml_base64 is not None:
-                    logger.info(f"xml_base64.text: {xml_base64.text[:200] if xml_base64.text else 'None'}...")
-                
-                if xml_base64 is not None and xml_base64.text:
-                    try:
-                        # Decodificar Base64 si es necesario
-                        import base64
-                        xml_timbrado_decoded = base64.b64decode(xml_base64.text).decode('utf-8')
-                        logger.info(f"XML decodificado exitosamente: {xml_timbrado_decoded[:200]}...")
+                logger.error(f"Error del PAC: {mensaje} (Código: {codigo})")
+                return {
+                    'exito': False,
+                    'error': mensaje,
+                    'codigo_error': codigo,
+                    'xml_respuesta': xml_respuesta
+                }
+            
+            # Verificar si el timbrado fue exitoso
+            timbrado_ok = root.find('.//timbradoOk')
+            if timbrado_ok is not None and timbrado_ok.text and timbrado_ok.text.lower() == 'true':
+                # El timbrado fue exitoso, buscar el XML en xmlBase64
+                xml_base64_elem = root.find('.//xmlBase64')
+                if xml_base64_elem is not None and xml_base64_elem.text:
+                    # Decodificar el XML desde Base64
+                    import base64
+                    xml_timbrado = base64.b64decode(xml_base64_elem.text).decode('utf-8')
+                    
+                    # Extraer datos del timbre
+                    from .xml_builder import XMLCFDIBuilder
+                    timbre_data = XMLCFDIBuilder.extraer_timbre_fiscal(xml_timbrado)
+                    
+                    if timbre_data['valido']:
+                        logger.info(f"Timbrado exitoso - UUID: {timbre_data['uuid']}")
                         
-                        # Extraer datos del timbre fiscal
-                        from .xml_builder import XMLCFDIBuilder
-                        timbre_data = XMLCFDIBuilder.extraer_timbre_fiscal(xml_timbrado_decoded)
+                        # Generar código QR
+                        qr_base64 = self._generar_codigo_qr_complemento_pago(xml_timbrado)
                         
-                        # También extraer datos directamente de la respuesta del PAC
-                        uuid = root.find('UUID')
-                        fecha_timbrado = root.find('FechaTimbrado')
-                        sello_cfd = root.find('selloCFD')
-                        no_cert_sat = root.find('noCertificadoSAT')
-                        sello_sat = root.find('selloSAT')
-                        
-                        # Buscar código QR en base64
-                        qr_base64 = root.find('pdfBase64')
-                        if qr_base64 is None:
-                            qr_base64 = root.find('PDFBase64')
-                        if qr_base64 is None:
-                            qr_base64 = root.find('qrBase64')
-                        if qr_base64 is None:
-                            qr_base64 = root.find('QRBase64')
-                        if qr_base64 is None:
-                            qr_base64 = root.find('codigoQR')
-                        if qr_base64 is None:
-                            qr_base64 = root.find('CodigoQR')
-                        
-                        logger.info(f"QR base64 encontrado: {qr_base64 is not None}")
-                        if qr_base64 is not None:
-                            logger.info(f"QR base64.text: {qr_base64.text[:100] if qr_base64.text else 'None'}...")
+                        # Extraer cadena original del SAT
+                        cadena_original_sat = self._extraer_cadena_original_sat(xml_timbrado)
                         
                         return {
                             'exito': True,
-                            'xml_timbrado': xml_timbrado_decoded,
-                            'uuid': uuid.text if uuid is not None else timbre_data.get('uuid'),
-                            'fecha_timbrado': fecha_timbrado.text if fecha_timbrado is not None else timbre_data.get('fecha_timbrado'),
-                            'no_cert_sat': no_cert_sat.text if no_cert_sat is not None else timbre_data.get('no_certificado_sat'),
-                            'sello_sat': sello_sat.text if sello_sat is not None else timbre_data.get('sello_sat'),
-                            'sello_cfd': sello_cfd.text if sello_cfd is not None else None,
-                            'id_respuesta': id_respuesta.text if id_respuesta is not None else None,
-                            'qr_base64': qr_base64.text if qr_base64 is not None else None
+                            'timbradoOk': True,
+                            'xml_timbrado': xml_timbrado,
+                            'xmlBase64': xml_base64_elem.text,  # Agregar el Base64 original
+                            'uuid': timbre_data['uuid'],
+                            'fecha_timbrado': timbre_data['fecha_timbrado'],
+                            'sello_sat': timbre_data['sello_sat'],
+                            'no_certificado_sat': timbre_data['no_certificado_sat'],
+                            'selloCFD': timbre_data.get('sello_cfd', ''),
+                            'version': timbre_data.get('version', '1.1'),
+                            'qr_base64': qr_base64,
+                            'cadena_original_sat': cadena_original_sat,
+                            'xml_respuesta': xml_respuesta
                         }
-                    except Exception as e:
-                        logger.error(f"Error decodificando XML Base64: {e}")
+                    else:
+                        logger.error(f"Error extrayendo timbre: {timbre_data.get('error', 'Desconocido')}")
                         return {
                             'exito': False,
-                            'error': f'Error decodificando XML timbrado: {str(e)}',
-                            'codigo_error': 'DECODE_ERROR'
+                            'error': f"Error extrayendo timbre: {timbre_data.get('error', 'Desconocido')}",
+                            'codigo_error': 'TIMBRE_EXTRACTION_ERROR',
+                            'xml_respuesta': xml_respuesta
                         }
                 else:
-                    # Log de todos los elementos para debugging
-                    logger.error("No se encontró XML timbrado. Elementos disponibles:")
-                    for child in root:
-                        logger.error(f"  {child.tag}: {child.text[:100] if child.text else 'None'}...")
-                    
+                    logger.error("No se encontró xmlBase64 en la respuesta exitosa")
                     return {
                         'exito': False,
-                        'error': 'Timbrado exitoso pero no se encontró XML timbrado',
-                        'codigo_error': 'NO_XML_TIMBRADO',
-                        'debug_info': {
-                            'elementos_disponibles': [child.tag for child in root],
-                            'timbrado_ok_text': timbrado_ok.text if timbrado_ok is not None else None,
-                            'xml_base64_encontrado': xml_base64 is not None,
-                            'xml_base64_text': xml_base64.text[:200] if xml_base64 is not None and xml_base64.text else None
-                        }
+                        'error': 'No se encontró xmlBase64 en la respuesta exitosa',
+                        'codigo_error': 'NO_XML_BASE64',
+                        'xml_respuesta': xml_respuesta
                     }
             else:
-                # Error en el timbrado
-                error_msg = mensaje.text if mensaje is not None else 'Error desconocido del PAC'
-                codigo_error = codigo.text if codigo is not None else 'UNKNOWN'
+                # El timbrado no fue exitoso, buscar mensaje de error
+                mensaje_elem = root.find('.//mensaje')
+                codigo_elem = root.find('.//codigo')
                 
+                mensaje = mensaje_elem.text if mensaje_elem is not None and mensaje_elem.text else 'Error desconocido'
+                codigo = codigo_elem.text if codigo_elem is not None and codigo_elem.text else 'UNKNOWN'
+                
+                logger.error(f"Timbrado falló: {mensaje} (Código: {codigo})")
                 return {
                     'exito': False,
-                    'error': error_msg,
-                    'codigo_error': codigo_error,
-                    'id_respuesta': id_respuesta.text if id_respuesta is not None else None
+                    'error': mensaje,
+                    'codigo_error': codigo,
+                    'xml_respuesta': xml_respuesta
                 }
                 
-        except ET.ParseError as e:
-            logger.error(f"Error parseando respuesta del servicio de timbrado: {e}")
-            logger.error(f"XML que causó el error: {xml_respuesta}")
-            return {
-                'exito': False,
-                'error': f'Error parseando respuesta del PAC: {str(e)}',
-                'codigo_error': 'PARSE_ERROR'
-            }
         except Exception as e:
-            logger.error(f"Error procesando respuesta del servicio de timbrado: {e}")
+            logger.error(f"Error procesando respuesta del PAC: {e}")
             return {
                 'exito': False,
-                'error': f'Error procesando respuesta del PAC: {str(e)}',
-                'codigo_error': 'PROCESS_ERROR'
+                'error': f'Error procesando respuesta: {str(e)}',
+                'codigo_error': 'RESPONSE_PROCESSING_ERROR',
+                'xml_respuesta': xml_respuesta
             }
     
     def _procesar_respuesta_soap(self, soap_response: str) -> Dict[str, Any]:
@@ -436,7 +378,27 @@ class TimbradoService:
                 return_elem = resultado_elem.find('return')
                 
                 if return_elem is not None:
+                    # Verificar que el elemento return tenga contenido
+                    if return_elem.text is None or return_elem.text.strip() == '':
+                        return {
+                            'exito': False,
+                            'error': 'El elemento return está vacío',
+                            'codigo_error': 'EMPTY_RETURN'
+                        }
                     # Parsear la respuesta del servicio de timbrado
+                    logger.info(f"Contenido del elemento return: {return_elem.text[:200]}...")
+                    
+                    # Verificar que el contenido sea XML válido
+                    try:
+                        ET.fromstring(return_elem.text)
+                    except ET.ParseError as e:
+                        logger.error(f"El contenido del return no es XML válido: {e}")
+                        return {
+                            'exito': False,
+                            'error': f'El contenido del return no es XML válido: {str(e)}',
+                            'codigo_error': 'INVALID_RETURN_XML'
+                        }
+                    
                     return self._procesar_respuesta_servicio_timbrado(return_elem.text)
                 else:
                     return {
@@ -649,3 +611,90 @@ class TimbradoService:
                 'error': f'Error en simulación: {str(e)}',
                 'codigo_error': 'SIMULATION_ERROR'
             }
+    
+    def _generar_codigo_qr_complemento_pago(self, xml_timbrado: str) -> str:
+        """
+        Genera el código QR para el complemento de pago
+        
+        Args:
+            xml_timbrado: XML timbrado del complemento de pago
+            
+        Returns:
+            str: Código QR en Base64
+        """
+        try:
+            import xml.etree.ElementTree as ET
+            import qrcode
+            import base64
+            from io import BytesIO
+            
+            # Parsear el XML para extraer datos
+            root = ET.fromstring(xml_timbrado)
+            
+            # Extraer datos necesarios para el QR
+            uuid = root.get('UUID', '')
+            rfc_emisor = root.find('.//{http://www.sat.gob.mx/cfd/4}Emisor').get('Rfc', '')
+            rfc_receptor = root.find('.//{http://www.sat.gob.mx/cfd/4}Receptor').get('Rfc', '')
+            total = root.get('Total', '0')
+            sello = root.get('Sello', '')
+            
+            # Construir URL del QR
+            siglas_sello = sello[-8:] if sello else ''
+            url_qr = f"https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?&id={uuid}&re={rfc_emisor}&rr={rfc_receptor}&tt={total}&fe={siglas_sello}"
+            
+            # Generar código QR
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=3,
+                border=2,
+            )
+            qr.add_data(url_qr)
+            qr.make(fit=True)
+            
+            # Crear imagen
+            img = qr.make_image(fill_color="black", back_color="white")
+            
+            # Convertir a base64
+            buffer = BytesIO()
+            img.save(buffer, format='PNG')
+            img_str = base64.b64encode(buffer.getvalue()).decode()
+            
+            return f"data:image/png;base64,{img_str}"
+            
+        except Exception as e:
+            logger.error(f"Error generando código QR para complemento de pago: {e}")
+            return ""
+    
+    def _extraer_cadena_original_sat(self, xml_timbrado: str) -> str:
+        """
+        Extrae la cadena original del complemento SAT del XML timbrado
+        
+        Args:
+            xml_timbrado: XML timbrado del complemento de pago
+            
+        Returns:
+            str: Cadena original del SAT
+        """
+        try:
+            import xml.etree.ElementTree as ET
+            
+            root = ET.fromstring(xml_timbrado)
+            
+            # Buscar el complemento de timbre fiscal
+            complemento = root.find('.//{http://www.sat.gob.mx/cfd/4}Complemento')
+            if complemento is not None:
+                timbre = complemento.find('{http://www.sat.gob.mx/TimbreFiscalDigital}TimbreFiscalDigital')
+                if timbre is not None:
+                    # Extraer cadena original (SelloCFD)
+                    cadena_original = timbre.get('SelloCFD')
+                    if cadena_original:
+                        logger.info("Cadena original del complemento SAT extraída exitosamente")
+                        return cadena_original
+            
+            logger.warning("No se pudo extraer la cadena original del complemento SAT")
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Error extrayendo cadena original del SAT: {e}")
+            return ""

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load currency_utils %}
 
 {% block title %}Listado de Facturas{% endblock %}
 
@@ -27,6 +28,237 @@
             </div>
         </div>
     </div>
+
+<!-- Modal: Complemento de pago (PPD) -->
+<div class="modal fade" id="modalComplementoPago" tabindex="-1" aria-labelledby="modalComplementoPagoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="modalComplementoPagoLabel">
+                    <i class="bi bi-cash-coin"></i> Complemento de pago (PPD)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Pestañas -->
+                <ul class="nav nav-tabs" id="complementoPagoTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="captura-tab" data-bs-toggle="tab" data-bs-target="#captura" type="button" role="tab" aria-controls="captura" aria-selected="true">
+                            <i class="fas fa-plus-circle me-2"></i>Nuevo Pago
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="historial-tab" data-bs-toggle="tab" data-bs-target="#historial" type="button" role="tab" aria-controls="historial" aria-selected="false">
+                            <i class="fas fa-history me-2"></i>Historial de Pagos
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="complementoPagoTabContent">
+                    <!-- Pestaña 1: Captura de Pago -->
+                    <div class="tab-pane fade show active" id="captura" role="tabpanel" aria-labelledby="captura-tab">
+                        <form id="formComplementoPago">
+                            {% csrf_token %}
+                            <div class="row g-3 mt-3">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Datos del comprobante de pago (CFDI 4.0)</h6>
+                                        </div>
+                                        <div class="card-body row g-3">
+                                            <div class="col-md-2">
+                                                <label class="form-label">Serie</label>
+                                                <input type="text" class="form-control" id="cp_serie" name="serie" placeholder="A">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Folio</label>
+                                                <input type="text" class="form-control" id="cp_folio" name="folio" placeholder="24A">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Fecha</label>
+                                                <input type="datetime-local" class="form-control" id="cp_fecha" name="fecha">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Lugar Expedición</label>
+                                                <input type="text" class="form-control" id="cp_lugar" name="lugar_expedicion" placeholder="85140">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Moneda</label>
+                                                <select class="form-select" id="cp_moneda" name="moneda">
+                                                    <option value="MXN">MXN</option>
+                                                    <option value="USD">USD</option>
+                                                    <option value="XXX">XXX</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Pago</h6>
+                                        </div>
+                                        <div class="card-body row g-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label">Fecha de Pago</label>
+                                                <input type="date" class="form-control" id="p_fecha_pago" name="fecha_pago">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">Forma de Pago</label>
+                                                <select class="form-select" id="p_forma_pago" name="forma_pago">
+                                                    <option value="01">01 - Efectivo</option>
+                                                    <option value="02">02 - Cheque nominativo</option>
+                                                    <option value="03">03 - Transferencia electrónica</option>
+                                                    <option value="04">04 - Tarjeta de crédito</option>
+                                                    <option value="28">28 - Tarjeta de débito</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Moneda</label>
+                                                <select class="form-select" id="p_moneda" name="moneda_p">
+                                                    <option value="MXN">MXN</option>
+                                                    <option value="USD">USD</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Tipo Cambio</label>
+                                                <input type="number" step="0.0001" class="form-control" id="p_tc" name="tipo_cambio_p" value="1">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Monto</label>
+                                                <input type="number" step="0.01" class="form-control" id="p_monto" name="monto">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header d-flex align-items-center justify-content-between">
+                                            <h6 class="mb-0">Documento relacionado</h6>
+                                            <small class="text-muted">Factura PPD a la que aplica el pago</small>
+                                        </div>
+                                        <div class="card-body row g-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label">UUID (IdDocumento)</label>
+                                                <input type="text" class="form-control" id="dr_uuid" name="id_documento" placeholder="UUID CFDI a pagar">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Serie</label>
+                                                <input type="text" class="form-control" id="dr_serie" name="serie_dr" placeholder="A">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Folio</label>
+                                                <input type="text" class="form-control" id="dr_folio" name="folio_dr" placeholder="1074">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Moneda DR</label>
+                                                <select class="form-select" id="dr_moneda" name="moneda_dr">
+                                                    <option value="MXN">MXN</option>
+                                                    <option value="USD">USD</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Equivalencia DR</label>
+                                                <input type="number" step="0.0001" class="form-control" id="dr_equivalencia" name="equivalencia_dr" value="1">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Parcialidad</label>
+                                                <input type="number" class="form-control" id="dr_parcialidad" name="num_parcialidad" value="1">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Saldo Anterior</label>
+                                                <input type="number" step="0.01" class="form-control" id="dr_saldo_ant" name="imp_saldo_ant" placeholder="928.00">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Importe Pagado</label>
+                                                <input type="number" step="0.01" class="form-control" id="dr_importe_pagado" name="imp_pagado" placeholder="928.00">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Saldo Insoluto</label>
+                                                <input type="number" step="0.01" class="form-control" id="dr_saldo_insoluto" name="imp_saldo_insoluto" placeholder="0.00">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Objeto Imp DR</label>
+                                                <select class="form-select" id="dr_objeto_imp" name="objeto_imp_dr">
+                                                    <option value="01">01 - No objeto</option>
+                                                    <option value="02" selected>02 - Sí objeto</option>
+                                                    <option value="03">03 - Sí objeto y no obligado al desglose</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Impuestos</h6>
+                                        </div>
+                                        <div class="card-body row g-3">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Base (DR/P)</label>
+                                                <input type="number" step="0.0001" class="form-control" id="imp_base" name="base" placeholder="800.0000">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Impuesto (DR/P)</label>
+                                                <select class="form-select" id="imp_impuesto" name="impuesto">
+                                                    <option value="002" selected>002 - IVA</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Tipo Factor</label>
+                                                <select class="form-select" id="imp_tipo_factor" name="tipo_factor">
+                                                    <option value="Tasa" selected>Tasa</option>
+                                                    <option value="Tasa0">Tasa Cero</option>
+                                                    <option value="Exento">Exento</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Tasa/Cuota</label>
+                                                <input type="number" step="0.000001" class="form-control" id="imp_tasa" name="tasa" value="0.16">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Importe (DR/P)</label>
+                                                <input type="number" step="0.01" class="form-control" id="imp_importe" name="importe" placeholder="128.00">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Pestaña 2: Historial de Pagos -->
+                    <div class="tab-pane fade" id="historial" role="tabpanel" aria-labelledby="historial-tab">
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">Historial de Complementos de Pago</h6>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="cargarHistorialPagos()">
+                                    <i class="fas fa-sync-alt me-1"></i>Actualizar
+                                </button>
+                            </div>
+                            
+                            <div id="historialPagosContainer">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando...</span>
+                                    </div>
+                                    <p class="mt-2 text-muted">Cargando historial de pagos...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-success" id="btnGuardarComplemento">Guardar Complemento</button>
+            </div>
+        </div>
+    </div>
+</div>
 
     <!-- Mensajes -->
     {% if messages %}
@@ -111,9 +343,9 @@
                                 <th>Fecha de Emisión</th>
                                 <th>Emisor</th>
                                 <th>Receptor</th>
-                                <th>Subtotal</th>
-                                <th>Impuesto</th>
                                 <th>Total</th>
+                                <th>Saldo</th>
+                                <th>Tipo</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
                             </tr>
@@ -136,13 +368,21 @@
                                     <br><small class="text-muted">{{ factura.receptor.rfc }}</small>
                                 </td>
                                 <td>
-                                    <span class="text-success fw-bold">${{ factura.subtotal|floatformat:2 }}</span>
+                                    <span class="text-primary fw-bold">{{ factura.total|currency_format }}</span>
                                 </td>
                                 <td>
-                                    <span class="text-warning fw-bold">${{ factura.impuesto|floatformat:2 }}</span>
+                                    {% if factura.metodo_pago == 'PPD' %}
+                                        <span class="text-success fw-bold">{{ factura.obtener_saldo_pendiente|currency_format }}</span>
+                                    {% else %}
+                                        <span class="text-muted">$0.00</span>
+                                    {% endif %}
                                 </td>
                                 <td>
-                                    <span class="text-primary fw-bold">${{ factura.total|floatformat:2 }}</span>
+                                    {% if factura.metodo_pago == 'PPD' %}
+                                        <span class="badge bg-warning text-dark">PPD</span>
+                                    {% else %}
+                                        <span class="badge bg-primary">PUE</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if factura.cancelada %}
@@ -182,23 +422,18 @@
                                         </button>
                                         
                                         
-                                        <!-- Descargar PDF -->
+                                        {% if factura.metodo_pago == 'PPD' %}
+                                        {% with det=factura.detalles.all.0 %}
                                         <button type="button" 
                                                 class="btn btn-sm btn-outline-success" 
-                                                title="Descargar PDF"
-                                                onclick="descargarPDF({{ factura.folio }})">
-                                            <i class="bi bi-download"></i>
+                                                title="Complemento de pago"
+                                                onclick="abrirModalComplementoPago({{ factura.folio }}, '{{ factura.uuid|default:'' }}', '{{ factura.serie|escapejs }}', {{ factura.folio }}, {{ factura.obtener_saldo_pendiente|default:0 }}, {{ factura.subtotal|default:0 }}, {{ factura.impuesto|default:0 }}, '{{ det.producto_servicio.impuesto|default:'' }}', {{ factura.pagos.count }})">
+                                            <i class="bi bi-cash-coin"></i>
                                         </button>
-                                        
-                                        <!-- Descargar XML -->
-                                        {% if factura.xml_timbrado %}
-                                        <button type="button" 
-                                                class="btn btn-sm btn-outline-info" 
-                                                title="Descargar XML"
-                                                onclick="descargarXML({{ factura.folio }})">
-                                            <i class="bi bi-file-code"></i>
-                                        </button>
+                                        {% endwith %}
                                         {% endif %}
+
+                                        
                                         
                                         <!-- Timbrar factura -->
                                         {% if factura.estado_timbrado == 'PENDIENTE' %}
@@ -210,15 +445,7 @@
                                         </button>
                                         {% endif %}
                                         
-                                        <!-- Cancelar factura -->
-                                        {% if not factura.cancelada %}
-                                        <button type="button" 
-                                                class="btn btn-sm btn-outline-danger" 
-                                                title="Cancelar factura"
-                                                onclick="mostrarModalCancelacion({{ factura.folio }}, '{{ factura.serie }}', {{ factura.folio }})">
-                                            <i class="bi bi-x-circle"></i>
-                                        </button>
-                                        {% endif %}
+                                        
                                     </div>
                                 </td>
                             </tr>
@@ -407,6 +634,394 @@ function descargarXML(folio) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// Complemento de pago (PPD)
+let folioFacturaPPD = null;
+
+function abrirModalComplementoPago(folio, uuid, serie, folioNum, saldoPendiente, subtotalFactura, impuestoFactura, tipoImpuesto, pagosCount) {
+    folioFacturaPPD = folio;
+    const modalEl = document.getElementById('modalComplementoPago');
+    if (!modalEl) {
+        console.error('No se encontró el elemento del modal: modalComplementoPago');
+        return;
+    }
+    
+    // Mostrar la pestaña de captura por defecto
+    const capturaTab = document.getElementById('captura-tab');
+    const historialTab = document.getElementById('historial-tab');
+    if (capturaTab && historialTab) {
+        capturaTab.classList.add('active');
+        historialTab.classList.remove('active');
+        document.getElementById('captura').classList.add('show', 'active');
+        document.getElementById('historial').classList.remove('show', 'active');
+    }
+    
+    // Autollenar UUID del documento relacionado si viene disponible
+    const uuidInput = document.getElementById('dr_uuid');
+    if (uuidInput && uuid) {
+        uuidInput.value = uuid;
+    }
+    // Autollenar Serie y Folio del documento relacionado
+    const serieInput = document.getElementById('dr_serie');
+    if (serieInput && serie) {
+        serieInput.value = serie;
+    }
+    const folioInput = document.getElementById('dr_folio');
+    if (folioInput && typeof folioNum !== 'undefined' && folioNum !== null) {
+        folioInput.value = folioNum;
+    }
+    // Autollenar saldos: saldo anterior y sugerir importe pagado = saldo pendiente
+    const saldoAntInput = document.getElementById('dr_saldo_ant');
+    if (saldoAntInput && typeof saldoPendiente !== 'undefined' && saldoPendiente !== null) {
+        saldoAntInput.value = Number(saldoPendiente).toFixed(2);
+    }
+    const impPagadoInput = document.getElementById('dr_importe_pagado');
+    if (impPagadoInput && typeof saldoPendiente !== 'undefined' && saldoPendiente !== null) {
+        impPagadoInput.value = Number(saldoPendiente).toFixed(2);
+    }
+    // Autollenar impuestos DR/P desde la factura: base=subtotal, importe=impuesto y tasa
+    const baseInput = document.getElementById('imp_base');
+    if (baseInput && typeof subtotalFactura !== 'undefined' && subtotalFactura !== null) {
+        baseInput.value = Number(subtotalFactura).toFixed(4);
+    }
+    const importeImpInput = document.getElementById('imp_importe');
+    if (importeImpInput && typeof impuestoFactura !== 'undefined' && impuestoFactura !== null) {
+        importeImpInput.value = Number(impuestoFactura).toFixed(2);
+    }
+    // Deducir tasa y tipo factor: si impuesto==0 -> Exento o tasa 0; si subtotal>0 e impuesto==0 tomamos Exento por defecto
+    const tasaInput = document.getElementById('imp_tasa');
+    const tipoFactorSelect = document.getElementById('imp_tipo_factor');
+    const impuestoSelect = document.getElementById('imp_impuesto');
+    if (impuestoSelect) impuestoSelect.value = '002'; // IVA
+    if (typeof subtotalFactura !== 'undefined' && typeof impuestoFactura !== 'undefined') {
+        let tasa = 0;
+        if (Number(subtotalFactura) > 0) {
+            tasa = Number(impuestoFactura) / Number(subtotalFactura);
+        }
+        if (tasaInput) {
+            if (tipoImpuesto === 'IVA_0') {
+                tasaInput.value = '0.000000';
+            } else if (tipoImpuesto === 'IVA_EXENTO') {
+                tasaInput.value = '';
+            } else {
+                tasaInput.value = (isFinite(tasa) ? tasa : 0).toFixed(6);
+            }
+        }
+        if (tipoFactorSelect) {
+            if (tipoImpuesto === 'IVA_EXENTO') {
+                tipoFactorSelect.value = 'Exento';
+            } else if (tipoImpuesto === 'IVA_0') {
+                tipoFactorSelect.value = 'Tasa0';
+            } else {
+                tipoFactorSelect.value = 'Tasa';
+            }
+        }
+    }
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+
+    // Estimar número de parcialidad con historial: pagosCount + 1
+    const parcialidadInput = document.getElementById('dr_parcialidad');
+    if (parcialidadInput) {
+        const n = Number(pagosCount || 0);
+        parcialidadInput.value = (n + 1);
+    }
+
+    // Cargar historial de pagos vía AJAX
+    try {
+        const cont = document.getElementById('historialPagosContainer');
+        const resumen = document.getElementById('hp_resumen');
+        if (cont) {
+            cont.innerHTML = '<div class="text-muted">Cargando historial...</div>';
+            fetch(`/ajax/factura/${folio}/historial-pagos/`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        cont.innerHTML = `<div class="text-danger">${data.error || 'No se pudo obtener el historial'}</div>`;
+                        return;
+                    }
+                    const pagos = data.pagos || [];
+                    if (resumen && data.factura) {
+                        resumen.textContent = `Total: $${data.factura.total.toFixed(2)} · Pagado: $${data.factura.total_pagado.toFixed(2)} · Saldo: $${data.factura.saldo_pendiente.toFixed(2)}`;
+                    }
+                    if (pagos.length === 0) {
+                        cont.innerHTML = '<div class="text-muted">Sin pagos registrados.</div>';
+                        return;
+                    }
+                    let html = '<div class="table-responsive"><table class="table table-sm">\
+                        <thead class="table-light"><tr><th>Fecha</th><th>Monto</th><th>Tipo</th><th>Referencia</th><th>UUID</th><th>Saldo antes</th><th>Saldo después</th><th>Acciones</th></tr></thead><tbody>';
+                    pagos.forEach(p => {
+                        const uuidDisplay = p.uuid ? 
+                            `<span class="badge bg-success" title="Timbrado">${p.uuid.substring(0, 8)}...</span>` : 
+                            '<span class="badge bg-secondary">No timbrado</span>';
+                        
+                        // Botones de acción solo si está timbrado
+                        const acciones = p.uuid ? 
+                            `<div class="d-flex gap-1">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="imprimirComplementoPago(${p.id})" title="Imprimir PDF" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="fas fa-print me-1"></i>PDF
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="descargarXMLComplementoPago(${p.id})" title="Descargar XML" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="fas fa-download me-1"></i>XML
+                                </button>
+                            </div>` : 
+                            '<span class="text-muted">-</span>';
+                        
+                        html += `<tr><td>${p.fecha_pago}</td><td>$${p.monto.toFixed(2)}</td><td>${p.tipo}</td><td>${p.referencia}</td><td>${uuidDisplay}</td><td>$${p.saldo_anterior.toFixed(2)}</td><td>$${p.saldo_despues.toFixed(2)}</td><td>${acciones}</td></tr>`;
+                    });
+                    html += '</tbody></table></div>';
+                    cont.innerHTML = html;
+                })
+                .catch(() => {
+                    cont.innerHTML = '<div class="text-danger">Error al cargar el historial.</div>';
+                });
+        }
+    } catch (e) {
+        console.warn('No se pudo cargar historial de pagos', e);
+    }
+}
+
+// Función para cargar historial de pagos
+function cargarHistorialPagos() {
+    if (!folioFacturaPPD) {
+        console.error('No se ha seleccionado una factura');
+        return;
+    }
+    
+    const container = document.getElementById('historialPagosContainer');
+    if (!container) {
+        console.error('No se encontró el contenedor del historial');
+        return;
+    }
+    
+    // Mostrar spinner
+    container.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="mt-2 text-muted">Cargando historial de pagos...</p>
+        </div>
+    `;
+    
+    // Hacer petición AJAX para obtener el historial
+    fetch(`/ajax/factura/${folioFacturaPPD}/historial-pagos/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarHistorialPagos(data.pagos);
+            } else {
+                container.innerHTML = `
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        No se pudo cargar el historial de pagos: ${data.error || 'Error desconocido'}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando historial:', error);
+            container.innerHTML = `
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Error al cargar el historial de pagos
+                </div>
+            `;
+        });
+}
+
+// Función para mostrar el historial de pagos
+function mostrarHistorialPagos(pagos) {
+    const container = document.getElementById('historialPagosContainer');
+    
+    if (!pagos || pagos.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No hay complementos de pago registrados para esta factura</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Fecha Documento</th>
+                        <th>Fecha Pago</th>
+                        <th>Monto</th>
+                        <th>Tipo</th>
+                        <th>Parcialidad</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    pagos.forEach(pago => {
+        const estado = pago.timbrado ? 
+            '<span class="badge bg-success">Timbrado</span>' : 
+            '<span class="badge bg-warning">Pendiente</span>';
+        
+        html += `
+            <tr>
+                <td>${pago.fecha_documento}</td>
+                <td>${pago.fecha_pago}</td>
+                <td>$${parseFloat(pago.monto).toFixed(2)}</td>
+                <td>${pago.tipo}</td>
+                <td>${pago.num_parcialidad || 1}</td>
+                <td>${estado}</td>
+                <td>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-outline-primary" onclick="imprimirComplementoPago(${pago.id})" title="Imprimir PDF">
+                            <i class="fas fa-print"></i> PDF
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="descargarXMLComplementoPago(${pago.id})" title="Descargar XML">
+                            <i class="fas fa-download"></i> XML
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// Función para guardar complemento de pago
+function guardarComplementoPago() {
+    if (!folioFacturaPPD) {
+        alert('Error: No se ha seleccionado una factura');
+        return;
+    }
+    
+    // Validar campos requeridos
+    const monto = document.getElementById('p_monto')?.value;
+    const fechaPago = document.getElementById('p_fecha_pago')?.value;
+    const formaPago = document.getElementById('p_forma_pago')?.value;
+    const uuid = document.getElementById('dr_uuid')?.value;
+    
+    if (!monto || Number(monto) <= 0) {
+        alert('El monto es requerido y debe ser mayor a cero');
+        return;
+    }
+    
+    if (!fechaPago) {
+        alert('La fecha de pago es requerida');
+        return;
+    }
+    
+    if (!formaPago) {
+        alert('La forma de pago es requerida');
+        return;
+    }
+    
+    if (!uuid) {
+        alert('El UUID del documento relacionado es requerido');
+        return;
+    }
+    
+    // Mostrar loading
+    const btnGuardar = document.getElementById('btnGuardarComplemento');
+    const textoOriginal = btnGuardar.innerHTML;
+    btnGuardar.disabled = true;
+    btnGuardar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
+    
+    // Preparar datos
+    const datos = {
+        monto: monto,
+        fecha_pago: fechaPago,
+        forma_pago: formaPago,
+        moneda: document.getElementById('p_moneda')?.value || 'MXN',
+        tipo_cambio: document.getElementById('p_tc')?.value || '1',
+        referencia_pago: document.getElementById('p_referencia')?.value || '',
+        observaciones: document.getElementById('p_observaciones')?.value || '',
+        // Datos del documento relacionado
+        id_documento: uuid,
+        serie_dr: document.getElementById('dr_serie')?.value || '',
+        folio_dr: document.getElementById('dr_folio')?.value || '',
+        moneda_dr: document.getElementById('dr_moneda')?.value || 'MXN',
+        equivalencia_dr: document.getElementById('dr_equivalencia')?.value || '1',
+        num_parcialidad: document.getElementById('dr_parcialidad')?.value || '1',
+        imp_saldo_ant: document.getElementById('dr_saldo_ant')?.value || '0',
+        imp_pagado: document.getElementById('dr_importe_pagado')?.value || '0',
+        imp_saldo_insoluto: document.getElementById('dr_saldo_insoluto')?.value || '0',
+        objeto_imp_dr: document.getElementById('dr_objeto_imp')?.value || '02',
+        // Datos de impuestos
+        base: document.getElementById('imp_base')?.value || '0',
+        impuesto: document.getElementById('imp_impuesto')?.value || '002',
+        tipo_factor: document.getElementById('imp_tipo_factor')?.value || 'Tasa',
+        tasa: document.getElementById('imp_tasa')?.value || '0.16',
+        importe: document.getElementById('imp_importe')?.value || '0'
+    };
+    
+    // Enviar solicitud
+    fetch(`/ajax/factura/${folioFacturaPPD}/complemento-pago/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(datos)
+    })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Respuesta del servidor:', data); // Debug
+            if (data.success) {
+                // Mostrar mensaje de éxito
+                alert(data.message);
+                
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalComplementoPago'));
+                modal.hide();
+                
+                // Debug: verificar si tenemos el ID del pago
+                console.log('Datos del pago recibidos:', data.pago);
+                
+                // Abrir automáticamente la vista previa del PDF del complemento de pago
+                if (data.pago && data.pago.id) {
+                    console.log('Abriendo PDF para pago ID:', data.pago.id);
+                    console.log('Pago timbrado:', data.pago.timbrado);
+                    
+                    // Solo abrir PDF si el pago está timbrado
+                    if (data.pago.timbrado) {
+                        // Abrir inmediatamente para evitar bloqueo de ventanas emergentes
+                        imprimirComplementoPago(data.pago.id);
+                    } else {
+                        console.log('El pago no está timbrado, no se puede mostrar el PDF');
+                        alert('El complemento de pago se guardó pero no se pudo timbrar. No se puede mostrar el PDF.');
+                    }
+                } else {
+                    console.error('No se recibió el ID del pago en la respuesta:', data);
+                }
+                
+                // Recargar la página para mostrar los cambios (comentado temporalmente para debugging)
+                // setTimeout(() => {
+                //     window.location.reload();
+                // }, 1000);
+            } else {
+                alert('Error: ' + (data.error || 'Error desconocido'));
+            }
+        })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error: No se pudo procesar la solicitud');
+    })
+    .finally(() => {
+        // Restaurar botón
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = textoOriginal;
+    });
 }
 
 // Función para timbrar factura
@@ -656,6 +1271,136 @@ document.addEventListener('DOMContentLoaded', function() {
         formCancelacion.addEventListener('submit', function(e) {
             e.preventDefault();
             cancelarFactura();
+        });
+    }
+    
+    // Event listener para el botón de guardar complemento
+    const btnGuardarComplemento = document.getElementById('btnGuardarComplemento');
+    if (btnGuardarComplemento) {
+        btnGuardarComplemento.addEventListener('click', function(e) {
+            e.preventDefault();
+            guardarComplementoPago();
+        });
+    }
+    
+    // Event listener para la pestaña de historial
+    const historialTab = document.getElementById('historial-tab');
+    if (historialTab) {
+        historialTab.addEventListener('click', function() {
+            // Cargar historial cuando se haga clic en la pestaña
+            setTimeout(() => {
+                cargarHistorialPagos();
+            }, 100); // Pequeño delay para asegurar que la pestaña esté activa
+        });
+    }
+
+    // Inicializar fecha por defecto del complemento como ahora
+    const cpFecha = document.getElementById('cp_fecha');
+    const pFechaPago = document.getElementById('p_fecha_pago');
+    const ahora = new Date();
+    const toLocalDateTime = (d) => new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    const toLocalDate = (d) => new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    if (cpFecha) cpFecha.value = toLocalDateTime(ahora);
+    if (pFechaPago) pFechaPago.value = toLocalDate(ahora);
+
+    // Recalcular campos cuando cambie el monto
+    const montoInput = document.getElementById('p_monto');
+    if (montoInput) {
+        montoInput.addEventListener('input', function() {
+            const monto = Number(this.value || 0);
+            const saldoAnt = document.getElementById('dr_saldo_ant');
+            const impPagado = document.getElementById('dr_importe_pagado');
+            const saldoInsoluto = document.getElementById('dr_saldo_insoluto');
+            const base = document.getElementById('imp_base');
+            const tasa = document.getElementById('imp_tasa');
+            const tipoFactor = document.getElementById('imp_tipo_factor');
+            const importeImp = document.getElementById('imp_importe');
+
+            const saldoAnterior = Number(saldoAnt?.value || 0);
+            if (impPagado) impPagado.value = monto.toFixed(2);
+            if (saldoInsoluto) {
+                const insoluto = Math.max(saldoAnterior - monto, 0);
+                saldoInsoluto.value = insoluto.toFixed(2);
+            }
+
+            // Actualizar Base proporcional si hay tasa>0 (o tasa cero), para mantener relación: impuesto = base * tasa
+            const tasaVal = Number(tasa?.value || 0);
+            if (base && (tipoFactor?.value === 'Tasa' || tipoFactor?.value === 'Tasa0')) {
+                // Si hay tasa, calculamos base como monto / (1 + tasa) cuando el monto incluye IVA? En pagos PPD, el monto es total pagado, y el impuesto DR/P usa la base y tasa del comprobante.
+                // Asumimos monto corresponde al total (base + impuesto). Entonces:
+                const baseCalc = tasaVal > 0 ? (monto / (1 + tasaVal)) : monto;
+                base.value = baseCalc.toFixed(4);
+                if (importeImp) importeImp.value = (monto - baseCalc).toFixed(2);
+            } else if (base && (tipoFactor?.value === 'Exento' || isNaN(tasaVal))) {
+                base.value = monto.toFixed(4);
+                if (importeImp) importeImp.value = (0).toFixed(2);
+            }
+        });
+    }
+});
+
+// Funciones para complemento de pago
+function imprimirComplementoPago(pagoId) {
+    // Abrir vista previa del PDF del complemento de pago (igual que facturas)
+    console.log('Imprimir complemento de pago:', pagoId);
+    const url = `/complemento-pago/${pagoId}/vista-previa/`;
+    console.log('URL del PDF:', url);
+    
+    try {
+        const newWindow = window.open(url, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+        if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+            console.error('No se pudo abrir la ventana del PDF. Puede estar bloqueada por el navegador.');
+            
+            // Intentar abrir en la misma ventana como alternativa
+            if (confirm('No se pudo abrir el PDF en una nueva ventana. ¿Desea abrirlo en la ventana actual?')) {
+                window.location.href = url;
+            } else {
+                // Mostrar enlace para abrir manualmente
+                const link = document.createElement('a');
+                link.href = url;
+                link.target = '_blank';
+                link.textContent = 'Haga clic aquí para abrir el PDF';
+                link.style.display = 'block';
+                link.style.margin = '10px';
+                link.style.padding = '10px';
+                link.style.backgroundColor = '#007bff';
+                link.style.color = 'white';
+                link.style.textDecoration = 'none';
+                link.style.borderRadius = '5px';
+                
+                // Agregar el enlace al modal o a la página
+                const modalBody = document.querySelector('#modalComplementoPago .modal-body');
+                if (modalBody) {
+                    modalBody.appendChild(link);
+                }
+            }
+        } else {
+            console.log('Ventana del PDF abierta exitosamente');
+        }
+    } catch (error) {
+        console.error('Error al abrir el PDF:', error);
+        alert('Error al abrir el PDF: ' + error.message);
+    }
+}
+
+function descargarXMLComplementoPago(pagoId) {
+    // Descargar XML del complemento de pago
+    const url = `/complemento-pago/${pagoId}/xml/`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `complemento_pago_${pagoId}.xml`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Recargar la página cuando se cierre el modal del complemento de pago
+document.addEventListener('DOMContentLoaded', function() {
+    const modalComplementoPago = document.getElementById('modalComplementoPago');
+    if (modalComplementoPago) {
+        modalComplementoPago.addEventListener('hidden.bs.modal', function () {
+            console.log('Modal del complemento de pago cerrado, recargando página...');
+            window.location.reload();
         });
     }
 });
