@@ -262,6 +262,11 @@
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
+                                <label for="ciclo" class="form-label">Ciclo:</label>
+                                <input type="text" class="form-control" id="ciclo" name="ciclo" placeholder="Ej: 2025-2026" value="{{ request.GET.ciclo|default:ciclo|default:ciclo_actual }}">
+                                <div class="form-text">Se aplica por defecto el ciclo actual si no se especifica.</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
                                 <label for="remision" class="form-label">Remisión:</label>
                                 <input type="text" class="form-control" id="remision" name="remision" placeholder="Ej: 2025-2026-000001" value="{{ request.GET.remision|default:'' }}">
                             </div>

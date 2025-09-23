@@ -165,64 +165,88 @@
         <!-- Filtros de Búsqueda -->
         <div class="filters-section no-print">
             <h5><i class="bi bi-funnel"></i> Filtros de Búsqueda</h5>
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="filter-group">
-                        <label class="filter-label">Clasificación de Gasto:</label>
-                        <select id="filtroClasificacion" class="form-select form-select-sm">
-                            <option value="">Todas las clasificaciones</option>
-                            {% for clasificacion_data in gastos_por_clasificacion %}
-                                <option value="{{ clasificacion_data.clasificacion.codigo }}">{{ clasificacion_data.clasificacion.descripcion }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="filter-group">
-                        <label class="filter-label">Proveedor:</label>
-                        <select id="filtroProveedor" class="form-select form-select-sm">
-                            <option value="">Todos los proveedores</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="filter-group">
-                        <label class="filter-label">Factura:</label>
-                        <input type="text" id="filtroFactura" class="form-control form-control-sm" placeholder="Buscar factura...">
-                    </div>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="filter-group">
-                        <label class="filter-label">Fecha Desde:</label>
-                        <input type="date" id="filtroFechaDesde" class="form-control form-control-sm">
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="filter-group">
-                        <label class="filter-label">Fecha Hasta:</label>
-                        <input type="date" id="filtroFechaHasta" class="form-control form-control-sm">
-                    </div>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-12">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <button onclick="aplicarFiltros()" class="btn btn-primary btn-sm">
-                                <i class="bi bi-search"></i> Aplicar Filtros
-                            </button>
-                            <button onclick="limpiarFiltros()" class="btn btn-outline-secondary btn-sm ms-2">
-                                <i class="bi bi-x-circle"></i> Limpiar
-                            </button>
+            <form method="get" id="formFiltros">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Ciclo:</label>
+                            <select name="ciclo" id="filtroCiclo" class="form-select form-select-sm">
+                                <option value="">Todos los ciclos</option>
+                                {% for ciclo_item in ciclos_disponibles %}
+                                    <option value="{{ ciclo_item }}" {% if ciclo_item == ciclo %}selected{% endif %}>{{ ciclo_item }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
-                        <div>
-                            <span id="resultadosContador" class="text-muted">Mostrando todos los gastos</span>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Centro de Costo:</label>
+                            <select name="centro_costo" id="filtroCentroCosto" class="form-select form-select-sm">
+                                <option value="">Todos los centros de costo</option>
+                                {% for centro in centros_costo %}
+                                    <option value="{{ centro.codigo }}" {% if centro.codigo|stringformat:"s" == centro_costo_id %}selected{% endif %}>{{ centro.descripcion }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Clasificación de Gasto:</label>
+                            <select id="filtroClasificacion" class="form-select form-select-sm">
+                                <option value="">Todas las clasificaciones</option>
+                                {% for clasificacion_data in gastos_por_clasificacion %}
+                                    <option value="{{ clasificacion_data.clasificacion.codigo }}">{{ clasificacion_data.clasificacion.descripcion }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Proveedor:</label>
+                            <select id="filtroProveedor" class="form-select form-select-sm">
+                                <option value="">Todos los proveedores</option>
+                            </select>
                         </div>
                     </div>
                 </div>
-            </div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Factura:</label>
+                            <input type="text" id="filtroFactura" class="form-control form-control-sm" placeholder="Buscar factura...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Fecha Desde:</label>
+                            <input type="date" id="filtroFechaDesde" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Fecha Hasta:</label>
+                            <input type="date" id="filtroFechaHasta" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-search"></i> Aplicar Filtros
+                                </button>
+                                <button type="button" onclick="limpiarFiltros()" class="btn btn-outline-secondary btn-sm ms-2">
+                                    <i class="bi bi-x-circle"></i> Limpiar
+                                </button>
+                            </div>
+                            <div>
+                                <span id="resultadosContador" class="text-muted">Mostrando todos los gastos</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
         </div>
 
         <!-- Información del Presupuesto -->
@@ -264,6 +288,7 @@
                             <thead>
                                 <tr>
                                     <th class="text-center">Fecha</th>
+                                    <th>Centro de Costo</th>
                                     <th>Proveedor</th>
                                     <th>Factura</th>
                                     <th>Concepto</th>
@@ -278,8 +303,10 @@
                                         data-factura="{{ detalle.factura|lower }}"
                                         data-concepto="{{ detalle.concepto|lower }}"
                                         data-fecha="{{ detalle.fecha_gasto|date:'Y-m-d' }}"
-                                        data-importe="{{ detalle.importe }}">
+                                        data-importe="{{ detalle.importe }}"
+                                        data-centro-costo="{{ detalle.centro_costo.descripcion|lower }}">
                                         <td class="text-center">{{ detalle.fecha_gasto|date:"d/m/Y" }}</td>
+                                        <td>{{ detalle.centro_costo.descripcion }}</td>
                                         <td>{{ detalle.proveedor.nombre }}</td>
                                         <td>{{ detalle.factura }}</td>
                                         <td>{{ detalle.concepto }}</td>
@@ -289,7 +316,7 @@
                             </tbody>
                             <tfoot>
                                 <tr class="subtotal-row">
-                                    <td colspan="4" class="text-right"><strong>{{ clasificacion_data.clasificacion.descripcion }}:</strong></td>
+                                    <td colspan="5" class="text-right"><strong>{{ clasificacion_data.clasificacion.descripcion }}:</strong></td>
                                     <td class="text-right"><strong>${{ clasificacion_data.subtotal|floatformat:2 }}</strong></td>
                                 </tr>
                             </tfoot>
@@ -323,7 +350,8 @@
                 factura: fila.dataset.factura,
                 concepto: fila.dataset.concepto,
                 fecha: fila.dataset.fecha,
-                importe: parseFloat(fila.dataset.importe)
+                importe: parseFloat(fila.dataset.importe),
+                centroCosto: fila.dataset.centroCosto
             }));
             
             // Poblar dropdown de proveedores
@@ -355,13 +383,21 @@
         
         // Función para aplicar filtros
         function aplicarFiltros() {
+            const filtroCiclo = document.getElementById('filtroCiclo').value;
+            const filtroCentroCosto = document.getElementById('filtroCentroCosto').value;
             const filtroClasificacion = document.getElementById('filtroClasificacion').value;
             const filtroProveedor = document.getElementById('filtroProveedor').value;
             const filtroFactura = document.getElementById('filtroFactura').value.toLowerCase();
             const filtroFechaDesde = document.getElementById('filtroFechaDesde').value;
             const filtroFechaHasta = document.getElementById('filtroFechaHasta').value;
             
-            // Filtrar gastos
+            // Si hay filtros de servidor (Ciclo o Centro de Costo), enviar formulario
+            if (filtroCiclo || filtroCentroCosto) {
+                document.getElementById('formFiltros').submit();
+                return;
+            }
+            
+            // Filtrar gastos en el cliente
             gastosFiltrados = gastosOriginales.filter(gasto => {
                 // Filtro por clasificación
                 if (filtroClasificacion && gasto.clasificacion !== filtroClasificacion) {
@@ -425,17 +461,16 @@
         
         // Función para limpiar filtros
         function limpiarFiltros() {
+            document.getElementById('filtroCiclo').value = '';
+            document.getElementById('filtroCentroCosto').value = '';
             document.getElementById('filtroClasificacion').value = '';
             document.getElementById('filtroProveedor').value = '';
             document.getElementById('filtroFactura').value = '';
             document.getElementById('filtroFechaDesde').value = '';
             document.getElementById('filtroFechaHasta').value = '';
             
-            // Mostrar todos los gastos
-            gastosFiltrados = [...gastosOriginales];
-            mostrarGastosFiltrados();
-            actualizarContador();
-            actualizarTotalGastado();
+            // Redirigir a la página sin filtros
+            window.location.href = window.location.pathname;
         }
         
         // Función para actualizar contador de resultados

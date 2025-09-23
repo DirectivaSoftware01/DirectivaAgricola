@@ -7,6 +7,7 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponseRedirect
+from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, get_object_or_404
 import json
@@ -31,17 +32,26 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['total_clientes'] = Cliente.objects.count()
         context['usuarios_activos'] = Usuario.objects.filter(is_active=True).count()
         
-        # Estadísticas de preliquidaciones (remisiones)
-        # Preliquidada se determina con el método de modelo esta_liquidada()
-        # PENDIENTE: no cancelada, no pagada y NO esta_liquidada()
-        # PRELIQUIDADA: no cancelada, no pagada y SI esta_liquidada()
-        remisiones_qs = Remision.objects.filter(cancelada=False)
+        # Estadísticas de remisiones del ciclo actual
+        # Obtener el ciclo actual de la configuración
+        try:
+            config = ConfiguracionSistema.objects.first()
+            ciclo_actual = config.ciclo_actual if config else ''
+        except:
+            ciclo_actual = ''
+        
+        # Filtrar solo remisiones del ciclo actual (igual que en RemisionListView)
+        if ciclo_actual:
+            remisiones_qs = Remision.objects.filter(ciclo=ciclo_actual)
+        else:
+            remisiones_qs = Remision.objects.all()
+        
+        # Contar pendientes y preliquidadas del ciclo actual
         pendientes = 0
         preliquidadas = 0
         diagnostico_pendientes = []
+        
         for remision in remisiones_qs:
-            if remision.pagado:
-                continue
             if remision.esta_liquidada():
                 preliquidadas += 1
             else:
@@ -74,9 +84,74 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                     'cliente': getattr(remision.cliente, 'razon_social', ''),
                     'razon': razon,
                 })
+        
         context['remisiones_pendientes'] = pendientes
         context['remisiones_preliquidadas'] = preliquidadas
         context['diagnostico_remisiones_pendientes'] = diagnostico_pendientes
+        context['ciclo_actual'] = ciclo_actual
+        
+        # Estadísticas de presupuestos del ciclo actual
+        if ciclo_actual:
+            presupuestos_qs = Presupuesto.objects.filter(activo=True, ciclo=ciclo_actual)
+        else:
+            presupuestos_qs = Presupuesto.objects.filter(activo=True)
+        
+        # Calcular totales de presupuestos
+        total_presupuestado = 0
+        total_gastos = 0
+        presupuestos_info = []
+        
+        for presupuesto in presupuestos_qs:
+            # Obtener todos los gastos del presupuesto
+            gastos = Gasto.objects.filter(presupuesto=presupuesto, activo=True)
+            presupuesto_gastos = 0
+            
+            for gasto in gastos:
+                # Sumar todos los detalles de gasto activos
+                from django.db.models import Sum
+                total_detalle = gasto.detalles.filter(activo=True).aggregate(
+                    total=Sum('importe')
+                )['total'] or 0
+                presupuesto_gastos += float(total_detalle)
+            
+            total_presupuestado += float(presupuesto.total_presupuestado)
+            total_gastos += presupuesto_gastos
+            
+            presupuestos_info.append({
+                'centro_costo': presupuesto.centro_costo.descripcion,
+                'presupuestado': float(presupuesto.total_presupuestado),
+                'gastos': presupuesto_gastos
+            })
+        
+        context['presupuestos_info'] = presupuestos_info
+        context['total_presupuestado'] = total_presupuestado
+        context['total_gastos'] = total_gastos
+        
+        # Calcular saldo pendiente general de remisiones preliquidadas
+        saldo_pendiente_general = 0
+        if ciclo_actual:
+            remisiones_preliquidadas_qs = Remision.objects.filter(ciclo=ciclo_actual)
+        else:
+            remisiones_preliquidadas_qs = Remision.objects.all()
+        
+        for remision in remisiones_preliquidadas_qs:
+            if remision.esta_liquidada():
+                # Calcular el saldo pendiente de esta remisión
+                saldo_remision = remision.saldo_pendiente
+                saldo_pendiente_general += float(saldo_remision)
+        
+        context['saldo_pendiente_general'] = saldo_pendiente_general
+        
+        # Calcular saldo pendiente en facturas
+        from core.factura_models import Factura
+        saldo_facturas = 0
+        facturas_activas = Factura.objects.filter(cancelada=False)
+        
+        for factura in facturas_activas:
+            saldo_factura = factura.obtener_saldo_pendiente()
+            saldo_facturas += float(saldo_factura)
+        
+        context['saldo_facturas'] = saldo_facturas
         
         return context
 
@@ -10126,6 +10201,52 @@ class RemisionLiquidacionView(LoginRequiredMixin, TemplateView):
         
         return context
 
+    def post(self, request, *args, **kwargs):
+        """Procesar la liquidación"""
+        self.object = self.get_object()
+        
+        # Verificar que la remisión no esté ya preliquidada
+        if self.esta_liquidada(self.object):
+            messages.error(request, 'Esta remisión ya ha sido preliquidada.')
+            return redirect('core:remision_list')
+        
+        # Verificar que la remisión no esté cancelada
+        if self.object.cancelada:
+            messages.error(request, 'No se puede preliquidar una remisión cancelada.')
+            return redirect('core:remision_list')
+        
+        # Obtener todos los detalles de la remisión
+        detalles = self.object.detalles.all()
+        
+        # Procesar cada detalle
+        from django.utils import timezone
+        
+        for detalle in detalles:
+            # Obtener los datos del formulario para este detalle
+            kgs_liquidados = request.POST.get(f'kgs_liquidados_{detalle.pk}', 0)
+            kgs_merma = request.POST.get(f'kgs_merma_{detalle.pk}', 0)
+            precio = request.POST.get(f'precio_{detalle.pk}', 0)
+            importe_liquidado = request.POST.get(f'importe_liquidado_{detalle.pk}', 0)
+            
+            # Convertir a decimal y actualizar
+            try:
+                detalle.kgs_liquidados = round(float(kgs_liquidados or 0), 2)
+                detalle.kgs_merma = round(float(kgs_merma or 0), 2)
+                detalle.precio = round(float(precio or 0), 2)
+                detalle.importe_liquidado = round(float(importe_liquidado or 0), 2)
+                
+                # Guardar información de auditoría de liquidación
+                detalle.usuario_liquidacion = request.user
+                detalle.fecha_liquidacion = timezone.now()
+                
+                detalle.save()
+            except (ValueError, TypeError):
+                messages.error(request, f'Error en los datos del detalle {detalle.cultivo.nombre}.')
+                return self.form_invalid(None)
+        
+        messages.success(request, f'Remisión "{self.object.ciclo} - {self.object.folio:06d}" preliquidada exitosamente.')
+        return redirect('core:remision_list')
+
 
 # Vistas AJAX para Emisores
 
@@ -10303,53 +10424,58 @@ def eliminar_emisor_ajax(request, codigo):
         return JsonResponse({
             'error': f'Error interno del servidor: {str(e)}'
         }, status=500)
-    
-    def post(self, request, *args, **kwargs):
-        """Procesar la liquidación"""
+
+class RemisionLiquidacionView(LoginRequiredMixin, TemplateView):
+    """Vista para preliquidar una remisión"""
+    template_name = 'core/remision_liquidacion.html'
+
+    def get_object(self):
+        return get_object_or_404(Remision, pk=self.kwargs['pk'])
+
+    def get(self, request, *args, **kwargs):
         self.object = self.get_object()
-        
-        # Verificar que la remisión no esté ya preliquidada
-        if self.esta_liquidada(self.object):
-            messages.error(request, 'Esta remisión ya ha sido preliquidada.')
-            return redirect('core:remision_list')
-        
-        # Verificar que la remisión no esté cancelada
         if self.object.cancelada:
             messages.error(request, 'No se puede preliquidar una remisión cancelada.')
             return redirect('core:remision_list')
-        
-        # Obtener todos los detalles de la remisión
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        self.object = self.get_object()
+        context['title'] = f'Liquidar Remisión {self.object.ciclo} - {self.object.folio:06d}'
+        context['remision'] = self.object
+        context['detalles'] = self.object.detalles.all()
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if self.esta_liquidada(self.object):
+            messages.error(request, 'Esta remisión ya ha sido preliquidada.')
+            return redirect('core:remision_list')
+        if self.object.cancelada:
+            messages.error(request, 'No se puede preliquidar una remisión cancelada.')
+            return redirect('core:remision_list')
         detalles = self.object.detalles.all()
-        
-        # Procesar cada detalle
         from django.utils import timezone
-        
         for detalle in detalles:
-            # Obtener los datos del formulario para este detalle
             kgs_liquidados = request.POST.get(f'kgs_liquidados_{detalle.pk}', 0)
             kgs_merma = request.POST.get(f'kgs_merma_{detalle.pk}', 0)
             precio = request.POST.get(f'precio_{detalle.pk}', 0)
             importe_liquidado = request.POST.get(f'importe_liquidado_{detalle.pk}', 0)
-            
-            # Convertir a decimal y actualizar
             try:
                 detalle.kgs_liquidados = round(float(kgs_liquidados or 0), 2)
                 detalle.kgs_merma = round(float(kgs_merma or 0), 2)
                 detalle.precio = round(float(precio or 0), 2)
                 detalle.importe_liquidado = round(float(importe_liquidado or 0), 2)
-                
-                # Guardar información de auditoría de liquidación
                 detalle.usuario_liquidacion = request.user
                 detalle.fecha_liquidacion = timezone.now()
-                
                 detalle.save()
             except (ValueError, TypeError):
                 messages.error(request, f'Error en los datos del detalle {detalle.cultivo.nombre}.')
                 return self.form_invalid(None)
-        
         messages.success(request, f'Remisión "{self.object.ciclo} - {self.object.folio:06d}" preliquidada exitosamente.')
         return redirect('core:remision_list')
-    
+
     def esta_liquidada(self, remision):
         """Determinar si una remisión está preliquidada basándose en los campos de liquidación
         Y si tiene información de auditoría (usuario_liquidacion y fecha_liquidacion)
@@ -13578,6 +13704,14 @@ def reporte_pagos_view(request):
     cuenta_bancaria_id = request.GET.get('cuenta_bancaria')
     metodo_pago = request.GET.get('metodo_pago')
     
+    # Filtro de Ciclo (por defecto ciclo actual)
+    ciclo_param = request.GET.get('ciclo', '').strip()
+    try:
+        ciclo_actual = (ConfiguracionSistema.objects.last().ciclo_actual or '').strip()
+    except Exception:
+        ciclo_actual = ''
+    ciclo = ciclo_param or ciclo_actual
+
     # Obtener pagos
     pagos_query = PagoRemision.objects.filter(activo=True).select_related(
         'remision', 'cuenta_bancaria', 'remision__cliente'
@@ -13619,6 +13753,10 @@ def reporte_pagos_view(request):
     if metodo_pago:
         pagos_query = pagos_query.filter(metodo_pago=metodo_pago)
     
+    # Filtrar por ciclo si hay valor
+    if ciclo:
+        pagos_query = pagos_query.filter(remision__ciclo=ciclo)
+
     # Agrupar por cuenta bancaria
     pagos_por_cuenta = {}
     total_general = 0
@@ -13656,6 +13794,8 @@ def reporte_pagos_view(request):
         'fecha_reporte': datetime.now().strftime('%d/%m/%Y %H:%M'),
         'clientes': clientes,
         'cuentas_bancarias': cuentas_bancarias,
+        'ciclo': ciclo,
+        'ciclo_actual': ciclo_actual,
     }
     
     return render(request, 'core/reporte_pagos.html', context)
@@ -14400,6 +14540,28 @@ class PresupuestoListView(LoginRequiredMixin, ListView):
         except:
             context['ciclo_actual'] = ''
         
+        # Calcular total de gastos para cada presupuesto
+        presupuestos_con_gastos = []
+        for presupuesto in context['presupuestos']:
+            # Obtener todos los gastos del presupuesto
+            gastos = Gasto.objects.filter(presupuesto=presupuesto, activo=True)
+            total_gastos = 0
+            
+            for gasto in gastos:
+                # Sumar todos los detalles de gasto activos
+                from django.db.models import Sum
+                total_detalle = gasto.detalles.filter(activo=True).aggregate(
+                    total=Sum('importe')
+                )['total'] or 0
+                total_gastos += float(total_detalle)
+            
+            presupuestos_con_gastos.append({
+                'presupuesto': presupuesto,
+                'total_gastos': total_gastos
+            })
+        
+        context['presupuestos_con_gastos'] = presupuestos_con_gastos
+        
         return context
 
 
@@ -14619,6 +14781,11 @@ class PresupuestoCreateView(LoginRequiredMixin, CreateView):
         context['clasificaciones_gastos'] = ClasificacionGasto.objects.filter(activo=True)
         
         return context
+
+    def form_valid(self, form):
+        # Asignar usuario de creación para evitar ValidationError
+        form.instance.usuario_creacion = self.request.user
+        return super().form_valid(form)
 
 
 # Vistas AJAX para Emisores
@@ -15673,6 +15840,91 @@ class GastoCreateView(LoginRequiredMixin, CreateView):
             context['ciclo_actual'] = ''
         return context
 
+    def post(self, request, *args, **kwargs):
+        # Si es una petición AJAX desde el modal
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'detalles_temporales' in request.POST:
+            return self.handle_ajax_request(request)
+        return super().post(request, *args, **kwargs)
+
+    def handle_ajax_request(self, request):
+        """Manejar petición AJAX para crear gasto desde modal"""
+        try:
+            # Escribir datos recibidos a archivo para debugging
+            with open('/tmp/gasto_debug.log', 'a') as f:
+                from datetime import datetime
+                f.write(f"\n=== DEBUG GASTO {datetime.now()} ===\n")
+                f.write(f"POST data: {dict(request.POST)}\n")
+                f.write("=" * 50 + "\n")
+            
+            # Obtener datos del formulario
+            presupuesto_codigo = request.POST.get('presupuesto')
+            ciclo = request.POST.get('ciclo')
+            fecha_gasto = request.POST.get('fecha_gasto')
+            observaciones = request.POST.get('observaciones', '')
+            
+            # Validar que el presupuesto existe
+            presupuesto = Presupuesto.objects.get(codigo=presupuesto_codigo)
+            
+            # Crear el gasto principal
+            gasto = Gasto.objects.create(
+                presupuesto=presupuesto,
+                ciclo=ciclo,
+                fecha_gasto=fecha_gasto,
+                observaciones=observaciones,
+                activo=True,
+                usuario_creacion=request.user
+            )
+            
+            # Procesar detalles temporales
+            detalles_temporales = request.POST.get('detalles_temporales')
+            if detalles_temporales:
+                import json
+                detalles_data = json.loads(detalles_temporales)
+                
+                for detalle_data in detalles_data:
+                    proveedor = Proveedor.objects.get(codigo=detalle_data['proveedor']['codigo'])
+                    clasificacion_gasto = ClasificacionGasto.objects.get(
+                        codigo=detalle_data['clasificacion_gasto']['codigo']
+                    )
+                    
+                    # Convertir importe a Decimal
+                    from decimal import Decimal
+                    importe_decimal = Decimal(str(detalle_data['importe']))
+                    
+                    GastoDetalle.objects.create(
+                        gasto=gasto,
+                        proveedor=proveedor,
+                        factura=detalle_data['factura'],
+                        clasificacion_gasto=clasificacion_gasto,
+                        concepto=detalle_data['concepto'],
+                        importe=importe_decimal,
+                        usuario_creacion=request.user
+                    )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Gasto creado correctamente',
+                'gasto_id': gasto.codigo
+            })
+            
+        except Exception as e:
+            import traceback
+            from datetime import datetime
+            error_trace = traceback.format_exc()
+            
+            # Escribir error a archivo para debugging
+            with open('/tmp/gasto_error.log', 'a') as f:
+                f.write(f"\n=== ERROR GASTO {datetime.now()} ===\n")
+                f.write(f"POST data: {dict(request.POST)}\n")
+                f.write(f"Error: {str(e)}\n")
+                f.write(f"Traceback: {error_trace}\n")
+                f.write("=" * 50 + "\n")
+            
+            return JsonResponse({
+                'success': False,
+                'error': f"{e.__class__.__name__}: {str(e)}"
+            }, status=500)
+
 
 # Vistas AJAX para Emisores
 
@@ -15850,58 +16102,6 @@ def eliminar_emisor_ajax(request, codigo):
         return JsonResponse({
             'error': f'Error interno del servidor: {str(e)}'
         }, status=500)
-
-    def post(self, request, *args, **kwargs):
-        # Si es una petición AJAX desde el modal
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'detalles_temporales' in request.POST:
-            return self.handle_ajax_request(request)
-        return super().post(request, *args, **kwargs)
-
-    def handle_ajax_request(self, request):
-        """Manejar petición AJAX para crear gasto desde modal"""
-        try:
-            # Crear el gasto principal
-            presupuesto = Presupuesto.objects.get(codigo=request.POST.get('presupuesto'))
-            gasto = Gasto.objects.create(
-                presupuesto=presupuesto,
-                ciclo=request.POST.get('ciclo'),
-                fecha_gasto=request.POST.get('fecha_gasto'),
-                observaciones=request.POST.get('observaciones', ''),
-                activo=True,
-                usuario_creacion=request.user
-            )
-            
-            # Procesar detalles temporales
-            detalles_temporales = request.POST.get('detalles_temporales')
-            if detalles_temporales:
-                import json
-                detalles_data = json.loads(detalles_temporales)
-                for detalle_data in detalles_data:
-                    proveedor = Proveedor.objects.get(codigo=detalle_data['proveedor']['codigo'])
-                    clasificacion_gasto = ClasificacionGasto.objects.get(
-                        codigo=detalle_data['clasificacion_gasto']['codigo']
-                    )
-                    GastoDetalle.objects.create(
-                        gasto=gasto,
-                        proveedor=proveedor,
-                        factura=detalle_data['factura'],
-                        clasificacion_gasto=clasificacion_gasto,
-                        concepto=detalle_data['concepto'],
-                        importe=detalle_data['importe'],
-                        usuario_creacion=request.user
-                    )
-            
-            return JsonResponse({
-                'success': True,
-                'message': 'Gasto creado correctamente',
-                'gasto_id': gasto.codigo
-            })
-            
-        except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=500)
 
 
 @login_required
@@ -16721,17 +16921,45 @@ class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        presupuesto = get_object_or_404(Presupuesto, codigo=kwargs['pk'], activo=True)
-        context['presupuesto'] = presupuesto
         
-        # Obtener todos los gastos del presupuesto agrupados por clasificación
-        gastos = Gasto.objects.filter(presupuesto=presupuesto, activo=True).prefetch_related('detalles__proveedor', 'detalles__clasificacion_gasto')
+        # Obtener parámetros de filtro
+        ciclo = self.request.GET.get('ciclo')
+        centro_costo_id = self.request.GET.get('centro_costo')
+        
+        # Obtener el ciclo actual como default
+        try:
+            config = ConfiguracionSistema.objects.first()
+            ciclo_actual = config.ciclo_actual if config else ''
+        except:
+            ciclo_actual = ''
+        
+        # Si no se especifica ciclo, usar el actual
+        if not ciclo:
+            ciclo = ciclo_actual
+        
+        # Construir query base
+        gastos_query = Gasto.objects.filter(activo=True).prefetch_related('detalles__proveedor', 'detalles__clasificacion_gasto', 'presupuesto__centro_costo')
+        
+        # Aplicar filtros
+        if ciclo:
+            gastos_query = gastos_query.filter(ciclo=ciclo)
+        
+        if centro_costo_id:
+            gastos_query = gastos_query.filter(presupuesto__centro_costo_id=centro_costo_id)
+        
+        # Si se especifica un presupuesto específico, filtrar por él
+        if 'pk' in kwargs:
+            presupuesto = get_object_or_404(Presupuesto, codigo=kwargs['pk'], activo=True)
+            context['presupuesto'] = presupuesto
+            gastos_query = gastos_query.filter(presupuesto=presupuesto)
+        else:
+            context['presupuesto'] = None
         
         # Agrupar gastos por clasificación
         gastos_por_clasificacion = {}
         total_gastado = 0
         
-        for gasto in gastos:
+        for gasto in gastos_query:
             for detalle in gasto.detalles.filter(activo=True):
                 clasificacion = detalle.clasificacion_gasto
                 if clasificacion.codigo not in gastos_por_clasificacion:
@@ -16747,7 +16975,9 @@ class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
                     'factura': detalle.factura,
                     'concepto': detalle.concepto,
                     'importe': detalle.importe,
-                    'fecha_gasto': gasto.fecha_gasto
+                    'fecha_gasto': gasto.fecha_gasto,
+                    'presupuesto': gasto.presupuesto,
+                    'centro_costo': gasto.presupuesto.centro_costo
                 }
                 
                 gastos_por_clasificacion[clasificacion.codigo]['detalles'].append(detalle_info)
@@ -16757,15 +16987,17 @@ class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
         # Ordenar por descripción de clasificación
         gastos_ordenados = sorted(gastos_por_clasificacion.values(), key=lambda x: x['clasificacion'].descripcion)
         
+        # Obtener datos para los filtros
+        ciclos_disponibles = Gasto.objects.filter(activo=True).values_list('ciclo', flat=True).distinct().order_by('-ciclo')
+        centros_costo = CentroCosto.objects.filter(activo=True).order_by('descripcion')
+        
         context['gastos_por_clasificacion'] = gastos_ordenados
         context['total_gastado'] = total_gastado
-        
-        # Obtener el ciclo actual
-        try:
-            config = ConfiguracionSistema.objects.first()
-            context['ciclo_actual'] = config.ciclo_actual if config else ''
-        except:
-            context['ciclo_actual'] = ''
+        context['ciclo_actual'] = ciclo_actual
+        context['ciclo'] = ciclo
+        context['centro_costo_id'] = centro_costo_id
+        context['ciclos_disponibles'] = ciclos_disponibles
+        context['centros_costo'] = centros_costo
         
         return context
 

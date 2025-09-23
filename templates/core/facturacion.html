@@ -1543,8 +1543,13 @@ function mostrarErrorTimbrado(error, codigoError = '', detalles = []) {
     
     console.log('Mensaje de error construido:', mensajeError);
     
-    // Mostrar notificación con duración de 5 segundos
-    mostrarNotificacion(mensajeError, 'error', 5000);
+    // Mostrar notificación global (showNotification de main.js)
+    if (typeof window.showNotification === 'function') {
+        window.showNotification(mensajeError, 'danger', false);
+    } else {
+        // Fallback a notificación local si no está disponible
+        mostrarNotificacion(mensajeError, 'error', 5000);
+    }
 }
 
 </script>

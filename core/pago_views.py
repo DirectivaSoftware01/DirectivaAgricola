@@ -99,16 +99,18 @@ def registrar_pago(request, factura_id):
                     'error': 'El monto del pago debe ser mayor a cero'
                 })
             
-            # Validar que no exceda el saldo pendiente
-            saldo_pendiente = factura.obtener_saldo_pendiente()
-            if monto_pago > saldo_pendiente:
+            # Validar que no exceda el saldo anterior real (antes de aplicar este pago)
+            # Usar únicamente saldo del servidor (solo pagos timbrados), ignorando valores calculados en la UI
+            saldo_servidor = factura.obtener_saldo_pendiente()
+            logger.info(f"Validación CP: factura={factura.folio}, total={factura.total}, saldo_servidor={saldo_servidor}, monto_solicitado={monto_pago}")
+            if monto_pago > saldo_servidor:
                 return JsonResponse({
                     'success': False,
-                    'error': f'El monto del pago (${monto_pago}) no puede exceder el saldo pendiente (${saldo_pendiente})'
+                    'error': f'El monto del pago (${monto_pago}) no puede exceder el saldo pendiente (${saldo_servidor})'
                 })
             
             # Determinar tipo de pago
-            if monto_pago >= saldo_pendiente:
+            if monto_pago >= saldo_servidor:
                 tipo_pago = 'COMPLETO'
             else:
                 tipo_pago = 'PARCIAL'
@@ -372,16 +374,17 @@ def guardar_complemento_pago_ajax(request, factura_id):
                     'error': 'El monto del pago debe ser mayor a cero'
                 })
             
-            # Validar que no exceda el saldo pendiente
-            saldo_pendiente = factura.obtener_saldo_pendiente()
-            if monto_pago > saldo_pendiente:
+            # Validar que no exceda el saldo anterior real (antes de aplicar este pago)
+            pagos_anteriores = factura.pagos.aggregate(total=Sum('monto_pago'))['total'] or Decimal('0.00')
+            saldo_anterior = factura.total - pagos_anteriores
+            if monto_pago > saldo_anterior:
                 return JsonResponse({
                     'success': False,
-                    'error': f'El monto del pago (${monto_pago}) no puede exceder el saldo pendiente (${saldo_pendiente})'
+                    'error': f'El monto del pago (${monto_pago}) no puede exceder el saldo pendiente (${saldo_anterior})'
                 })
             
             # Determinar tipo de pago
-            if monto_pago >= saldo_pendiente:
+            if monto_pago >= saldo_anterior:
                 tipo_pago = 'COMPLETO'
             else:
                 tipo_pago = 'PARCIAL'
@@ -433,8 +436,18 @@ def guardar_complemento_pago_ajax(request, factura_id):
                         'error': 'No se pudo cargar la llave privada del emisor'
                     })
                 
+                # Recalcular saldo del servidor por seguridad
+                saldo_servidor = factura.obtener_saldo_pendiente()
+                
+                # Forzar saldos coherentes desde servidor para el XML (ignorar lo que venga de la UI)
+                saldo_anterior_num = Decimal(saldo_servidor)
+                saldo_insoluto_num = max(saldo_anterior_num - monto_pago, Decimal('0.00'))
+                data['imp_saldo_ant'] = f"{saldo_anterior_num:.2f}"
+                data['imp_pagado'] = f"{monto_pago:.2f}"
+                data['imp_saldo_insoluto'] = f"{saldo_insoluto_num:.2f}"
+                
                 # Debug: Log de los datos que se van a usar para generar el XML
-                logger.info(f"Datos del pago para XML: {data}")
+                logger.info(f"Datos del pago para XML (normalizados): {data}")
                 logger.info(f"Certificado data: {certificado_data}")
                 
                 # Generar cadena original primero (como en facturación)
@@ -503,18 +516,18 @@ def guardar_complemento_pago_ajax(request, factura_id):
                     
                     # Los saldos se calculan automáticamente mediante propiedades del modelo
                     
-                    # Debug: verificar campos del resultado
-                    xml_base64 = resultado_timbrado.get('xmlBase64', '')
+                    # Debug: verificar campos del resultado (aceptar snake_case y camelCase)
+                    xml_base64 = resultado_timbrado.get('xmlBase64') or resultado_timbrado.get('xml_base64', '')
                     uuid = resultado_timbrado.get('uuid', '')
                     logger.info(f"Debug timbrado exitoso - xmlBase64: {bool(xml_base64)}, uuid: {uuid}")
                     
                     # Guardar datos del timbrado
                     pago.xml_timbrado = xml_base64
                     pago.uuid = uuid
-                    pago.sello = resultado_timbrado.get('selloCFD', '')
-                    pago.sello_sat = resultado_timbrado.get('selloSAT', '')
-                    pago.no_certificado_sat = resultado_timbrado.get('noCertificadoSAT', '')
-                    pago.fecha_timbrado = resultado_timbrado.get('FechaTimbrado', '')
+                    pago.sello = resultado_timbrado.get('selloCFD') or resultado_timbrado.get('sello_cfd', '')
+                    pago.sello_sat = resultado_timbrado.get('selloSAT') or resultado_timbrado.get('sello_sat', '')
+                    pago.no_certificado_sat = resultado_timbrado.get('noCertificadoSAT') or resultado_timbrado.get('no_certificado_sat', '')
+                    pago.fecha_timbrado = resultado_timbrado.get('FechaTimbrado') or resultado_timbrado.get('fecha_timbrado', '')
                     
                     # Guardar código QR y cadena original del PAC
                     pago.codigo_qr = resultado_timbrado.get('qr_base64', '')
@@ -545,13 +558,13 @@ def guardar_complemento_pago_ajax(request, factura_id):
                         }
                     })
                 else:
-                    # Si el timbrado falla, NO crear el pago
+                    # Si el timbrado falla, NO crear ni persistir pago
                     error_msg = resultado_timbrado.get('mensaje', resultado_timbrado.get('error', 'Error desconocido'))
                     codigo_error = resultado_timbrado.get('codigo_error', 'UNKNOWN')
                     logger.error(f"Timbrado falló - Error: {error_msg}, Código: {codigo_error}")
                     return JsonResponse({
                         'success': False,
-                        'error': f'No se pudo timbrar el complemento de pago: {error_msg} (Código: {codigo_error})'
+                        'error': f'Error en timbrado: {error_msg} (Código: {codigo_error})'
                     })
                 
             except Exception as e:

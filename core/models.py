@@ -2332,11 +2332,15 @@ class PagoFactura(models.Model):
         if self.monto_pago <= 0:
             raise ValidationError("El monto del pago debe ser mayor a cero")
         
-        # Validar que el pago no exceda el saldo pendiente
+        # Validar que el pago no exceda el saldo anterior real (antes de aplicar este pago)
+        # Esto evita usar saldos impactados por la UI (que muestran saldo insoluto = 0 en pagos completos)
         if self.factura:
-            saldo_pendiente = self.factura.obtener_saldo_pendiente()
-            if self.monto_pago > saldo_pendiente:
-                raise ValidationError(f"El monto del pago (${self.monto_pago}) no puede exceder el saldo pendiente (${saldo_pendiente})")
+            # Calcular saldo antes de este pago sin depender de zonas horarias (suma de pagos existentes)
+            # Considerar solo pagos timbrados para el saldo previo
+            pagos_anteriores = self.factura.pagos.filter(uuid__isnull=False).aggregate(total=models.Sum('monto_pago'))['total'] or 0
+            saldo_anterior = self.factura.total - pagos_anteriores
+            if self.monto_pago > saldo_anterior:
+                raise ValidationError(f"El monto del pago (${self.monto_pago}) no puede exceder el saldo pendiente (${saldo_anterior})")
     
     def save(self, *args, **kwargs):
         """Guardar con validaciones"""

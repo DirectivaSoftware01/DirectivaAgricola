@@ -901,7 +901,11 @@ function mostrarHistorialPagos(pagos) {
 // Función para guardar complemento de pago
 function guardarComplementoPago() {
     if (!folioFacturaPPD) {
-        alert('Error: No se ha seleccionado una factura');
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('Error: No se ha seleccionado una factura', 'danger');
+        } else {
+            mostrarNotificacion('Error: No se ha seleccionado una factura', 'danger');
+        }
         return;
     }
     
@@ -912,22 +916,38 @@ function guardarComplementoPago() {
     const uuid = document.getElementById('dr_uuid')?.value;
     
     if (!monto || Number(monto) <= 0) {
-        alert('El monto es requerido y debe ser mayor a cero');
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('El monto es requerido y debe ser mayor a cero', 'warning');
+        } else {
+            mostrarNotificacion('El monto es requerido y debe ser mayor a cero', 'warning');
+        }
         return;
     }
     
     if (!fechaPago) {
-        alert('La fecha de pago es requerida');
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('La fecha de pago es requerida', 'warning');
+        } else {
+            mostrarNotificacion('La fecha de pago es requerida', 'warning');
+        }
         return;
     }
     
     if (!formaPago) {
-        alert('La forma de pago es requerida');
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('La forma de pago es requerida', 'warning');
+        } else {
+            mostrarNotificacion('La forma de pago es requerida', 'warning');
+        }
         return;
     }
     
     if (!uuid) {
-        alert('El UUID del documento relacionado es requerido');
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('El UUID del documento relacionado es requerido', 'warning');
+        } else {
+            mostrarNotificacion('El UUID del documento relacionado es requerido', 'warning');
+        }
         return;
     }
     
@@ -979,7 +999,11 @@ function guardarComplementoPago() {
             console.log('Respuesta del servidor:', data); // Debug
             if (data.success) {
                 // Mostrar mensaje de éxito
-                alert(data.message);
+                if (typeof window.showNotification === 'function') {
+                    window.showNotification(data.message || 'Complemento de pago timbrado exitosamente', 'success');
+                } else {
+                    mostrarNotificacion(data.message || 'Complemento de pago timbrado exitosamente', 'success');
+                }
                 
                 // Cerrar modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('modalComplementoPago'));
@@ -999,23 +1023,32 @@ function guardarComplementoPago() {
                         imprimirComplementoPago(data.pago.id);
                     } else {
                         console.log('El pago no está timbrado, no se puede mostrar el PDF');
-                        alert('El complemento de pago se guardó pero no se pudo timbrar. No se puede mostrar el PDF.');
+                        if (typeof window.showNotification === 'function') {
+                            window.showNotification('El complemento se guardó pero no se timbró. No se puede mostrar el PDF.', 'warning');
+                        } else {
+                            mostrarNotificacion('El complemento se guardó pero no se timbró. No se puede mostrar el PDF.', 'warning');
+                        }
                     }
                 } else {
                     console.error('No se recibió el ID del pago en la respuesta:', data);
                 }
-                
-                // Recargar la página para mostrar los cambios (comentado temporalmente para debugging)
-                // setTimeout(() => {
-                //     window.location.reload();
-                // }, 1000);
             } else {
-                alert('Error: ' + (data.error || 'Error desconocido'));
+                // Mostrar error de timbrado
+                const mensaje = data.error || 'Error al timbrar el complemento de pago';
+                if (typeof window.showNotification === 'function') {
+                    window.showNotification(`Error en timbrado: ${mensaje}`, 'danger');
+                } else {
+                    mostrarNotificacion(`Error en timbrado: ${mensaje}`, 'danger');
+                }
             }
         })
     .catch(error => {
         console.error('Error:', error);
-        alert('Error: No se pudo procesar la solicitud');
+        if (typeof window.showNotification === 'function') {
+            window.showNotification('Error: No se pudo procesar la solicitud', 'danger');
+        } else {
+            mostrarNotificacion('Error: No se pudo procesar la solicitud', 'danger');
+        }
     })
     .finally(() => {
         // Restaurar botón

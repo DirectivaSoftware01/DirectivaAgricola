@@ -53,10 +53,15 @@ class PagoFacturaForm(forms.ModelForm):
             raise forms.ValidationError('El monto del pago debe ser mayor a cero')
         
         if self.factura:
-            saldo_pendiente = self.factura.obtener_saldo_pendiente()
-            if monto > saldo_pendiente:
+            # Comparar contra el saldo anterior real (antes de este pago)
+            from django.db.models import Sum
+            from django.utils import timezone
+            # Considerar solo pagos timbrados
+            pagos_anteriores = self.factura.pagos.filter(uuid__isnull=False).aggregate(total=Sum('monto_pago'))['total'] or 0
+            saldo_anterior = self.factura.total - pagos_anteriores
+            if monto > saldo_anterior:
                 raise forms.ValidationError(
-                    f'El monto del pago (${monto:,.2f}) no puede exceder el saldo pendiente (${saldo_pendiente:,.2f})'
+                    f'El monto del pago (${monto:,.2f}) no puede exceder el saldo pendiente (${saldo_anterior:,.2f})'
                 )
         
         return monto
@@ -67,7 +72,9 @@ class PagoFacturaForm(forms.ModelForm):
         tipo_pago = cleaned_data.get('tipo_pago')
         
         if self.factura and monto and tipo_pago:
-            saldo_pendiente = self.factura.obtener_saldo_pendiente()
+            from django.db.models import Sum
+            pagos_anteriores = self.factura.pagos.aggregate(total=Sum('monto_pago'))['total'] or 0
+            saldo_pendiente = self.factura.total - pagos_anteriores
             
             # Validar consistencia entre monto y tipo de pago
             if tipo_pago == 'COMPLETO' and monto < saldo_pendiente:

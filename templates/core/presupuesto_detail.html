@@ -372,7 +372,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="factura" class="form-label">Factura *</label>
-                        <input type="text" class="form-control" id="factura" name="factura" required>
+                        <input type="text" class="form-control" id="factura" name="factura" required maxlength="100">
                     </div>
                     <div class="mb-3">
                         <label for="clasificacion_gasto" class="form-label">Clasificación de Gasto *</label>
@@ -592,7 +592,7 @@
                     
                     <div class="mb-3">
                         <label for="factura_detail" class="form-label">Factura <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="factura_detail" name="factura" required placeholder="Número de factura">
+                        <input type="text" class="form-control" id="factura_detail" name="factura" required placeholder="Número de factura" maxlength="100">
                     </div>
                     
                     <div class="mb-3">
@@ -740,8 +740,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const concepto = document.getElementById('concepto_detail').value;
             const importe = document.getElementById('importe_detail').value;
             
-            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !importe || parseFloat(importe) <= 0) {
-                alert('Por favor completa todos los campos obligatorios y asegúrate que el importe sea mayor a cero.');
+            // Limpiar importe (quitar $ y comas)
+            const importeLimpio = importe.replace(/[$,]/g, '');
+            const importeNumerico = parseFloat(importeLimpio);
+            
+            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !importe || isNaN(importeNumerico) || importeNumerico <= 0) {
+                alert('Por favor completa todos los campos obligatorios y asegúrate que el importe sea un número mayor a cero.');
                 return;
             }
             
@@ -756,7 +760,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     descripcion: clasificacionSelect.options[clasificacionSelect.selectedIndex].text
                 },
                 concepto: concepto,
-                importe: parseFloat(importe)
+                importe: importeNumerico
             };
             
             detallesTemporalesDetail.push(detalle);
@@ -853,21 +857,42 @@ document.addEventListener('DOMContentLoaded', function() {
             
             fetch('/gastos/crear/', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
-            .then(response => response.json())
+            .then(async (response) => {
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    return response.json();
+                }
+                const text = await response.text();
+                const m = text.match(/<title>(.*?)<\/title>/i);
+                const resumen = m && m[1] ? m[1] : '';
+                return { success: false, error: resumen || `HTTP ${response.status}` };
+            })
             .then(data => {
                 if (data.success) {
-                    alert('Gasto guardado correctamente.');
+                    if (typeof window.showNotification === 'function') {
+                        window.showNotification('Gasto guardado correctamente', 'success');
+                    }
                     closeModalDetail('gastoModalDetail');
                     location.reload();
                 } else {
-                    alert('Error al guardar el gasto: ' + (data.error || 'Error desconocido'));
+                    const msg = 'Error al guardar el gasto: ' + (data.error || 'Error desconocido');
+                    if (typeof window.showNotification === 'function') {
+                        window.showNotification(msg, 'danger');
+                    } else {
+                        alert(msg);
+                    }
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error al guardar el gasto.');
+                if (typeof window.showNotification === 'function') {
+                    window.showNotification('Error al guardar el gasto.', 'danger');
+                } else {
+                    alert('Error al guardar el gasto.');
+                }
             });
         });
     }

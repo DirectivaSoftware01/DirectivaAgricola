@@ -207,8 +207,9 @@ class FacturacionService:
             # Actualizar campos de timbrado
             factura.uuid = pac_result['uuid']
             factura.fecha_timbrado = datetime.fromisoformat(pac_result['fecha_timbrado'].replace('Z', '+00:00'))
-            factura.no_cert_sat = pac_result['no_cert_sat']
-            factura.sello_sat = pac_result['sello_sat']
+            # Aceptar tanto snake_case como camelCase según la fuente
+            factura.no_cert_sat = pac_result.get('no_cert_sat') or pac_result.get('no_certificado_sat') or pac_result.get('NoCertificadoSAT')
+            factura.sello_sat = pac_result.get('sello_sat') or pac_result.get('selloSAT')
             factura.sello = pac_result.get('sello_cfd')  # Guardar sello del emisor
             factura.codigo_qr = pac_result.get('qr_base64')  # Guardar código QR del PAC
             factura.cadena_original_sat = cls._extraer_cadena_original_sat(pac_result['xml_timbrado'])  # Extraer cadena original

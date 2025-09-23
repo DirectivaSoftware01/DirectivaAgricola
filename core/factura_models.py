@@ -535,9 +535,9 @@ class Factura(models.Model):
         if self.metodo_pago != 'PPD':
             return Decimal('0.00')
         
-        # Calcular total de pagos realizados
+        # Calcular total de pagos realizados (solo pagos timbrados)
         from django.db.models import Sum
-        total_pagado = self.pagos.aggregate(
+        total_pagado = self.pagos.filter(uuid__isnull=False).aggregate(
             total=Sum('monto_pago')
         )['total'] or Decimal('0.00')
         
@@ -547,7 +547,7 @@ class Factura(models.Model):
     def obtener_total_pagado(self):
         """Obtiene el total pagado de la factura"""
         from django.db.models import Sum
-        return self.pagos.aggregate(
+        return self.pagos.filter(uuid__isnull=False).aggregate(
             total=Sum('monto_pago')
         )['total'] or Decimal('0.00')
     

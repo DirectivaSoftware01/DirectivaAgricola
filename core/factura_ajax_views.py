@@ -297,6 +297,14 @@ def timbrar_factura_ajax(request, folio):
                 'estado': 'TIMBRADO'
             })
         else:
+            # Si el timbrado falla, eliminar la factura creada para no afectar saldos
+            try:
+                factura.delete()
+            except Exception as del_err:
+                # Si no se pudo borrar, solo registramos
+                import logging
+                logging.getLogger(__name__).error(f"Error eliminando factura no timbrada {folio}: {del_err}")
+            
             return JsonResponse({
                 'success': False,
                 'error': resultado.get('error', 'Error desconocido al timbrar'),
