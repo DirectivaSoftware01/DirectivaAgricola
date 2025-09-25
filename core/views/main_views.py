@@ -16,7 +16,9 @@ from django.db import models
 from django.contrib import messages
 from datetime import datetime
 from ..models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Emisor, Factura, FacturaDetalle
+from administracion.models import Empresa
 from ..forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm, PresupuestoGastoForm, PresupuestoGastoSearchForm, PresupuestoForm, PresupuestoDetalleForm, PresupuestoSearchForm, GastoForm, GastoDetalleForm
+from ..mixins import EmpresaDbMixin
 
 # Create your views here.
 
@@ -335,15 +337,50 @@ def eliminar_emisor_ajax(request, codigo):
 
 def login_view(request):
     """Vista de login"""
-    if request.user.is_authenticated:
-        return redirect('core:dashboard')
+    # NO verificar si el usuario está autenticado aquí para evitar bucles
     
     if request.method == 'POST':
-        form = LoginForm(data=request.POST)
-        if form.is_valid():
-            user = form.get_user()
+        rfc = (request.POST.get('rfc') or '').strip().upper()
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        
+        if not rfc:
+            messages.error(request, 'Debe indicar el RFC de la empresa.')
+            form = LoginForm()
+            return render(request, 'core/login.html', {'form': form})
+        
+        # 1. Validar RFC contra base de datos de administración
+        try:
+            empresa = Empresa.objects.using('administracion').get(rfc=rfc)
+            if not empresa.activo:
+                messages.error(request, 'La empresa no está activa. Contacte a su asesor de Directiva Software.')
+                form = LoginForm()
+                return render(request, 'core/login.html', {'form': form})
+            elif empresa.suspendido:
+                messages.error(request, 'Empresa temporalmente suspendida, por favor póngase en contacto con su asesor de Directiva Software, disculpe las molestias.')
+                form = LoginForm()
+                return render(request, 'core/login.html', {'form': form})
+        except Empresa.DoesNotExist:
+            messages.error(request, 'RFC no encontrado. Verifique con su asesor de Directiva Software.')
+            form = LoginForm()
+            return render(request, 'core/login.html', {'form': form})
+        
+        # 2. Guardar la información de la empresa en la sesión
+        empresa_db_name = 'default' if empresa.db_name == 'default' else empresa.db_name
+        request.session['empresa_db'] = empresa_db_name
+        
+        # 3. Ahora validar usuario y contraseña contra la base de datos de la empresa
+        from django.contrib.auth import authenticate, login
+        from django.contrib.auth.models import User
+        
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
             login(request, user)
             return redirect('core:dashboard')
+        else:
+            messages.error(request, 'Usuario o contraseña incorrectos.')
+            form = LoginForm()
+            return render(request, 'core/login.html', {'form': form})
     else:
         form = LoginForm()
     
@@ -9848,21 +9885,12 @@ class RemisionListView(LoginRequiredMixin, ListView):
         form = RemisionSearchForm(self.request.GET)
         
         if form.is_valid():
-            busqueda = form.cleaned_data.get('busqueda')
             cliente = form.cleaned_data.get('cliente')
             lote_origen = form.cleaned_data.get('lote_origen')
             transportista = form.cleaned_data.get('transportista')
             fecha_desde = form.cleaned_data.get('fecha_desde')
             fecha_hasta = form.cleaned_data.get('fecha_hasta')
-            
-            # Filtrar por búsqueda
-            if busqueda:
-                queryset = queryset.filter(
-                    Q(ciclo__icontains=busqueda) |
-                    Q(folio__icontains=busqueda) |
-                    Q(cliente__razon_social__icontains=busqueda) |
-                    Q(observaciones__icontains=busqueda)
-                )
+            estado = form.cleaned_data.get('estado')
             
             # Filtrar por cliente
             if cliente:
@@ -9882,6 +9910,21 @@ class RemisionListView(LoginRequiredMixin, ListView):
             
             if fecha_hasta:
                 queryset = queryset.filter(fecha__lte=fecha_hasta)
+            
+            # Filtrar por estado
+            if estado:
+                if estado == 'pendiente':
+                    # Filtrar remisiones que NO están preliquidadas
+                    queryset = queryset.exclude(
+                        detalles__usuario_liquidacion__isnull=False,
+                        detalles__fecha_liquidacion__isnull=False
+                    ).distinct()
+                elif estado == 'preliquidada':
+                    # Filtrar remisiones que SÍ están preliquidadas
+                    queryset = queryset.filter(
+                        detalles__usuario_liquidacion__isnull=False,
+                        detalles__fecha_liquidacion__isnull=False
+                    ).distinct()
         
         return queryset.order_by('-fecha_creacion')
     
@@ -12160,7 +12203,7 @@ def eliminar_emisor_ajax(request, codigo):
         }, status=500)
 
 
-class CobranzaListView(LoginRequiredMixin, ListView):
+class CobranzaListView(EmpresaDbMixin, LoginRequiredMixin, ListView):
     """Vista para listar remisiones preliquidadas agrupadas por cliente para cobranza"""
     model = Remision
     template_name = 'core/cobranza_list.html'
@@ -13707,7 +13750,8 @@ def reporte_pagos_view(request):
     # Filtro de Ciclo (por defecto ciclo actual)
     ciclo_param = request.GET.get('ciclo', '').strip()
     try:
-        ciclo_actual = (ConfiguracionSistema.objects.last().ciclo_actual or '').strip()
+        config = ConfiguracionSistema.objects.first()
+        ciclo_actual = (config.ciclo_actual or '').strip() if config else ''
     except Exception:
         ciclo_actual = ''
     ciclo = ciclo_param or ciclo_actual

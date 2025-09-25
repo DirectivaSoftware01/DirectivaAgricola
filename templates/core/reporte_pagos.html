@@ -263,7 +263,7 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="ciclo" class="form-label">Ciclo:</label>
-                                <input type="text" class="form-control" id="ciclo" name="ciclo" placeholder="Ej: 2025-2026" value="{{ request.GET.ciclo|default:ciclo|default:ciclo_actual }}">
+                                <input type="text" class="form-control" id="ciclo" name="ciclo" placeholder="Ej: {{ ciclo_actual|default:'2025-2026' }}" value="{% if request.GET.ciclo %}{{ request.GET.ciclo }}{% else %}{{ ciclo_actual }}{% endif %}">
                                 <div class="form-text">Se aplica por defecto el ciclo actual si no se especifica.</div>
                             </div>
                             <div class="col-md-6 mb-3">

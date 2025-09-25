@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.humanize',
     'core',
+    'administracion',
 ]
 
 MIDDLEWARE = [
@@ -48,6 +49,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'core.middleware.EmpresaDbMiddleware',  # Rehabilitado
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.middleware.NoCacheMiddleware',
     'core.middleware.StaticFilesNoCacheMiddleware',
@@ -80,8 +82,17 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'ATOMIC_REQUESTS': True,
+    },
+    'administracion': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'DirectivaAdministracion.sqlite3',
+        'ATOMIC_REQUESTS': True,
     }
 }
+
+# Router opcional (se usará si se define)
+DATABASE_ROUTERS = ['directiva_agricola.db_router.EmpresaRouter']
 
 
 # Password validation
@@ -136,6 +147,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Configuración de autenticación personalizada
 AUTH_USER_MODEL = 'core.Usuario'
 
+# Configuración de sesiones
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 1209600  # 2 semanas
+SESSION_COOKIE_NAME = 'sessionid'
+SESSION_COOKIE_SECURE = False  # True en producción con HTTPS
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_SAVE_EVERY_REQUEST = False
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
+
 # Configuración de login/logout
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
@@ -156,3 +178,13 @@ CACHES = {
 # Headers de cache para evitar problemas en navegadores
 CACHE_MIDDLEWARE_SECONDS = 0  # No cachear por defecto
 CACHE_MIDDLEWARE_KEY_PREFIX = 'directiva_agricola'
+
+# Configuración CSRF para bases de datos dinámicas
+CSRF_COOKIE_AGE = 31449600  # 1 año
+CSRF_COOKIE_DOMAIN = None
+CSRF_COOKIE_HTTPONLY = False  # Permitir acceso desde JavaScript
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_COOKIE_PATH = '/'
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = False  # True en producción con HTTPS
+CSRF_USE_SESSIONS = False  # Usar cookies en lugar de sesiones para CSRF

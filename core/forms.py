@@ -1374,17 +1374,6 @@ class RemisionDetalleForm(forms.ModelForm):
 
 class RemisionSearchForm(forms.Form):
     """Formulario para buscar remisiones"""
-    busqueda = forms.CharField(
-        max_length=200,
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Buscar por ciclo, folio, cliente...',
-            'autocomplete': 'off'
-        }),
-        label='Buscar remisión'
-    )
-    
     cliente = forms.ModelChoiceField(
         queryset=Cliente.objects.filter(activo=True),
         required=False,
@@ -1431,6 +1420,19 @@ class RemisionSearchForm(forms.Form):
             'type': 'date'
         }),
         label='Fecha hasta'
+    )
+    
+    estado = forms.ChoiceField(
+        choices=[
+            ('', 'Todos los estados'),
+            ('pendiente', 'Pendiente'),
+            ('preliquidada', 'Preliquidada'),
+        ],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Estado'
     )
 
 
