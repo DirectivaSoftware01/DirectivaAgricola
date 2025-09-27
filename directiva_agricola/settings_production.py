@@ -50,6 +50,9 @@ MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
 # Configuración de seguridad
 DEBUG = False
 ALLOWED_HOSTS = [
+    '54.212.80.37',
+    'agricola.directiva.mx',
+    'www.agricola.directiva.mx',
     'directiva-agricola.us-west-2.elasticbeanstalk.com',
     'directiva-agricola.elasticbeanstalk.com',
     'directiva.mx',
