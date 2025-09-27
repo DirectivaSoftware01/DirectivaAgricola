@@ -60,6 +60,9 @@ coverage.xml
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+DirectivaAdministracion.sqlite3
+Directiva_*.sqlite3
+test_*.sqlite3
 
 # Flask stuff:
 instance/
@@ -128,17 +131,15 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+# AWS
+.elasticbeanstalk/
+.ebextensions/
+.ebignore
 
-# Media files
-media/
-
-# Static files
-staticfiles/
+# AWS Keys and credentials
+*.pem
+*_accessKeys.csv
+directivademostracion_accessKeys.csv
 
 # IDE
 .vscode/
@@ -149,4 +150,39 @@ staticfiles/
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+cookies.txt
+
+# Media files (if not needed in production)
+media/
+uploads/
+
+# Static files (if using collectstatic)
+staticfiles/
+
+# Backup files
+backups/
+*.backup
+*.bak
+
+# Test files
+test_*.sqlite3
+test_*.db
+
+# Deployment scripts (keep only the main ones)
+deploy_manual.md
+create_resources_manual.md
+user_data.sh

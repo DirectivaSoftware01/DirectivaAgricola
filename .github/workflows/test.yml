@@ -1,0 +1,85 @@
+name: Test and Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8 black isort
+        
+    - name: Lint with flake8
+      run: |
+        # Detener el build si hay errores de sintaxis o imports no definidos
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Salir con código de error si hay warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        
+    - name: Check code formatting with black
+      run: |
+        black --check --diff .
+        
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only --diff .
+        
+    - name: Run Django system checks
+      run: |
+        python manage.py check --settings=directiva_agricola.settings_simple
+        
+    - name: Run Django tests
+      run: |
+        python manage.py test --settings=directiva_agricola.settings_simple --verbosity=2
+        
+    - name: Test database migrations
+      run: |
+        python manage.py makemigrations --dry-run --settings=directiva_agricola.settings_simple
+        python manage.py migrate --dry-run --settings=directiva_agricola.settings_simple
+        
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install safety bandit
+        
+    - name: Check for security vulnerabilities
+      run: |
+        safety check --json
+        
+    - name: Run bandit security linter
+      run: |
+        bandit -r . -f json -o bandit-report.json || true
+        bandit -r . -f txt
