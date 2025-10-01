@@ -14,8 +14,7 @@ from .models import Emisor, Cliente, ProductoServicio, Factura, FacturaDetalle
 @login_required
 def obtener_emisor_ajax(request, codigo):
     """Vista AJAX para obtener datos de un emisor"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Usuarios no administradores pueden consultar información básica del emisor
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -23,9 +22,8 @@ def obtener_emisor_ajax(request, codigo):
     try:
         emisor = get_object_or_404(Emisor, codigo=codigo)
         
-        return JsonResponse({
-            'success': True,
-            'emisor': {
+        if request.user.is_staff:
+            data = {
                 'codigo': emisor.codigo,
                 'razon_social': emisor.razon_social,
                 'rfc': emisor.rfc,
@@ -40,7 +38,18 @@ def obtener_emisor_ajax(request, codigo):
                 'archivo_certificado': emisor.archivo_certificado[:100] + '...' if emisor.archivo_certificado and len(emisor.archivo_certificado) > 100 else emisor.archivo_certificado,
                 'archivo_llave': emisor.archivo_llave[:100] + '...' if emisor.archivo_llave and len(emisor.archivo_llave) > 100 else emisor.archivo_llave,
             }
-        })
+        else:
+            data = {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'serie': emisor.serie,
+                'timbrado_prueba': emisor.timbrado_prueba,
+            }
+        return JsonResponse({'success': True, 'emisor': data})
         
     except Exception as e:
         return JsonResponse({
@@ -52,8 +61,7 @@ def obtener_emisor_ajax(request, codigo):
 @login_required
 def obtener_cliente_ajax(request, codigo):
     """Vista AJAX para obtener datos de un cliente"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir lectura a usuarios autenticados
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -83,15 +91,24 @@ def obtener_cliente_ajax(request, codigo):
 @login_required
 def obtener_producto_ajax(request, codigo):
     """Vista AJAX para obtener datos de un producto/servicio"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir lectura a usuarios autenticados
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
     try:
         producto = get_object_or_404(ProductoServicio, codigo=codigo)
-        
+        # Calcular tasa desde catálogo o usar legado como respaldo
+        tasa_catalogo = getattr(getattr(producto, 'impuesto_catalogo', None), 'tasa', None)
+        if tasa_catalogo is None:
+            # Fallback por campo legado
+            if producto.impuesto == 'IVA_16':
+                tasa_catalogo = 0.16
+            elif producto.impuesto in ('IVA_0', 'IVA_EXENTO'):
+                tasa_catalogo = 0.0
+            else:
+                tasa_catalogo = 0.0
+
         return JsonResponse({
             'success': True,
             'producto': {
@@ -100,6 +117,13 @@ def obtener_producto_ajax(request, codigo):
                 'clave_prod_serv': producto.clave_sat,
                 'unidad_medida': producto.unidad_medida,
                 'descripcion': producto.descripcion,
+                'impuesto_codigo': getattr(producto.impuesto_catalogo, 'codigo', None),
+                'impuesto_nombre': getattr(producto.impuesto_catalogo, 'nombre', None),
+                'impuesto_tasa': float(tasa_catalogo or 0),
+                'impuesto_legacy': producto.impuesto,
+                # Alias para compatibilidad con el frontend actual
+                'tasa_impuesto': float(tasa_catalogo or 0),
+                'impuesto': producto.impuesto,
             }
         })
         
@@ -113,8 +137,7 @@ def obtener_producto_ajax(request, codigo):
 @login_required
 def guardar_factura_ajax(request):
     """Vista AJAX para guardar una factura"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir a usuarios autenticados crear facturas
     
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -196,12 +219,26 @@ def guardar_factura_ajax(request):
             
             # Calcular importe e impuesto
             importe = cantidad * precio
-            from core.utils.tax_utils import calcular_impuesto_concepto
-            impuesto_concepto = calcular_impuesto_concepto(
-                importe, 
-                producto.impuesto, 
-                detalle_data['objeto_impuesto']
-            )
+            # Preferir tasa desde catálogo si existe
+            impuesto_concepto = Decimal('0.00')
+            objeto_impuesto = detalle_data.get('objeto_impuesto')
+            tasa_catalogo = getattr(getattr(producto, 'impuesto_catalogo', None), 'tasa', None)
+            if tasa_catalogo is not None:
+                # Si no viene objeto_impuesto, inferir por tasa
+                if not objeto_impuesto:
+                    objeto_impuesto = '02' if Decimal(str(tasa_catalogo)) > 0 else '01'
+                if objeto_impuesto == '02':
+                    impuesto_concepto = (importe * Decimal(str(tasa_catalogo))).quantize(Decimal('0.0001'))
+            else:
+                # Lógica legada
+                from core.utils.tax_utils import calcular_impuesto_concepto
+                if not objeto_impuesto:
+                    objeto_impuesto = '02' if getattr(producto, 'impuesto', 'IVA_0') == 'IVA_16' else '01'
+                impuesto_concepto = calcular_impuesto_concepto(
+                    importe, 
+                    producto.impuesto, 
+                    objeto_impuesto
+                )
             
             print(f"DEBUG: Cálculos - cantidad: {cantidad}, precio: {precio}, importe: {importe}, impuesto_concepto: {impuesto_concepto}")
             
@@ -215,7 +252,7 @@ def guardar_factura_ajax(request):
                 importe=importe,
                 clave_prod_serv=detalle_data['clave_prod_serv'],
                 unidad=detalle_data['unidad'],
-                objeto_impuesto=detalle_data['objeto_impuesto'],
+                objeto_impuesto=objeto_impuesto,
                 impuesto_concepto=impuesto_concepto
             )
             
@@ -272,8 +309,7 @@ def guardar_factura_ajax(request):
 @login_required
 def timbrar_factura_ajax(request, folio):
     """Vista AJAX para timbrar una factura"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir a usuarios autenticados timbrar
     
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -321,8 +357,7 @@ def timbrar_factura_ajax(request, folio):
 @login_required
 def probar_conexion_pac_ajax(request, emisor_id):
     """Vista AJAX para probar la conexión con el PAC"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir a usuarios autenticados probar conexión (solo lectura)
     
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)

@@ -6,7 +6,7 @@ from django.views.generic import TemplateView, ListView, CreateView, UpdateView,
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from django.http import JsonResponse, HttpResponseRedirect
+from django.http import JsonResponse, HttpResponseRedirect, HttpResponseForbidden
 from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, get_object_or_404
@@ -369,6 +369,50 @@ def login_view(request):
         empresa_db_name = 'default' if empresa.db_name == 'default' else empresa.db_name
         request.session['empresa_db'] = empresa_db_name
         
+        # 2.1. Reconfigurar la conexión 'default' en este mismo request para apuntar a la BD de la empresa
+        #      (el middleware aplicará en solicitudes siguientes, pero aquí necesitamos autenticar ya)
+        try:
+            from django.conf import settings as dj_settings
+            from django.db import connections
+            from pathlib import Path
+            if empresa_db_name != 'default':
+                db_path = Path(dj_settings.BASE_DIR) / f"{empresa_db_name}.sqlite3"
+                # Crear configuración completa de base de datos con todos los campos necesarios
+                new_db_config = {
+                    'ENGINE': 'django.db.backends.sqlite3',
+                    'NAME': str(db_path),
+                    'ATOMIC_REQUESTS': True,
+                    'TIME_ZONE': dj_settings.TIME_ZONE,
+                    'OPTIONS': {},
+                    'CONN_MAX_AGE': 0,
+                    'AUTOCOMMIT': True,
+                    'CONN_HEALTH_CHECKS': False,
+                    'HOST': '',
+                    'PASSWORD': '',
+                    'PORT': '',
+                    'USER': '',
+                    'TEST': {
+                        'CHARSET': None,
+                        'COLLATION': None,
+                        'MIGRATE': True,
+                        'MIRROR': None,
+                        'NAME': None
+                    },
+                }
+                dj_settings.DATABASES['default'] = new_db_config
+                connections.databases['default'] = new_db_config
+                
+                # Asegurar que la base de datos tenga todas las tablas necesarias
+                from django.core.management import call_command
+                try:
+                    call_command('migrate', '--database=default', verbosity=0)
+                except Exception as e:
+                    # Si hay error en migraciones, continuar
+                    pass
+        except Exception:
+            # Si algo falla aquí, continuamos; el middleware lo manejará en la siguiente solicitud
+            pass
+        
         # 3. Ahora validar usuario y contraseña contra la base de datos de la empresa
         from django.contrib.auth import authenticate, login
         from django.contrib.auth.models import User
@@ -388,8 +432,29 @@ def login_view(request):
 
 def logout_view(request):
     """Vista de logout"""
+    # Limpiar cualquier rastro de selección de empresa
+    try:
+        request.session.pop('empresa_db', None)
+    except Exception:
+        pass
+    # Invalidar sesión completa en servidor
+    try:
+        request.session.flush()
+    except Exception:
+        # Si no es posible flush, al menos logout
+        logout(request)
+    # Asegurar logout de Django
     logout(request)
     return redirect('core:login')
+
+
+def permission_denied_view(request, exception=None):
+    """Vista global 403 para mostrar mensaje claro sin redirigir al login"""
+    # Para AJAX, devolver JSON 403
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.path.startswith('/ajax/'):
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Para vistas normales, devolver una página simple 403
+    return HttpResponseForbidden('No tienes permisos para acceder a esta sección')
 
 class ConfiguracionView(LoginRequiredMixin, ListView):
     """Vista para listar usuarios en configuración"""

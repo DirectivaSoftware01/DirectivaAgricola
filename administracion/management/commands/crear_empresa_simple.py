@@ -42,12 +42,28 @@ class Command(BaseCommand):
             shutil.copy2(main_db_path, db_path)
             self.stdout.write(f'Base de datos copiada: {db_path}')
 
-            # Configurar la nueva base de datos
+            # Configurar la nueva base de datos con configuración completa
             new_db_config = {
                 'default': {
                     'ENGINE': 'django.db.backends.sqlite3',
                     'NAME': db_path,
                     'ATOMIC_REQUESTS': True,
+                    'TIME_ZONE': 'America/Mexico_City',
+                    'OPTIONS': {},
+                    'CONN_MAX_AGE': 0,
+                    'AUTOCOMMIT': True,
+                    'CONN_HEALTH_CHECKS': False,
+                    'HOST': '',
+                    'PASSWORD': '',
+                    'PORT': '',
+                    'USER': '',
+                    'TEST': {
+                        'CHARSET': None,
+                        'COLLATION': None,
+                        'MIGRATE': True,
+                        'MIRROR': None,
+                        'NAME': None
+                    },
                 }
             }
 
@@ -55,8 +71,21 @@ class Command(BaseCommand):
             original_databases = settings.DATABASES.copy()
             settings.DATABASES.update(new_db_config)
 
+            # Aplicar migraciones a la nueva base de datos
+            self.stdout.write('Aplicando migraciones...')
+            call_command('migrate', '--database=default', verbosity=0)
+            
+            # Aplicar migraciones específicas de core
+            call_command('migrate', 'core', '--database=default', verbosity=0)
+
             # Configurar la empresa
             self._configurar_empresa(razon_social, rfc, direccion, telefono, ciclo_actual)
+
+            # Sembrar catálogos de impuestos
+            self._sembrar_catalogos()
+
+            # Asegurar que la tabla django_session existe
+            self._crear_tabla_sessions()
 
             self.stdout.write(
                 self.style.SUCCESS(f'Base de datos {db_name} creada y configurada exitosamente')
@@ -106,7 +135,7 @@ class Command(BaseCommand):
 
             # Crear usuario supervisor
             from django.contrib.auth.hashers import make_password
-            supervisor_password = make_password('Directivasbmj1')
+            supervisor_password = make_password('Directivasbmj1*')
             
             # Limpiar usuarios existentes y crear supervisor
             cursor.execute("DELETE FROM usuarios")
@@ -163,3 +192,58 @@ class Command(BaseCommand):
         
         # Mantener catálogos importantes
         self.stdout.write('Catálogos mantenidos: regimen_fiscal, tipo_impuesto, forma_pago, metodo_pago, uso_cfdi')
+
+    def _sembrar_catalogos(self):
+        """Sembrar catálogos de impuestos en la nueva empresa"""
+        from django.db import connection
+        from core.models import Impuesto
+        
+        try:
+            # Crear impuestos básicos
+            iva_16, created = Impuesto.objects.get_or_create(
+                codigo='002',
+                nombre='IVA Tasa 16%',
+                defaults={'tasa': 0.16, 'activo': True}
+            )
+            if created:
+                self.stdout.write('Creado impuesto: IVA Tasa 16%')
+            
+            iva_0, created = Impuesto.objects.get_or_create(
+                codigo='002',
+                nombre='IVA Tasa 0%',
+                defaults={'tasa': 0.0, 'activo': True}
+            )
+            if created:
+                self.stdout.write('Creado impuesto: IVA Tasa 0%')
+                
+            self.stdout.write('Catálogos de impuestos sembrados correctamente')
+            
+        except Exception as e:
+            self.stdout.write(f'Advertencia: Error al sembrar catálogos: {str(e)}')
+
+    def _crear_tabla_sessions(self):
+        """Crear tabla django_session si no existe"""
+        from django.db import connection
+        
+        try:
+            with connection.cursor() as cursor:
+                # Verificar si la tabla existe
+                cursor.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='django_session'
+                """)
+                if not cursor.fetchone():
+                    # Crear la tabla django_session
+                    cursor.execute("""
+                        CREATE TABLE django_session (
+                            session_key varchar(40) NOT NULL PRIMARY KEY,
+                            session_data text NOT NULL,
+                            expire_date datetime NOT NULL
+                        )
+                    """)
+                    self.stdout.write('Tabla django_session creada')
+                else:
+                    self.stdout.write('Tabla django_session ya existe')
+                    
+        except Exception as e:
+            self.stdout.write(f'Advertencia: Error creando tabla django_session: {str(e)}')

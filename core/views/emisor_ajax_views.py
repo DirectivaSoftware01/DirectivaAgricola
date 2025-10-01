@@ -16,8 +16,7 @@ from ..models import Emisor, Usuario
 @csrf_exempt
 def listar_emisores_ajax(request):
     """Vista AJAX para listar emisores"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Usuarios no administradores pueden consultar información básica de emisores
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -27,27 +26,41 @@ def listar_emisores_ajax(request):
         
         emisores_data = []
         for emisor in emisores:
-            emisores_data.append({
-                'codigo': emisor.codigo,
-                'razon_social': emisor.razon_social,
-                'rfc': emisor.rfc,
-                'codigo_postal': emisor.codigo_postal,
-                'regimen_fiscal': emisor.regimen_fiscal,
-                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
-                'serie': emisor.serie,
-                'timbrado_prueba': emisor.timbrado_prueba,
-                'nombre_pac': emisor.nombre_pac,
-                'contrato': emisor.contrato,
-                'usuario_pac': emisor.usuario_pac,
-                'password_pac': emisor.password_pac,
-                'password_llave': emisor.password_llave,
-                'archivo_certificado': emisor.archivo_certificado,
-                'nombre_archivo_certificado': emisor.nombre_archivo_certificado,
-                'archivo_llave': emisor.archivo_llave,
-                'nombre_archivo_llave': emisor.nombre_archivo_llave,
-                'activo': emisor.activo,
-                'fecha_modificacion': emisor.fecha_modificacion.isoformat() if emisor.fecha_modificacion else None,
-            })
+            if request.user.is_staff:
+                emisores_data.append({
+                    'codigo': emisor.codigo,
+                    'razon_social': emisor.razon_social,
+                    'rfc': emisor.rfc,
+                    'codigo_postal': emisor.codigo_postal,
+                    'regimen_fiscal': emisor.regimen_fiscal,
+                    'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                    'serie': emisor.serie,
+                    'timbrado_prueba': emisor.timbrado_prueba,
+                    'nombre_pac': emisor.nombre_pac,
+                    'contrato': emisor.contrato,
+                    'usuario_pac': emisor.usuario_pac,
+                    'password_pac': emisor.password_pac,
+                    'password_llave': emisor.password_llave,
+                    'archivo_certificado': emisor.archivo_certificado,
+                    'nombre_archivo_certificado': emisor.nombre_archivo_certificado,
+                    'archivo_llave': emisor.archivo_llave,
+                    'nombre_archivo_llave': emisor.nombre_archivo_llave,
+                    'activo': emisor.activo,
+                    'fecha_modificacion': emisor.fecha_modificacion.isoformat() if emisor.fecha_modificacion else None,
+                })
+            else:
+                # Campos básicos para operación (sin exponer credenciales/archivos)
+                emisores_data.append({
+                    'codigo': emisor.codigo,
+                    'razon_social': emisor.razon_social,
+                    'rfc': emisor.rfc,
+                    'codigo_postal': emisor.codigo_postal,
+                    'regimen_fiscal': emisor.regimen_fiscal,
+                    'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                    'serie': emisor.serie,
+                    'timbrado_prueba': emisor.timbrado_prueba,
+                    'activo': emisor.activo,
+                })
         
         return JsonResponse({
             'success': True,
@@ -202,8 +215,7 @@ def agregar_emisor_ajax(request):
 @csrf_exempt
 def obtener_emisor_ajax(request, codigo):
     """Vista AJAX para obtener datos de un emisor"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Usuarios no administradores pueden consultar información básica de emisores
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -211,9 +223,8 @@ def obtener_emisor_ajax(request, codigo):
     try:
         emisor = get_object_or_404(Emisor, codigo=codigo)
         
-        return JsonResponse({
-            'success': True,
-            'emisor': {
+        if request.user.is_staff:
+            data = {
                 'codigo': emisor.codigo,
                 'razon_social': emisor.razon_social,
                 'rfc': emisor.rfc,
@@ -232,6 +243,21 @@ def obtener_emisor_ajax(request, codigo):
                 'archivo_llave': emisor.archivo_llave[:100] + '...' if emisor.archivo_llave and len(emisor.archivo_llave) > 100 else emisor.archivo_llave,
                 'nombre_archivo_llave': emisor.nombre_archivo_llave,
             }
+        else:
+            data = {
+                'codigo': emisor.codigo,
+                'razon_social': emisor.razon_social,
+                'rfc': emisor.rfc,
+                'codigo_postal': emisor.codigo_postal,
+                'regimen_fiscal': emisor.regimen_fiscal,
+                'regimen_fiscal_display': emisor.get_regimen_fiscal_display(),
+                'serie': emisor.serie,
+                'timbrado_prueba': emisor.timbrado_prueba,
+            }
+        
+        return JsonResponse({
+            'success': True,
+            'emisor': data
         })
         
     except Exception as e:
@@ -245,8 +271,7 @@ def obtener_emisor_ajax(request, codigo):
 @csrf_exempt
 def validar_emisor_ajax(request, codigo):
     """Vista AJAX para validar certificado de un emisor"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir validación a usuarios autenticados
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)

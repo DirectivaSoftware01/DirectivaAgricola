@@ -85,7 +85,7 @@ class EmpresaDbMiddleware(MiddlewareMixin):
                             'MIRROR': None,
                             'NAME': None
                         },
-                        'TIME_ZONE': None,
+                        'TIME_ZONE': 'America/Mexico_City',
                         'USER': ''
                     }
                     

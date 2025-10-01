@@ -62,10 +62,12 @@ def empresa_create_view(request):
             # Crear la base de datos de la empresa
             try:
                 from django.core.management import call_command
+                # Extraer el RFC del nombre de la base de datos (Directiva_RFC -> RFC)
+                rfc_from_db_name = empresa.db_name.replace('Directiva_', '')
                 call_command('crear_empresa_simple', 
                            empresa.db_name,
                            razon_social=empresa.nombre,
-                           rfc=empresa.rfc,
+                           rfc=rfc_from_db_name,
                            direccion=request.POST.get('direccion', ''),
                            telefono=request.POST.get('telefono', ''),
                            ciclo_actual=request.POST.get('ciclo_actual', ''))
