@@ -145,6 +145,7 @@ AWS_S3_OBJECT_PARAMETERS = {
 }
 
 # Static files
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
 STATICFILES_DIRS = [

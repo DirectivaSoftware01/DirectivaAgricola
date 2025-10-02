@@ -32,4 +32,4 @@ RUN python manage.py collectstatic --settings=directiva_agricola.settings_produc
 EXPOSE 8000
 
 # Comando para ejecutar la aplicación
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "directiva_agricola.wsgi:application"]
