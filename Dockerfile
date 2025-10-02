@@ -1,10 +1,9 @@
-# Dockerfile para AWS App Runner
+# Dockerfile simplificado para AWS App Runner
 FROM python:3.11-slim
 
 # Establecer variables de entorno
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV DJANGO_SETTINGS_MODULE=directiva_agricola.settings_production
 
 # Crear directorio de trabajo
 WORKDIR /app
@@ -25,8 +24,12 @@ COPY . .
 # Crear directorio para archivos estáticos
 RUN mkdir -p /app/staticfiles
 
+# Ejecutar migraciones y collectstatic
+RUN python manage.py migrate --settings=directiva_agricola.settings_production --noinput || true
+RUN python manage.py collectstatic --settings=directiva_agricola.settings_production --noinput || true
+
 # Exponer puerto
 EXPOSE 8000
 
 # Comando para ejecutar la aplicación
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120", "directiva_agricola.wsgi:application"]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
