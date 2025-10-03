@@ -1,0 +1,25 @@
+{
+  "ImageRepository": {
+    "ImageIdentifier": "008099620500.dkr.ecr.us-west-2.amazonaws.com/directiva-agricola:8080",
+    "ImageConfiguration": {
+      "RuntimeEnvironmentVariables": {
+        "AWS_S3_REGION_NAME": "us-west-2",
+        "AWS_STORAGE_BUCKET_NAME": "directiva-agricola-static-1759445488",
+        "DJANGO_SETTINGS_MODULE": "directiva_agricola.settings_production",
+        "RDS_ADMIN_DB_NAME": "directiva_administracion",
+        "RDS_DB_NAME": "directiva_agricola",
+        "RDS_HOSTNAME": "directiva-agricola-db.ch0uaaay0qlf.us-west-2.rds.amazonaws.com",
+        "RDS_PASSWORD": "Directiva2024!",
+        "RDS_PORT": "5432",
+        "RDS_USERNAME": "postgres",
+        "SECRET_KEY": "VvCjJ4aBWeU7wVXE2C83xwDRvcalnx+IfpF75eGZFUo="
+      },
+      "Port": "8080"
+    },
+    "ImageRepositoryType": "ECR"
+  },
+  "AutoDeploymentsEnabled": false,
+  "AuthenticationConfiguration": {
+    "AccessRoleArn": "arn:aws:iam::008099620500:role/AppRunnerECRAccessRole"
+  }
+}

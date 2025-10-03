@@ -1,0 +1,26 @@
+{
+  "CodeRepository": {
+    "RepositoryUrl": "https://github.com/DirectivaSoftware01/DirectivaAgricola.git",
+    "SourceCodeVersion": {
+      "Type": "BRANCH",
+      "Value": "main"
+    },
+    "CodeConfiguration": {
+      "ConfigurationSource": "REPOSITORY",
+      "CodeConfigurationValues": {
+        "Runtime": "PYTHON_3",
+        "BuildCommand": "pip install -r requirements.txt",
+        "StartCommand": "python manage.py runserver 0.0.0.0:8080",
+        "Port": "8080",
+        "RuntimeEnvironmentVariables": {
+          "DJANGO_SETTINGS_MODULE": "directiva_agricola.settings"
+        }
+      }
+    },
+    "SourceDirectory": "/"
+  },
+  "AutoDeploymentsEnabled": true,
+  "AuthenticationConfiguration": {
+    "ConnectionArn": "arn:aws:apprunner:us-west-2:008099620500:connection/directiva-github-connection/aa457897d95645abbb26550c03576def"
+  }
+}

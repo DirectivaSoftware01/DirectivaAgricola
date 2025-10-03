@@ -1,0 +1,35 @@
+{
+  "CodeRepository": {
+    "RepositoryUrl": "https://github.com/DirectivaSoftware01/DirectivaAgricola.git",
+    "SourceCodeVersion": {
+      "Type": "BRANCH",
+      "Value": "main"
+    },
+    "CodeConfiguration": {
+      "ConfigurationSource": "REPOSITORY",
+      "CodeConfigurationValues": {
+        "Runtime": "PYTHON_3",
+        "BuildCommand": "pip install -r requirements.txt",
+        "StartCommand": "gunicorn --bind 0.0.0.0:8080 --workers 2 directiva_agricola.wsgi:application",
+        "Port": "8080",
+        "RuntimeEnvironmentVariables": {
+          "AWS_S3_REGION_NAME": "us-west-2",
+          "AWS_STORAGE_BUCKET_NAME": "directiva-agricola-static-1759445488",
+          "DJANGO_SETTINGS_MODULE": "directiva_agricola.settings_production",
+          "RDS_ADMIN_DB_NAME": "directiva_administracion",
+          "RDS_DB_NAME": "directiva_agricola",
+          "RDS_HOSTNAME": "directiva-agricola-db.ch0uaaay0qlf.us-west-2.rds.amazonaws.com",
+          "RDS_PASSWORD": "Directiva2024!",
+          "RDS_PORT": "5432",
+          "RDS_USERNAME": "postgres",
+          "SECRET_KEY": "VvCjJ4aBWeU7wVXE2C83xwDRvcalnx+IfpF75eGZFUo="
+        }
+      }
+    },
+    "SourceDirectory": "/"
+  },
+  "AutoDeploymentsEnabled": true,
+  "AuthenticationConfiguration": {
+    "ConnectionArn": "arn:aws:apprunner:us-west-2:008099620500:connection/directiva-github-connection/aa457897d95645abbb26550c03576def"
+  }
+}

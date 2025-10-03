@@ -29,7 +29,7 @@ RUN python manage.py migrate --settings=directiva_agricola.settings_production -
 RUN python manage.py collectstatic --settings=directiva_agricola.settings_production --noinput || true
 
 # Exponer puerto
-EXPOSE 8000
+EXPOSE 8080
 
 # Comando para ejecutar la aplicación
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "directiva_agricola.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "directiva_agricola.wsgi:application"]
