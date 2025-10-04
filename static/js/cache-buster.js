@@ -24,23 +24,38 @@
     
     // Función para limpiar cache del navegador
     function clearBrowserCache() {
-        // Limpiar cache de localStorage
+        // Claves a preservar en localStorage
+        const PRESERVE_KEYS = ['loginRFC'];
+        let preserved = {};
+        
+        // Limpiar cache de localStorage preservando claves necesarias
         if (typeof(Storage) !== "undefined") {
-            localStorage.clear();
+            try {
+                PRESERVE_KEYS.forEach(k => {
+                    const val = localStorage.getItem(k);
+                    if (val !== null) preserved[k] = val;
+                });
+                localStorage.clear();
+                Object.keys(preserved).forEach(k => localStorage.setItem(k, preserved[k]));
+            } catch (e) {
+                // ignorar errores de almacenamiento
+            }
         }
         
-        // Limpiar cache de sessionStorage
+        // Limpiar cache de sessionStorage (no preservamos nada allí)
         if (typeof(Storage) !== "undefined") {
-            sessionStorage.clear();
+            try { sessionStorage.clear(); } catch (e) {}
         }
         
         // Limpiar cache de IndexedDB si está disponible
         if ('indexedDB' in window) {
-            indexedDB.databases().then(databases => {
-                databases.forEach(db => {
-                    indexedDB.deleteDatabase(db.name);
-                });
-            }).catch(console.error);
+            try {
+                indexedDB.databases().then(databases => {
+                    databases.forEach(db => {
+                        indexedDB.deleteDatabase(db.name);
+                    });
+                }).catch(function(){ /* noop */ });
+            } catch (e) { /* noop */ }
         }
     }
     
@@ -120,7 +135,7 @@
     // Función para manejar el evento beforeunload
     function handleBeforeUnload() {
         window.addEventListener('beforeunload', function() {
-            // Limpiar cache al salir
+            // Limpiar cache al salir preservando claves whitelisted
             clearBrowserCache();
         });
     }

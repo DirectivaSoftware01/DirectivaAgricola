@@ -7,6 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Directiva Agrícola - Login</title>
     
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static_with_timestamp 'images/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static_with_timestamp 'images/favicon-16x16.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static_with_timestamp 'images/apple-touch-icon.png' %}">
+    <link rel="mask-icon" href="{% static_with_timestamp 'images/logo.svg' %}" color="#0d6efd">
+    <meta name="theme-color" content="#0d6efd">
+    
     <!-- Headers para evitar cache -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -52,7 +59,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 40px;
+            padding: 0; /* Quitar padding para que la imagen ocupe todo el contenedor */
             position: relative;
         }
         
@@ -71,17 +78,18 @@
             z-index: 1;
             width: 100%;
             height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: block; /* Que el contenedor no agregue centrado extra */
+            overflow: hidden; /* Recortar excedentes al usar cover */
         }
         
         .image-placeholder img {
             width: 100%;
             height: 100%;
-            object-fit: fill;
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            object-fit: cover; /* Llenar el contenedor sin deformar */
+            object-position: center center;
+            border-radius: 0; /* Dejar que el card recorte con su borde redondeado */
+            box-shadow: none;
+            display: block;
         }
         
         .form-section {
@@ -283,7 +291,11 @@
             <!-- Sección de imagen -->
             <div class="image-section">
                                         <div class="image-placeholder">
-                            <img src="{% static_with_timestamp 'images/ImagenIntro.png' %}" alt="Imagen de introducción">
+                            <picture>
+                                <source type="image/webp" srcset="{% static_with_timestamp 'images/ImagenIntroGral1.webp' %} 1x, {% static_with_timestamp 'images/ImagenIntroGral2.webp' %} 2x" sizes="(max-width: 768px) 100vw, 50vw">
+                                <source type="image/png" srcset="{% static_with_timestamp 'images/ImagenIntroGral1.png' %} 1x, {% static_with_timestamp 'images/ImagenIntroGral2.png' %} 2x" sizes="(max-width: 768px) 100vw, 50vw">
+                                <img src="{% static_with_timestamp 'images/ImagenIntroGral1.png' %}" alt="Imagen de introducción" loading="eager" decoding="async">
+                            </picture>
                         </div>
             </div>
             
@@ -331,8 +343,12 @@
                     <span class="separator-text">Panel de control</span>
                 </div>
                 
-                <!-- Botón de configuración -->
-                <a href="{% url 'core:configuracion' %}" class="btn btn-config">Configuración</a>
+                <!-- Campo RFC (persistencia local) -->
+                <div class="mb-3">
+                    <label for="rfcInput" class="form-label">RFC</label>
+                    <input type="text" id="rfcInput" class="form-control" placeholder="Ingresa tu RFC" maxlength="13" autocomplete="off" inputmode="latin" spellcheck="false" required>
+                    <div id="rfcError" class="text-danger" style="display:none;margin-top:5px;">RFC requerido o inválido. Formato esperado: AAAA yymmdd XXX (12 o 13 caracteres).</div>
+                </div>
                 
                 <!-- Texto del footer -->
                 <div class="footer-text">
@@ -345,5 +361,107 @@
     
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        (function() {
+            var STORAGE_KEY = 'loginRFC';
+            var rfcInput = null;
+            var rfcError = null;
+
+            function sanitizeRFC(value) {
+                if (!value) return '';
+                return value.toUpperCase().replace(/\s+/g, '');
+            }
+
+            // Regex con validación de fecha (yymmdd)
+            // Personas morales: 3 letras + fecha + 3 alfanum (12 total)
+            // Personas físicas: 4 letras + fecha + 3 alfanum (13 total)
+            var RFC_REGEX = /^([A-ZÑ&]{3,4})(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[A-Z\d]{3}$/;
+
+            function isValidRFC(value) {
+                if (!value) return false; // Requerido
+                if (!RFC_REGEX.test(value)) return false;
+                // Validación de fecha razonable (año 00-99, mes y día ya validados por regex)
+                // No validamos siglo; solo plausibilidad básica.
+                return true;
+            }
+
+            function loadRFC() {
+                try {
+                    var saved = localStorage.getItem(STORAGE_KEY) || '';
+                    if (rfcInput && saved) {
+                        rfcInput.value = saved;
+                        applyRfcValidationState(saved);
+                    }
+                } catch (e) {
+                    // Sin almacenamiento disponible, ignorar
+                }
+            }
+
+            function saveRFC() {
+                try {
+                    if (!rfcInput) return;
+                    var value = sanitizeRFC(rfcInput.value);
+                    localStorage.setItem(STORAGE_KEY, value);
+                } catch (e) {
+                    // Sin almacenamiento disponible, ignorar
+                }
+            }
+
+            function applyRfcValidationState(value) {
+                var valid = isValidRFC(value);
+                if (!rfcInput) return;
+                if (!value || !valid) {
+                    rfcInput.classList.add('is-invalid');
+                    rfcInput.classList.remove('is-valid');
+                    if (rfcError) rfcError.style.display = '';
+                } else if (value && valid) {
+                    rfcInput.classList.remove('is-invalid');
+                    rfcInput.classList.add('is-valid');
+                    if (rfcError) rfcError.style.display = 'none';
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                rfcInput = document.getElementById('rfcInput');
+                rfcError = document.getElementById('rfcError');
+                loadRFC();
+
+                if (rfcInput) {
+                    rfcInput.addEventListener('change', function() {
+                        rfcInput.value = sanitizeRFC(rfcInput.value);
+                        applyRfcValidationState(rfcInput.value);
+                        saveRFC();
+                    });
+                    rfcInput.addEventListener('blur', function() {
+                        rfcInput.value = sanitizeRFC(rfcInput.value);
+                        applyRfcValidationState(rfcInput.value);
+                        saveRFC();
+                    });
+                    rfcInput.addEventListener('input', function() {
+                        rfcInput.value = sanitizeRFC(rfcInput.value);
+                        applyRfcValidationState(rfcInput.value);
+                        saveRFC();
+                    });
+                }
+
+                var loginForm = document.querySelector('form[method="post"]');
+                if (loginForm) {
+                    loginForm.addEventListener('submit', function() {
+                        if (rfcInput) {
+                            var value = sanitizeRFC(rfcInput.value);
+                            if (!isValidRFC(value)) {
+                                applyRfcValidationState(value);
+                                try { event.preventDefault(); } catch (e) {}
+                                try { rfcInput.focus(); } catch (e) {}
+                                return false;
+                            }
+                            saveRFC();
+                        }
+                    });
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

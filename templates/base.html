@@ -7,6 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Directiva Agrícola{% endblock %}</title>
     
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static_with_timestamp 'images/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static_with_timestamp 'images/favicon-16x16.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static_with_timestamp 'images/apple-touch-icon.png' %}">
+    <link rel="mask-icon" href="{% static_with_timestamp 'images/logo.svg' %}" color="#0d6efd">
+    <meta name="theme-color" content="#0d6efd">
+    
     <!-- Headers para evitar cache -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
