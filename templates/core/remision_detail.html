@@ -40,140 +40,109 @@
         {% endfor %}
     {% endif %}
 
-    <div class="row">
-        <!-- Información de la Remisión -->
-        <div class="col-md-4">
-            <div class="card mb-4">
+    <!-- Información de la Remisión - Layout Horizontal Compacto -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-info-circle"></i> Información de la Remisión
                     </h5>
                 </div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <tr>
-                            <td><strong>Ciclo:</strong></td>
-                            <td><span class="badge bg-primary">{{ remision.ciclo }}</span></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Folio:</strong></td>
-                            <td><span class="badge bg-info">{{ remision.folio|stringformat:"06d" }}</span></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Fecha:</strong></td>
-                            <td>{{ remision.fecha|date:"d/m/Y" }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Cliente:</strong></td>
-                            <td>
-                                <strong>{{ remision.cliente.razon_social }}</strong><br>
-                                <small class="text-muted">{{ remision.cliente.rfc }}</small>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>Lote - Origen:</strong></td>
-                            <td><span class="badge bg-secondary">{{ remision.lote_origen.nombre }}</span></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Transportista:</strong></td>
-                            <td>
-                                <strong>{{ remision.transportista.nombre_completo }}</strong><br>
-                                <small class="text-muted">{{ remision.transportista.placas_unidad }}</small>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>Costo de Flete:</strong></td>
-                            <td><span class="text-success fw-bold">${{ remision.costo_flete|floatformat:2 }}</span></td>
-                        </tr>
-                        {% if remision.observaciones %}
-                        <tr>
-                            <td><strong>Observaciones:</strong></td>
-                            <td>{{ remision.observaciones }}</td>
-                        </tr>
-                        {% endif %}
-                    </table>
-                </div>
-            </div>
-
-            <!-- Información de Auditoría -->
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-clock-history"></i> Información de Auditoría
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm">
-                        <tr>
-                            <td><strong>Creado por:</strong></td>
-                            <td>{{ remision.usuario_creacion.nombre }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Fecha de creación:</strong></td>
-                            <td>{{ remision.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                        </tr>
-                        {% if remision.usuario_modificacion %}
-                        <tr>
-                            <td><strong>Modificado por:</strong></td>
-                            <td>{{ remision.usuario_modificacion.nombre }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Fecha de modificación:</strong></td>
-                            <td>{{ remision.fecha_modificacion|date:"d/m/Y H:i" }}</td>
-                        </tr>
-                        {% endif %}
-                        {% if remision.cancelada %}
-                        <tr>
-                            <td><strong>Cancelada por:</strong></td>
-                            <td>{{ remision.usuario_cancelacion.nombre|default:"No disponible" }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Fecha de cancelación:</strong></td>
-                            <td>{{ remision.fecha_cancelacion|date:"d/m/Y H:i"|default:"No disponible" }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Motivo de cancelación:</strong></td>
-                            <td>{{ remision.motivo_cancelacion|default:"No disponible" }}</td>
-                        </tr>
-                        {% if remision.folio_sustituto %}
-                        <tr>
-                            <td><strong>Folio que sustituye:</strong></td>
-                            <td>{{ remision.folio_sustituto }}</td>
-                        </tr>
-                        {% endif %}
-                        {% elif remision.esta_liquidada %}
-                        <tr>
-                            <td><strong>Preliquidado por:</strong></td>
-                            <td>
-                                {% for detalle in remision.detalles.all %}
-                                    {% if detalle.usuario_liquidacion %}
-                                        {{ detalle.usuario_liquidacion.nombre }}
-                                    {% endif %}
-                                {% empty %}
-                                    No disponible
-                                {% endfor %}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>Fecha de preliquidación:</strong></td>
-                            <td>
-                                {% for detalle in remision.detalles.all %}
-                                    {% if detalle.fecha_liquidacion %}
-                                        {{ detalle.fecha_liquidacion|date:"d/m/Y H:i" }}
-                                    {% endif %}
-                                {% empty %}
-                                    No disponible
-                                {% endfor %}
-                            </td>
-                        </tr>
-                        {% endif %}
-                    </table>
+                    <div class="row">
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Ciclo</h6>
+                                <span class="badge bg-primary fs-6">{{ remision.ciclo }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Folio</h6>
+                                <span class="badge bg-info fs-6">{{ remision.folio|stringformat:"06d" }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Fecha</h6>
+                                <span class="fw-bold">{{ remision.fecha|date:"d/m/Y" }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Cliente</h6>
+                                <div>
+                                    <strong>{{ remision.cliente.razon_social }}</strong><br>
+                                    <small class="text-muted">{{ remision.cliente.rfc }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Transportista</h6>
+                                <div>
+                                    <strong>{{ remision.transportista.nombre_completo }}</strong><br>
+                                    <small class="text-muted">{{ remision.transportista.placas_unidad }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <hr class="my-3">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Lote - Origen</h6>
+                                <span class="badge bg-secondary">{{ remision.lote_origen.nombre }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Costo de Flete</h6>
+                                <span class="text-success fw-bold">${{ remision.costo_flete|floatformat:2 }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Peso Bruto</h6>
+                                <span class="text-primary fw-bold">{{ remision.peso_bruto_embarque|floatformat:2 }} kg</span>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Merma/Arps Global</h6>
+                                <span class="text-warning fw-bold">{{ remision.merma_arps_global }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Peso Bruto Liquidado</h6>
+                                <span class="text-success fw-bold">{{ remision.peso_bruto_liquidado|floatformat:2 }} kg</span>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Merma/Arps Liquidados</h6>
+                                <span class="text-danger fw-bold">{{ remision.merma_arps_liquidados }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            {% if remision.observaciones %}
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Observaciones</h6>
+                                <small>{{ remision.observaciones }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Detalles de la Remisión -->
-        <div class="col-md-8">
+    <!-- Detalles de la Remisión - Ahora ocupa todo el ancho -->
+    <div class="row">
+        <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
@@ -197,11 +166,24 @@
                                         <th>No Arps</th>
                                         <th>Kgs Enviados</th>
                                         <th>Merma/Arps</th>
-                                        <th>Peso Promedio</th>
-                                        <th>Kgs Preliquidados</th>
                                         <th>Kgs Merma</th>
+                                        <th>Kgs Neto Envío</th>
+                                        <th>Precio Envío</th>
+                                        <th>Importe Envío</th>
+                                        <th>Importe Neto Envío</th>
+                                        <th>Peso Promedio</th>
+                                        <th>No Arps Liquidados</th>
+                                        <th>Peso Promedio Liquidado</th>
+                                        <th>Kgs Liquidados</th>
+                                        <th>Kgs Merma Liquidados</th>
                                         <th>Precio</th>
-                                        <th>Importe Preliquidado</th>
+                                        <th>Importe Liquidado</th>
+                                        <th>Dif Peso Promedio</th>
+                                        <th>Dif No Arps</th>
+                                        <th>Dif Kgs Merma</th>
+                                        <th>Dif Kgs Liquidados</th>
+                                        <th>Dif Precio</th>
+                                        <th>Dif Importes</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -219,25 +201,64 @@
                                             <span class="fw-bold">{{ detalle.no_arps }}</span>
                                         </td>
                                         <td>
-                                            <span class="text-primary fw-bold">{{ detalle.kgs_enviados|floatformat:2 }}</span>
+                                            <span class="text-primary fw-bold">{{ detalle.kgs_enviados|floatformat:2 }} kg</span>
                                         </td>
                                         <td>
                                             <span class="text-warning fw-bold">{{ detalle.merma_arps }}</span>
                                         </td>
                                         <td>
-                                            <span class="text-success fw-bold">{{ detalle.peso_promedio|floatformat:2 }}</span>
+                                            <span class="text-danger fw-bold">{{ detalle.kgs_merma|floatformat:2 }} kg</span>
                                         </td>
                                         <td>
-                                            <span class="text-info fw-bold">{{ detalle.kgs_liquidados|floatformat:2 }}</span>
+                                            <span class="text-warning fw-bold">{{ detalle.kgs_neto_envio|floatformat:2 }} kg</span>
                                         </td>
                                         <td>
-                                            <span class="text-danger fw-bold">{{ detalle.kgs_merma|floatformat:2 }}</span>
+                                            <span class="text-info fw-bold">${{ detalle.precio_envio|floatformat:2 }}</span>
                                         </td>
                                         <td>
-                                            <span class="text-success fw-bold">${{ detalle.precio|floatformat:2 }}</span>
+                                            <span class="text-success fw-bold">${{ detalle.importe_envio|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-dark fw-bold">${{ detalle.importe_neto_envio|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-secondary fw-bold">{{ detalle.peso_promedio|floatformat:2 }} kg/arp</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-primary fw-bold">{{ detalle.no_arps_liquidados }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-secondary fw-bold">{{ detalle.peso_promedio_liquidado|floatformat:2 }} kg/arp</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-info fw-bold">{{ detalle.kgs_liquidados|floatformat:2 }} kg</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-danger fw-bold">{{ detalle.kgs_merma_liquidados|floatformat:2 }} kg</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-warning fw-bold">${{ detalle.precio|floatformat:2 }}</span>
                                         </td>
                                         <td>
                                             <span class="text-success fw-bold">${{ detalle.importe_liquidado|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-info fw-bold">{{ detalle.dif_peso_promedio|floatformat:2 }} kg/arp</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-primary fw-bold">{{ detalle.dif_no_arps }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-warning fw-bold">{{ detalle.dif_kgs_merma|floatformat:2 }} kg</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-danger fw-bold">{{ detalle.dif_kgs_liquidados|floatformat:2 }} kg</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-secondary fw-bold">${{ detalle.dif_precio|floatformat:2 }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-dark fw-bold">${{ detalle.dif_importes|floatformat:2 }}</span>
                                         </td>
                                         <td>
                                             {% if user.is_staff %}
@@ -270,44 +291,34 @@
                                     <div class="card-body">
                                         <h6 class="card-title">Resumen de Totales</h6>
                                         <div class="row">
-                                            <div class="col-md-3">
+                                            <div class="col-md-2">
                                                 <div class="text-center">
                                                     <h6 class="text-muted">Total Arps</h6>
-                                                    <h4 class="text-primary">
-                                                        {% for detalle in detalles %}
-                                                            {% if forloop.first %}{{ detalle.no_arps }}{% else %}{{ total_arps|add:detalle.no_arps }}{% endif %}
-                                                        {% endfor %}
-                                                    </h4>
+                                                    <h4 class="text-primary">{{ total_arps }}</h4>
                                                 </div>
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-2">
                                                 <div class="text-center">
                                                     <h6 class="text-muted">Total Kgs Enviados</h6>
-                                                    <h4 class="text-primary">
-                                                        {% for detalle in detalles %}
-                                                            {% if forloop.first %}{{ detalle.kgs_enviados|floatformat:2 }}{% else %}{{ total_kgs_enviados|add:detalle.kgs_enviados|floatformat:2 }}{% endif %}
-                                                        {% endfor %}
-                                                    </h4>
+                                                    <h4 class="text-primary">{{ total_kgs_enviados|floatformat:2 }} kg</h4>
                                                 </div>
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-2">
                                                 <div class="text-center">
-                                                    <h6 class="text-muted">Total Kgs Preliquidados</h6>
-                                                    <h4 class="text-info">
-                                                        {% for detalle in detalles %}
-                                                            {% if forloop.first %}{{ detalle.kgs_liquidados|floatformat:2 }}{% else %}{{ total_kgs_liquidados|add:detalle.kgs_liquidados|floatformat:2 }}{% endif %}
-                                                        {% endfor %}
-                                                    </h4>
+                                                    <h6 class="text-muted">Total Kgs Merma</h6>
+                                                    <h4 class="text-warning">{{ total_kgs_merma|floatformat:2 }} kg</h4>
                                                 </div>
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-2">
                                                 <div class="text-center">
-                                                    <h6 class="text-muted">Total Importe</h6>
-                                                    <h4 class="text-success">
-                                                        {% for detalle in detalles %}
-                                                            {% if forloop.first %}${{ detalle.importe_liquidado|floatformat:2 }}{% else %}${{ total_importe|add:detalle.importe_liquidado|floatformat:2 }}{% endif %}
-                                                        {% endfor %}
-                                                    </h4>
+                                                    <h6 class="text-muted">Total Kgs Netos</h6>
+                                                    <h4 class="text-info">{{ total_kgs_netos|floatformat:2 }} kg</h4>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-center">
+                                                    <h6 class="text-muted">Liquidación Formulada</h6>
+                                                    <h4 class="text-success">${{ total_importe_neto_envio|floatformat:2 }}</h4>
                                                 </div>
                                             </div>
                                         </div>
@@ -325,6 +336,98 @@
                             </a>
                         </div>
                     {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información de Auditoría - Ahora al final -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history"></i> Información de Auditoría
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Creado por</h6>
+                                <span class="fw-bold">{{ remision.usuario_creacion.nombre }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Fecha de creación</h6>
+                                <span class="fw-bold">{{ remision.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                            </div>
+                        </div>
+                        {% if remision.usuario_modificacion %}
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Modificado por</h6>
+                                <span class="fw-bold">{{ remision.usuario_modificacion.nombre }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Fecha de modificación</h6>
+                                <span class="fw-bold">{{ remision.fecha_modificacion|date:"d/m/Y H:i" }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if remision.cancelada %}
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Cancelada por</h6>
+                                <span class="fw-bold">{{ remision.usuario_cancelacion.nombre|default:"No disponible" }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Fecha de cancelación</h6>
+                                <span class="fw-bold">{{ remision.fecha_cancelacion|date:"d/m/Y H:i"|default:"No disponible" }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Motivo de cancelación</h6>
+                                <small>{{ remision.motivo_cancelacion|default:"No disponible" }}</small>
+                            </div>
+                        </div>
+                        {% elif remision.esta_liquidada %}
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Preliquidado por</h6>
+                                <span class="fw-bold">
+                                    {% for detalle in remision.detalles.all %}
+                                        {% if detalle.usuario_liquidacion %}
+                                            {{ detalle.usuario_liquidacion.nombre }}
+                                        {% endif %}
+                                    {% empty %}
+                                        No disponible
+                                    {% endfor %}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Fecha de preliquidación</h6>
+                                <span class="fw-bold">
+                                    {% for detalle in remision.detalles.all %}
+                                        {% if detalle.fecha_liquidacion %}
+                                            {{ detalle.fecha_liquidacion|date:"d/m/Y H:i" }}
+                                        {% endif %}
+                                    {% empty %}
+                                        No disponible
+                                    {% endfor %}
+                                </span>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>

@@ -10150,6 +10150,11 @@ class RemisionCreateView(LoginRequiredMixin, CreateView):
                     kgs_merma=round(detalle_data['kgs_merma'], 2),
                     precio=round(detalle_data['precio'], 2),
                     importe_liquidado=round(detalle_data['importe_liquidado'], 2),
+                    # Campos de envío
+                    precio_envio=round(detalle_data.get('precio_envio', 0), 2),
+                    importe_envio=round(detalle_data.get('importe_envio', 0), 2),
+                    kgs_neto_envio=round(detalle_data.get('kgs_neto_envio', 0), 2),
+                    importe_neto_envio=round(detalle_data.get('importe_neto_envio', 0), 2),
                     usuario_creacion=self.request.user
                 )
             except Exception as e:
@@ -10218,22 +10223,48 @@ class RemisionLiquidacionView(LoginRequiredMixin, TemplateView):
         # Obtener todos los detalles de la remisión
         detalles = self.object.detalles.all()
         
+        # Procesar los datos de la remisión
+        peso_bruto_liquidado = request.POST.get('peso_bruto_liquidado', 0)
+        merma_arps_liquidados = request.POST.get('merma_arps_liquidados', 0)
+        
+        try:
+            self.object.peso_bruto_liquidado = round(float(peso_bruto_liquidado or 0), 2)
+            self.object.merma_arps_liquidados = int(merma_arps_liquidados or 0)
+            self.object.save()
+        except (ValueError, TypeError):
+            messages.error(request, 'Error en los datos de liquidación de la remisión.')
+            return self.form_invalid(None)
+        
         # Procesar cada detalle
         from django.utils import timezone
         
         for detalle in detalles:
             # Obtener los datos del formulario para este detalle
+            no_arps_liquidados = request.POST.get(f'no_arps_liquidados_{detalle.pk}', 0)
             kgs_liquidados = request.POST.get(f'kgs_liquidados_{detalle.pk}', 0)
+            kgs_merma_liquidados = request.POST.get(f'kgs_merma_liquidados_{detalle.pk}', 0)
+            peso_promedio_liquidado = request.POST.get(f'peso_promedio_liquidado_{detalle.pk}', 0)
             kgs_merma = request.POST.get(f'kgs_merma_{detalle.pk}', 0)
             precio = request.POST.get(f'precio_{detalle.pk}', 0)
             importe_liquidado = request.POST.get(f'importe_liquidado_{detalle.pk}', 0)
             
             # Convertir a decimal y actualizar
             try:
+                detalle.no_arps_liquidados = int(no_arps_liquidados or 0)
                 detalle.kgs_liquidados = round(float(kgs_liquidados or 0), 2)
+                detalle.kgs_merma_liquidados = round(float(kgs_merma_liquidados or 0), 2)
+                detalle.peso_promedio_liquidado = round(float(peso_promedio_liquidado or 0), 2)
                 detalle.kgs_merma = round(float(kgs_merma or 0), 2)
                 detalle.precio = round(float(precio or 0), 2)
                 detalle.importe_liquidado = round(float(importe_liquidado or 0), 2)
+                
+                # Calcular diferencias automáticamente
+                detalle.dif_peso_promedio = round(detalle.peso_promedio - detalle.peso_promedio_liquidado, 2)
+                detalle.dif_no_arps = detalle.no_arps - detalle.no_arps_liquidados
+                detalle.dif_kgs_merma = round(detalle.kgs_merma - detalle.kgs_merma_liquidados, 2)
+                detalle.dif_kgs_liquidados = round(detalle.kgs_enviados - detalle.kgs_liquidados, 2)
+                detalle.dif_precio = round(detalle.precio_envio - detalle.precio, 2)
+                detalle.dif_importes = round(detalle.importe_neto_envio - detalle.importe_liquidado, 2)
                 
                 # Guardar información de auditoría de liquidación
                 detalle.usuario_liquidacion = request.user
@@ -10739,9 +10770,23 @@ class RemisionDetailView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         remision = get_object_or_404(Remision, pk=kwargs['pk'])
+        detalles = remision.detalles.all()
+        
+        # Calcular totales
+        total_arps = sum(detalle.no_arps for detalle in detalles)
+        total_kgs_enviados = sum(detalle.kgs_enviados for detalle in detalles)
+        total_kgs_merma = sum(detalle.kgs_merma for detalle in detalles)
+        total_kgs_netos = sum(detalle.kgs_neto_envio for detalle in detalles)
+        total_importe_neto_envio = sum(detalle.importe_neto_envio for detalle in detalles)
+        
         context['remision'] = remision
-        context['detalles'] = remision.detalles.all()
+        context['detalles'] = detalles
         context['title'] = f'Remisión: {remision.ciclo} - {remision.folio:06d}'
+        context['total_arps'] = total_arps
+        context['total_kgs_enviados'] = total_kgs_enviados
+        context['total_kgs_merma'] = total_kgs_merma
+        context['total_kgs_netos'] = total_kgs_netos
+        context['total_importe_neto_envio'] = total_importe_neto_envio
         return context
 
 

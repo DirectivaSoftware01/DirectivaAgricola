@@ -57,14 +57,55 @@
                         </div>
                     </div>
                     <div class="row mt-2">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <strong>Lote - Origen:</strong> {{ remision.lote_origen }}
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <strong>Transportista:</strong> {{ remision.transportista }}
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <strong>Costo de Flete:</strong> ${{ remision.costo_flete|floatformat:2 }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Peso Bruto Embarque:</strong> {{ remision.peso_bruto_embarque|floatformat:2 }} kg
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="peso_bruto_liquidado" class="form-label"><strong>Peso Bruto Liquidado:</strong></label>
+                                <input type="number" 
+                                       class="form-control" 
+                                       id="peso_bruto_liquidado" 
+                                       name="peso_bruto_liquidado" 
+                                       value="{{ remision.peso_bruto_liquidado|floatformat:2 }}"
+                                       step="0.01" 
+                                       min="0" 
+                                       placeholder="0.00">
+                                <small class="form-text text-muted">Peso bruto liquidado en kilogramos</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="merma_arps_liquidados" class="form-label"><strong>Merma/Arps Liquidados:</strong></label>
+                                <input type="number" 
+                                       class="form-control" 
+                                       id="merma_arps_liquidados" 
+                                       name="merma_arps_liquidados" 
+                                       value="{{ remision.merma_arps_liquidados }}"
+                                       min="0" 
+                                       placeholder="0">
+                                <small class="form-text text-muted">Número de arps con merma liquidados</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label class="form-label"><strong>Merma/Arps Global:</strong></label>
+                                <div class="form-control-plaintext">
+                                    <span class="badge bg-warning fs-6">{{ remision.merma_arps_global }}</span>
+                                </div>
+                                <small class="form-text text-muted">Valor original de la remisión</small>
+                            </div>
                         </div>
                     </div>
                     {% if remision.observaciones %}
@@ -102,11 +143,20 @@
                                             <th>No Arps</th>
                                             <th>Kgs Enviados</th>
                                             <th>Merma/Arps</th>
-                                            <th>Peso Promedio</th>
-                                            <th>Kgs Liquidados</th>
                                             <th>Kgs Merma</th>
+                                            <th>Peso Promedio</th>
+                                            <th>No Arps Liquidados</th>
+                                            <th>Kgs Merma Liquidados</th>
+                                            <th>Peso Promedio Liquidado</th>
+                                            <th>Kgs Liquidados</th>
                                             <th>Precio por Kg</th>
                                             <th>Importe Liquidado</th>
+                                            <th>Dif Peso Promedio</th>
+                                            <th>Dif No Arps</th>
+                                            <th>Dif Kgs Merma</th>
+                                            <th>Dif Kgs Liquidados</th>
+                                            <th>Dif Precio</th>
+                                            <th>Dif Importes</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -115,6 +165,14 @@
                                             <td>
                                                 <strong>{{ detalle.cultivo.nombre }}</strong><br>
                                                 <small class="text-muted">{{ detalle.cultivo.variedad }}</small>
+                                                
+                                                <!-- Campos ocultos con valores originales para cálculos -->
+                                                <input type="hidden" name="no_arps_{{ detalle.pk }}" value="{{ detalle.no_arps }}">
+                                                <input type="hidden" name="kgs_enviados_{{ detalle.pk }}" value="{{ detalle.kgs_enviados }}">
+                                                <input type="hidden" name="kgs_merma_{{ detalle.pk }}" value="{{ detalle.kgs_merma }}">
+                                                <input type="hidden" name="peso_promedio_{{ detalle.pk }}" value="{{ detalle.peso_promedio }}">
+                                                <input type="hidden" name="precio_envio_{{ detalle.pk }}" value="{{ detalle.precio_envio }}">
+                                                <input type="hidden" name="importe_neto_envio_{{ detalle.pk }}" value="{{ detalle.importe_neto_envio }}">
                                             </td>
                                             <td>
                                                 <span class="badge bg-info">{{ detalle.calidad }}</span>
@@ -129,7 +187,39 @@
                                                 <span class="text-warning fw-bold">{{ detalle.merma_arps }}</span>
                                             </td>
                                             <td>
+                                                <span class="text-danger fw-bold">{{ detalle.kgs_merma|floatformat:2 }}</span>
+                                            </td>
+                                            <td>
                                                 <span class="text-success fw-bold">{{ detalle.peso_promedio|floatformat:2 }}</span>
+                                            </td>
+                                            <td>
+                                                <input type="number" 
+                                                       class="form-control form-control-sm" 
+                                                       name="no_arps_liquidados_{{ detalle.pk }}" 
+                                                       value="{{ detalle.no_arps_liquidados }}"
+                                                       min="0" 
+                                                       placeholder="0">
+                                            </td>
+                                            <td>
+                                                <input type="number" 
+                                                       class="form-control form-control-sm" 
+                                                       name="kgs_merma_liquidados_{{ detalle.pk }}" 
+                                                       value="{{ detalle.kgs_merma_liquidados|floatformat:2 }}"
+                                                       step="0.01" 
+                                                       min="0" 
+                                                       placeholder="0.00">
+                                            </td>
+                                            <td>
+                                                <input type="hidden" 
+                                                       name="peso_promedio_liquidado_{{ detalle.pk }}" 
+                                                       id="peso_promedio_liquidado_hidden_{{ detalle.pk }}"
+                                                       value="{{ detalle.peso_promedio_liquidado|floatformat:2 }}">
+                                                <input type="text" 
+                                                       class="form-control form-control-sm" 
+                                                       id="peso_promedio_liquidado_display_{{ detalle.pk }}"
+                                                       value="{{ detalle.peso_promedio_liquidado|floatformat:2 }}"
+                                                       readonly
+                                                       style="background-color: #f8f9fa;">
                                             </td>
                                             <td>
                                                 <input type="number" 
@@ -138,16 +228,8 @@
                                                        value="{{ detalle.kgs_liquidados|floatformat:2 }}"
                                                        step="0.01" 
                                                        min="0" 
-                                                       placeholder="0.00">
-                                            </td>
-                                            <td>
-                                                <input type="number" 
-                                                       class="form-control form-control-sm" 
-                                                       name="kgs_merma_{{ detalle.pk }}" 
-                                                       value="{{ detalle.kgs_merma|floatformat:2 }}"
-                                                       step="0.01" 
-                                                       min="0" 
-                                                       placeholder="0.00">
+                                                       placeholder="0.00"
+                                                       readonly>
                                             </td>
                                             <td>
                                                 <input type="number" 
@@ -166,6 +248,48 @@
                                                        step="0.01" 
                                                        min="0" 
                                                        placeholder="0.00">
+                                            </td>
+                                            <td>
+                                                <input type="text" 
+                                                       class="form-control form-control-sm" 
+                                                       id="dif_peso_promedio_{{ detalle.pk }}"
+                                                       readonly
+                                                       style="background-color: #f8f9fa;">
+                                            </td>
+                                            <td>
+                                                <input type="text" 
+                                                       class="form-control form-control-sm" 
+                                                       id="dif_no_arps_{{ detalle.pk }}"
+                                                       readonly
+                                                       style="background-color: #f8f9fa;">
+                                            </td>
+                                            <td>
+                                                <input type="text" 
+                                                       class="form-control form-control-sm" 
+                                                       id="dif_kgs_merma_{{ detalle.pk }}"
+                                                       readonly
+                                                       style="background-color: #f8f9fa;">
+                                            </td>
+                                            <td>
+                                                <input type="text" 
+                                                       class="form-control form-control-sm" 
+                                                       id="dif_kgs_liquidados_{{ detalle.pk }}"
+                                                       readonly
+                                                       style="background-color: #f8f9fa;">
+                                            </td>
+                                            <td>
+                                                <input type="text" 
+                                                       class="form-control form-control-sm" 
+                                                       id="dif_precio_{{ detalle.pk }}"
+                                                       readonly
+                                                       style="background-color: #f8f9fa;">
+                                            </td>
+                                            <td>
+                                                <input type="text" 
+                                                       class="form-control form-control-sm" 
+                                                       id="dif_importes_{{ detalle.pk }}"
+                                                       readonly
+                                                       style="background-color: #f8f9fa;">
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -276,6 +400,120 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('total-importe').textContent = '$' + totalImporte.toFixed(2);
     }
     
+    // Función para calcular Peso Promedio Liquidado automáticamente
+    function calcularPesoPromedioLiquidado() {
+        const pesoBrutoLiquidado = parseFloat(document.querySelector('input[name="peso_bruto_liquidado"]').value) || 0;
+        
+        // Sumar todos los No Arps Liquidados de todos los detalles
+        let totalNoArpsLiquidados = 0;
+        const noArpsInputs = document.querySelectorAll('input[name*="no_arps_liquidados_"]');
+        noArpsInputs.forEach(input => {
+            totalNoArpsLiquidados += parseFloat(input.value) || 0;
+        });
+        
+        // Calcular Peso Promedio Liquidado: Peso Bruto Liquidado / Total No Arps Liquidados
+        let pesoPromedioLiquidado = 0;
+        if (totalNoArpsLiquidados > 0) {
+            pesoPromedioLiquidado = pesoBrutoLiquidado / totalNoArpsLiquidados;
+        }
+        
+        // Actualizar todos los campos Peso Promedio Liquidado (hidden y display)
+        const pesoPromedioHiddenInputs = document.querySelectorAll('input[id*="peso_promedio_liquidado_hidden_"]');
+        const pesoPromedioDisplayInputs = document.querySelectorAll('input[id*="peso_promedio_liquidado_display_"]');
+        
+        pesoPromedioHiddenInputs.forEach(input => {
+            // Guardar el valor completo con todos los decimales
+            input.value = pesoPromedioLiquidado;
+        });
+        
+        pesoPromedioDisplayInputs.forEach(input => {
+            // Mostrar solo 2 decimales en pantalla
+            input.value = pesoPromedioLiquidado.toFixed(2);
+        });
+        
+        // Recalcular Kgs Liquidados para todos los detalles
+        const kgsLiquidadosInputs = document.querySelectorAll('input[name*="kgs_liquidados_"]');
+        kgsLiquidadosInputs.forEach(input => {
+            const detalleId = input.name.split('_').pop();
+            calcularKgsLiquidados(detalleId);
+        });
+        
+        calcularTotales();
+    }
+    
+    // Función para calcular Kgs Liquidados automáticamente
+    function calcularKgsLiquidados(detalleId) {
+        const noArpsLiquidados = parseFloat(document.querySelector(`input[name="no_arps_liquidados_${detalleId}"]`).value) || 0;
+        // Usar el valor completo del campo hidden (con todos los decimales)
+        const pesoPromedioLiquidado = parseFloat(document.querySelector(`input[id="peso_promedio_liquidado_hidden_${detalleId}"]`).value) || 0;
+        
+        // Calcular: No Arps Liquidados * Peso Promedio Liquidado (con precisión completa)
+        const kgsLiquidados = noArpsLiquidados * pesoPromedioLiquidado;
+        
+        const kgsLiquidadosInput = document.querySelector(`input[name="kgs_liquidados_${detalleId}"]`);
+        kgsLiquidadosInput.value = kgsLiquidados.toFixed(2);
+        
+        calcularTotales();
+    }
+    
+    // Función para calcular Kgs Merma Liquidados automáticamente
+    function calcularKgsMermaLiquidados(detalleId) {
+        const noArpsLiquidados = parseFloat(document.querySelector(`input[name="no_arps_liquidados_${detalleId}"]`).value) || 0;
+        const mermaArpsLiquidados = parseFloat(document.querySelector('input[name="merma_arps_liquidados"]').value) || 0;
+        
+        // Calcular: No Arps Liquidados * Merma/Arps Liquidados
+        const kgsMermaLiquidados = noArpsLiquidados * mermaArpsLiquidados;
+        
+        const kgsMermaLiquidadosInput = document.querySelector(`input[name="kgs_merma_liquidados_${detalleId}"]`);
+        kgsMermaLiquidadosInput.value = kgsMermaLiquidados.toFixed(2);
+        
+        calcularTotales();
+    }
+    
+    // Función para calcular todas las diferencias automáticamente
+    function calcularDiferencias(detalleId) {
+        // Obtener valores originales del detalle desde campos ocultos
+        const noArps = parseFloat(document.querySelector(`input[name="no_arps_${detalleId}"]`).value) || 0;
+        const kgsEnviados = parseFloat(document.querySelector(`input[name="kgs_enviados_${detalleId}"]`).value) || 0;
+        const kgsMerma = parseFloat(document.querySelector(`input[name="kgs_merma_${detalleId}"]`).value) || 0;
+        const pesoPromedio = parseFloat(document.querySelector(`input[name="peso_promedio_${detalleId}"]`).value) || 0;
+        const precioEnvio = parseFloat(document.querySelector(`input[name="precio_envio_${detalleId}"]`).value) || 0;
+        const importeNetoEnvio = parseFloat(document.querySelector(`input[name="importe_neto_envio_${detalleId}"]`).value) || 0;
+        
+        // Obtener valores liquidados
+        const noArpsLiquidados = parseFloat(document.querySelector(`input[name="no_arps_liquidados_${detalleId}"]`).value) || 0;
+        const kgsMermaLiquidados = parseFloat(document.querySelector(`input[name="kgs_merma_liquidados_${detalleId}"]`).value) || 0;
+        const pesoPromedioLiquidado = parseFloat(document.querySelector(`input[id="peso_promedio_liquidado_hidden_${detalleId}"]`).value) || 0;
+        const kgsLiquidados = parseFloat(document.querySelector(`input[name="kgs_liquidados_${detalleId}"]`).value) || 0;
+        const precio = parseFloat(document.querySelector(`input[name="precio_${detalleId}"]`).value) || 0;
+        const importeLiquidado = parseFloat(document.querySelector(`input[name="importe_liquidado_${detalleId}"]`).value) || 0;
+        
+        // Calcular diferencias
+        const difPesoPromedio = pesoPromedio - pesoPromedioLiquidado;
+        const difNoArps = noArps - noArpsLiquidados;
+        const difKgsMerma = kgsMerma - kgsMermaLiquidados;
+        const difKgsLiquidados = kgsEnviados - kgsLiquidados;
+        const difPrecio = precioEnvio - precio;
+        const difImportes = importeNetoEnvio - importeLiquidado;
+        
+        // Actualizar campos de diferencias
+        document.getElementById(`dif_peso_promedio_${detalleId}`).value = difPesoPromedio.toFixed(2);
+        document.getElementById(`dif_no_arps_${detalleId}`).value = difNoArps;
+        document.getElementById(`dif_kgs_merma_${detalleId}`).value = difKgsMerma.toFixed(2);
+        document.getElementById(`dif_kgs_liquidados_${detalleId}`).value = difKgsLiquidados.toFixed(2);
+        document.getElementById(`dif_precio_${detalleId}`).value = difPrecio.toFixed(2);
+        document.getElementById(`dif_importes_${detalleId}`).value = difImportes.toFixed(2);
+    }
+    
+    // Función para calcular todas las diferencias de todos los detalles
+    function calcularTodasLasDiferencias() {
+        const detalleInputs = document.querySelectorAll('input[name*="no_arps_liquidados_"]');
+        detalleInputs.forEach(input => {
+            const detalleId = input.name.split('_').pop();
+            calcularDiferencias(detalleId);
+        });
+    }
+    
     // Función para calcular importe liquidado automáticamente
     function calcularImporteLiquidado(detalleId) {
         const kgsLiquidados = parseFloat(document.querySelector(`input[name="kgs_liquidados_${detalleId}"]`).value) || 0;
@@ -285,6 +523,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const importeInput = document.querySelector(`input[name="importe_liquidado_${detalleId}"]`);
         importeInput.value = importeLiquidado.toFixed(2);
         
+        // Recalcular diferencias después de cambiar el importe liquidado
+        calcularDiferencias(detalleId);
+        
         calcularTotales();
     }
     
@@ -293,15 +534,47 @@ document.addEventListener('DOMContentLoaded', function() {
     inputs.forEach(input => {
         input.addEventListener('input', calcularTotales);
         
-        // Calcular importe liquidado automáticamente cuando cambien kgs_liquidados o precio
+        // Calcular Peso Promedio Liquidado y Kgs Liquidados cuando cambien No Arps Liquidados
+        if (input.name.includes('no_arps_liquidados_')) {
+            const detalleId = input.name.split('_').pop();
+            input.addEventListener('input', () => {
+                calcularKgsMermaLiquidados(detalleId);
+                calcularPesoPromedioLiquidado(); // Esto recalculará todos los Peso Promedio y Kgs Liquidados
+                calcularTodasLasDiferencias(); // Recalcular todas las diferencias
+            });
+        }
+        
+        // Calcular importe liquidado y diferencias automáticamente cuando cambien kgs_liquidados o precio
         if (input.name.includes('kgs_liquidados_') || input.name.includes('precio_')) {
             const detalleId = input.name.split('_').pop();
             input.addEventListener('input', () => calcularImporteLiquidado(detalleId));
+        }
+        
+        // Recalcular Peso Promedio Liquidado cuando cambie Peso Bruto Liquidado
+        if (input.name === 'peso_bruto_liquidado') {
+            input.addEventListener('input', () => {
+                calcularPesoPromedioLiquidado();
+                calcularTodasLasDiferencias(); // Recalcular todas las diferencias
+            });
+        }
+        
+        // Recalcular todos los Kgs Merma Liquidados cuando cambie Merma/Arps Liquidados de la remisión
+        if (input.name === 'merma_arps_liquidados') {
+            input.addEventListener('input', () => {
+                // Recalcular para todos los detalles
+                const noArpsInputs = document.querySelectorAll('input[name*="no_arps_liquidados_"]');
+                noArpsInputs.forEach(noArpsInput => {
+                    const detalleId = noArpsInput.name.split('_').pop();
+                    calcularKgsMermaLiquidados(detalleId);
+                });
+                calcularTodasLasDiferencias(); // Recalcular todas las diferencias
+            });
         }
     });
     
     // Calcular totales iniciales
     calcularTotales();
+    calcularTodasLasDiferencias(); // Calcular diferencias iniciales
 });
 </script>
 {% endblock %}

@@ -1099,7 +1099,7 @@ class RemisionForm(forms.ModelForm):
     
     class Meta:
         model = Remision
-        fields = ['ciclo', 'folio', 'fecha', 'cliente', 'lote_origen', 'transportista', 'costo_flete', 'observaciones']
+        fields = ['ciclo', 'folio', 'fecha', 'cliente', 'lote_origen', 'transportista', 'costo_flete', 'peso_bruto_embarque', 'merma_arps_global', 'observaciones']
         widgets = {
             'ciclo': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -1131,6 +1131,17 @@ class RemisionForm(forms.ModelForm):
                 'step': '0.01',
                 'min': '0'
             }),
+            'peso_bruto_embarque': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': '0.00',
+                'step': '0.01',
+                'min': '0'
+            }),
+            'merma_arps_global': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': '0',
+                'min': '0'
+            }),
             'observaciones': forms.Textarea(attrs={
                 'class': 'form-control',
                 'placeholder': 'Observaciones adicionales (opcional)',
@@ -1145,6 +1156,8 @@ class RemisionForm(forms.ModelForm):
             'lote_origen': 'Lote - Origen',
             'transportista': 'Transportista',
             'costo_flete': 'Costo de Flete',
+            'peso_bruto_embarque': 'Peso Bruto de Embarque',
+            'merma_arps_global': 'Merma/Arps Global',
             'observaciones': 'Observaciones'
         }
     
@@ -1275,9 +1288,57 @@ class RemisionDetalleForm(forms.ModelForm):
         })
     )
     
+    # Campos para envío
+    precio_envio = DecimalFieldWithRounding(
+        label='Precio Envío',
+        help_text='Precio por kilogramo para envío',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.00',
+            'step': '0.01',
+            'min': '0'
+        })
+    )
+    
+    importe_envio = DecimalFieldWithRounding(
+        label='Importe Envío',
+        help_text='Importe total de envío (calculado automáticamente)',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.00',
+            'step': '0.01',
+            'min': '0',
+            'readonly': True
+        })
+    )
+    
+    kgs_neto_envio = DecimalFieldWithRounding(
+        label='Kgs Neto Envío',
+        help_text='Kilogramos netos de envío (calculado automáticamente)',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.00',
+            'step': '0.01',
+            'min': '0',
+            'readonly': True
+        })
+    )
+    
+    importe_neto_envio = DecimalFieldWithRounding(
+        label='Importe Neto Envío',
+        help_text='Importe neto de envío (calculado automáticamente)',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.00',
+            'step': '0.01',
+            'min': '0',
+            'readonly': True
+        })
+    )
+    
     class Meta:
         model = RemisionDetalle
-        fields = ['cultivo', 'calidad', 'no_arps', 'kgs_enviados', 'merma_arps', 'kgs_liquidados', 'kgs_merma', 'precio', 'importe_liquidado']
+        fields = ['cultivo', 'calidad', 'no_arps', 'kgs_enviados', 'merma_arps', 'kgs_liquidados', 'kgs_merma', 'precio', 'importe_liquidado', 'precio_envio', 'importe_envio', 'kgs_neto_envio', 'importe_neto_envio']
         widgets = {
             'cultivo': forms.Select(attrs={
                 'class': 'form-select'
@@ -1300,7 +1361,11 @@ class RemisionDetalleForm(forms.ModelForm):
             'cultivo': 'Cultivo',
             'calidad': 'Calidad',
             'no_arps': 'No Arps',
-            'merma_arps': 'Merma/Arps'
+            'merma_arps': 'Merma/Arps',
+            'precio_envio': 'Precio Envío',
+            'importe_envio': 'Importe Envío',
+            'kgs_neto_envio': 'Kgs Neto Envío',
+            'importe_neto_envio': 'Importe Neto Envío'
         }
     
     def __init__(self, *args, **kwargs):
@@ -1370,6 +1435,42 @@ class RemisionDetalleForm(forms.ModelForm):
             # Redondear a 2 decimales
             importe_liquidado = round(importe_liquidado, 2)
         return importe_liquidado
+    
+    def clean_precio_envio(self):
+        precio_envio = self.cleaned_data.get('precio_envio')
+        if precio_envio is not None:
+            if precio_envio < 0:
+                raise forms.ValidationError("El precio de envío no puede ser negativo.")
+            # Redondear a 2 decimales
+            precio_envio = round(precio_envio, 2)
+        return precio_envio
+    
+    def clean_importe_envio(self):
+        importe_envio = self.cleaned_data.get('importe_envio')
+        if importe_envio is not None:
+            if importe_envio < 0:
+                raise forms.ValidationError("El importe de envío no puede ser negativo.")
+            # Redondear a 2 decimales
+            importe_envio = round(importe_envio, 2)
+        return importe_envio
+    
+    def clean_kgs_neto_envio(self):
+        kgs_neto_envio = self.cleaned_data.get('kgs_neto_envio')
+        if kgs_neto_envio is not None:
+            if kgs_neto_envio < 0:
+                raise forms.ValidationError("Los kilogramos netos de envío no pueden ser negativos.")
+            # Redondear a 2 decimales
+            kgs_neto_envio = round(kgs_neto_envio, 2)
+        return kgs_neto_envio
+    
+    def clean_importe_neto_envio(self):
+        importe_neto_envio = self.cleaned_data.get('importe_neto_envio')
+        if importe_neto_envio is not None:
+            if importe_neto_envio < 0:
+                raise forms.ValidationError("El importe neto de envío no puede ser negativo.")
+            # Redondear a 2 decimales
+            importe_neto_envio = round(importe_neto_envio, 2)
+        return importe_neto_envio
 
 
 class RemisionSearchForm(forms.Form):

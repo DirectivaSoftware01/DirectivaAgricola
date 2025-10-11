@@ -1066,6 +1066,35 @@ class Remision(models.Model):
         help_text="Costo del flete de transporte"
     )
     
+    peso_bruto_embarque = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Peso Bruto de Embarque",
+        help_text="Peso total bruto de la remisión en kilogramos"
+    )
+    
+    merma_arps_global = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Merma/Arps Global",
+        help_text="Número total de arps con merma en la remisión"
+    )
+    
+    # Campos para liquidación
+    peso_bruto_liquidado = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Peso Bruto Liquidado",
+        help_text="Peso bruto liquidado en kilogramos"
+    )
+    
+    merma_arps_liquidados = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Merma/Arps Liquidados",
+        help_text="Número de arps con merma liquidados"
+    )
+    
     observaciones = models.TextField(
         blank=True,
         null=True,
@@ -1291,6 +1320,28 @@ class RemisionDetalle(models.Model):
     )
     
     # Campos para liquidación (valores por defecto en cero)
+    no_arps_liquidados = models.PositiveIntegerField(
+        default=0,
+        verbose_name="No Arps Liquidados",
+        help_text="Número de arps liquidados"
+    )
+    
+    kgs_merma_liquidados = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Kgs Merma Liquidados",
+        help_text="Kilogramos de merma liquidados"
+    )
+    
+    peso_promedio_liquidado = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Peso Promedio Liquidado",
+        help_text="Peso promedio liquidado calculado automáticamente"
+    )
+    
     kgs_liquidados = models.DecimalField(
         max_digits=15,
         decimal_places=2,
@@ -1321,6 +1372,86 @@ class RemisionDetalle(models.Model):
         default=0.00,
         verbose_name="Importe Liquidado",
         help_text="Importe total liquidado"
+    )
+    
+    # Campos de diferencias (calculados automáticamente)
+    dif_peso_promedio = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Dif Peso Promedio",
+        help_text="Diferencia entre Peso Promedio y Peso Promedio Liquidado"
+    )
+    
+    dif_no_arps = models.IntegerField(
+        default=0,
+        verbose_name="Dif No Arps",
+        help_text="Diferencia entre No Arps y No Arps Liquidados"
+    )
+    
+    dif_kgs_merma = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Dif Kgs Merma",
+        help_text="Diferencia entre Kgs Merma y Kgs Merma Liquidados"
+    )
+    
+    dif_kgs_liquidados = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Dif Kgs Liquidados",
+        help_text="Diferencia entre Kgs Enviados y Kgs Liquidados"
+    )
+    
+    dif_precio = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Dif Precio",
+        help_text="Diferencia entre Precio Envío y Precio por Kg"
+    )
+    
+    dif_importes = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Dif Importes",
+        help_text="Diferencia entre Importe Neto Envío e Importe Liquidado"
+    )
+    
+    # Campos para envío
+    precio_envio = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Precio Envío",
+        help_text="Precio por kilogramo para envío"
+    )
+    
+    importe_envio = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Importe Envío",
+        help_text="Importe total de envío (Precio Envío × Kgs Enviados)"
+    )
+    
+    kgs_neto_envio = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Kgs Neto Envío",
+        help_text="Kilogramos netos de envío (Kgs Enviados - Kgs Merma)"
+    )
+    
+    importe_neto_envio = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Importe Neto Envío",
+        help_text="Importe neto de envío (Precio Envío × Kgs Neto Envío)"
     )
     
     # Campos de auditoría
@@ -1413,14 +1544,38 @@ class RemisionDetalle(models.Model):
             raise ValidationError({
                 'importe_liquidado': 'El importe liquidado no puede ser negativo.'
             })
+        
+        # Validar campos de envío
+        if self.precio_envio is not None and self.precio_envio < 0:
+            raise ValidationError({
+                'precio_envio': 'El precio de envío no puede ser negativo.'
+            })
+        
+        if self.importe_envio is not None and self.importe_envio < 0:
+            raise ValidationError({
+                'importe_envio': 'El importe de envío no puede ser negativo.'
+            })
+        
+        if self.kgs_neto_envio is not None and self.kgs_neto_envio < 0:
+            raise ValidationError({
+                'kgs_neto_envio': 'Los kilogramos netos de envío no pueden ser negativos.'
+            })
+        
+        if self.importe_neto_envio is not None and self.importe_neto_envio < 0:
+            raise ValidationError({
+                'importe_neto_envio': 'El importe neto de envío no puede ser negativo.'
+            })
     
     def save(self, *args, **kwargs):
         """Guardar con validaciones y cálculos automáticos"""
         # Calcular peso promedio automáticamente
-        if self.no_arps and self.kgs_enviados and self.no_arps > 0:
-            peso_calculado = self.kgs_enviados / self.no_arps
-            # Redondear a 2 decimales
-            self.peso_promedio = round(peso_calculado, 2)
+        if self.no_arps and self.no_arps > 0 and self.kgs_enviados:
+            self.peso_promedio = round(self.kgs_enviados / self.no_arps, 2)
+        else:
+            self.peso_promedio = 0.00
+        
+        # Los demás cálculos se realizan en el frontend y se envían ya calculados
+        # No recalcular aquí para mantener consistencia con los valores del frontend
         
         # Validar solo si no estamos en el proceso de creación inicial
         if self.pk is not None:

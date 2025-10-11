@@ -241,6 +241,30 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="peso-bruto" class="form-label">
+                                            Peso Bruto de Embarque <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="number" class="form-control" id="peso-bruto" name="peso_bruto_embarque" step="0.01" min="0" required>
+                                        <div class="form-text">
+                                            <small class="text-muted">Peso total bruto de la remisión en kilogramos</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="merma-arps-global" class="form-label">
+                                            Merma/Arps <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="number" class="form-control" id="merma-arps-global" name="merma_arps_global" min="0" value="0" required>
+                                        <div class="form-text">
+                                            <small class="text-muted">Número total de arps con merma en la remisión</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Observaciones -->
@@ -354,10 +378,11 @@
                                                     <th>Calidad</th>
                                                     <th>No Arps</th>
                                                     <th>Kgs Enviados</th>
-                                                    <th>Merma/Arps</th>
+                                                    <th>Kgs Merma</th>
+                                                    <th>Precio Envío</th>
+                                                    <th>Importe Envío</th>
                                                     <th>Peso Promedio</th>
                                                     <th>Kgs Liquidados</th>
-                                                    <th>Kgs Merma</th>
                                                     <th>Precio</th>
                                                     <th>Importe Liquidado</th>
                                                     <th>Acciones</th>
@@ -380,19 +405,22 @@
                                                         <span class="text-primary fw-bold">{{ detalle.kgs_enviados|floatformat:2 }}</span>
                                                     </td>
                                                     <td>
-                                                        <span class="text-warning fw-bold">{{ detalle.merma_arps }}</span>
+                                                        <span class="text-danger fw-bold">{{ detalle.kgs_merma|floatformat:2 }}</span>
                                                     </td>
                                                     <td>
-                                                        <span class="text-success fw-bold">{{ detalle.peso_promedio|floatformat:2 }}</span>
+                                                        <span class="text-info fw-bold">${{ detalle.precio_envio|floatformat:2 }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-success fw-bold">${{ detalle.importe_envio|floatformat:2 }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="text-secondary fw-bold">{{ detalle.peso_promedio|floatformat:2 }}</span>
                                                     </td>
                                                     <td>
                                                         <span class="text-info fw-bold">{{ detalle.kgs_liquidados|floatformat:2 }}</span>
                                                     </td>
                                                     <td>
-                                                        <span class="text-danger fw-bold">{{ detalle.kgs_merma|floatformat:2 }}</span>
-                                                    </td>
-                                                    <td>
-                                                        <span class="text-success fw-bold">${{ detalle.precio|floatformat:2 }}</span>
+                                                        <span class="text-warning fw-bold">${{ detalle.precio|floatformat:2 }}</span>
                                                     </td>
                                                     <td>
                                                         <span class="text-success fw-bold">${{ detalle.importe_liquidado|floatformat:2 }}</span>
@@ -479,7 +507,11 @@
                                                     <th>Calidad</th>
                                                     <th>No Arps</th>
                                                     <th>Kgs Enviados</th>
-                                                    <th>Merma/Arps</th>
+                                                    <th>Kgs Merma</th>
+                                                    <th>Kgs Neto Envío</th>
+                                                    <th>Precio Envío</th>
+                                                    <th>Importe Envío</th>
+                                                    <th>Importe Neto Envío</th>
                                                     <th>Peso Promedio</th>
                                                     <th>Acciones</th>
                                                 </tr>
@@ -497,22 +529,34 @@
                                                 <div class="card-body">
                                                     <h6 class="card-title">Resumen de Totales</h6>
                                                     <div class="row">
-                                                        <div class="col-md-4">
+                                                        <div class="col-md-2">
                                                             <div class="text-center">
                                                                 <h6 class="text-muted">Total Arps</h6>
                                                                 <h4 class="text-primary" id="total-arps">0</h4>
                                                             </div>
                                                         </div>
-                                                        <div class="col-md-4">
+                                                        <div class="col-md-2">
                                                             <div class="text-center">
                                                                 <h6 class="text-muted">Total Kgs Enviados</h6>
                                                                 <h4 class="text-primary" id="total-kgs-enviados">0.00</h4>
                                                             </div>
                                                         </div>
+                                                        <div class="col-md-2">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Kgs Merma</h6>
+                                                                <h4 class="text-warning" id="total-kgs-merma">0.00</h4>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-2">
+                                                            <div class="text-center">
+                                                                <h6 class="text-muted">Total Kgs Netos</h6>
+                                                                <h4 class="text-info" id="total-kgs-netos">0.00</h4>
+                                                            </div>
+                                                        </div>
                                                         <div class="col-md-4">
                                                             <div class="text-center">
-                                                                <h6 class="text-muted">Total Merma/Arps</h6>
-                                                                <h4 class="text-warning" id="total-merma-arps">0</h4>
+                                                                <h6 class="text-muted">Liquidación Formulada</h6>
+                                                                <h4 class="text-success" id="total-importe-envio">$0.00</h4>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -583,33 +627,76 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="no-arps" class="form-label">No Arps <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control" id="no-arps" min="1" required>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="kgs-enviados" class="form-label">Kgs Enviados <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control" id="kgs-enviados" step="0.01" min="0" required>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="merma-arps" class="form-label">Merma/Arps</label>
-                                <input type="number" class="form-control" id="merma-arps" min="0" value="0">
+                                <label for="kgs-merma" class="form-label">Kgs Merma</label>
+                                <input type="number" class="form-control" id="kgs-merma" step="0.01" min="0" readonly>
+                                <div class="form-text">
+                                    <small class="text-muted">Calculado automáticamente: Merma/Arps × No Arps</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="kgs-neto-envio" class="form-label">Kgs Neto Envío</label>
+                                <input type="number" class="form-control" id="kgs-neto-envio" step="0.01" min="0" readonly>
+                                <div class="form-text">
+                                    <small class="text-muted">Calculado automáticamente: Kgs Enviados - Kgs Merma</small>
+                                </div>
                             </div>
                         </div>
                     </div>
-                                                    <div class="row">
-                                    <div class="col-md-12">
-                                        <div class="mb-3">
-                                            <label class="form-label">Peso Promedio (Calculado)</label>
-                                            <input type="text" class="form-control" id="peso-promedio" readonly>
-                                        </div>
-                                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="precioenvio" class="form-label">Precio Envío</label>
+                                <input type="number" class="form-control" id="precioenvio" step="0.01" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="importeenvio" class="form-label">Importe Envío</label>
+                                <input type="number" class="form-control" id="importeenvio" step="0.01" min="0" readonly>
+                                <div class="form-text">
+                                    <small class="text-muted">Calculado automáticamente: Precio Envío × Kgs Enviados</small>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="importe-neto-envio" class="form-label">Importe Neto Envío</label>
+                                <input type="number" class="form-control" id="importe-neto-envio" step="0.01" min="0" readonly>
+                                <div class="form-text">
+                                    <small class="text-muted">Calculado automáticamente: Precio Envío × Kgs Neto Envío</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="peso-promedio" class="form-label">Peso Promedio</label>
+                                <input type="number" class="form-control" id="peso-promedio" step="0.01" min="0" readonly>
+                                <div class="form-text">
+                                    <small class="text-muted">Calculado automáticamente: Peso Bruto / Total Arps</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                                 <div class="alert alert-info">
                                     <i class="bi bi-info-circle"></i>
                                     <strong>Nota:</strong> Los campos de liquidación (Kgs Liquidados, Kgs Merma, Precio, Importe Liquidado) se capturarán posteriormente en el proceso de liquidación.
@@ -761,23 +848,167 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Calcular peso promedio automáticamente
-    function calcularPesoPromedio() {
-        const noArps = parseFloat(document.getElementById('no-arps').value) || 0;
-        const kgsEnviados = parseFloat(document.getElementById('kgs-enviados').value) || 0;
-        const pesoPromedioField = document.getElementById('peso-promedio');
+    // Obtener peso bruto de embarque del encabezado
+    function getPesoBrutoEmbarque() {
+        const pesoBrutoField = document.getElementById('peso-bruto');
+        return parseFloat(pesoBrutoField ? pesoBrutoField.value : 0) || 0;
+    }
+    
+    // Obtener merma/arps global del encabezado
+    function getMermaArpsGlobal() {
+        const mermaArpsField = document.getElementById('merma-arps-global');
+        return parseFloat(mermaArpsField ? mermaArpsField.value : 0) || 0;
+    }
+    
+    // Calcular total de arps de todos los detalles existentes + el detalle actual
+    function getTotalArps() {
+        let totalArps = 0;
         
-        if (noArps > 0 && kgsEnviados > 0) {
-            const pesoPromedio = (kgsEnviados / noArps).toFixed(2);
-            pesoPromedioField.value = pesoPromedio;
-        } else {
-            pesoPromedioField.value = '0.00';
+        // Sumar arps de detalles temporales existentes
+        detallesTemporales.forEach(detalle => {
+            totalArps += detalle.no_arps;
+        });
+        
+        // Sumar arps del detalle actual en el modal
+        const noArpsActual = parseFloat(document.getElementById('no-arps').value) || 0;
+        totalArps += noArpsActual;
+        
+        return totalArps;
+    }
+    
+    // Calcular peso promedio global (incluye el detalle actual en el modal)
+    function calcularPesoPromedioGlobal() {
+        const pesoBruto = getPesoBrutoEmbarque();
+        const totalArps = getTotalArps(); // Incluye detalles existentes + detalle actual
+        
+        if (pesoBruto > 0 && totalArps > 0) {
+            return pesoBruto / totalArps;
         }
+        return 0;
+    }
+    
+    // Calcular peso promedio, kgs enviados, kgs merma e importe envío automáticamente
+    function calcularPesoPromedio() {
+        const pesoPromedioGlobal = calcularPesoPromedioGlobal();
+        const noArps = parseFloat(document.getElementById('no-arps').value) || 0;
+        const mermaArpsGlobal = getMermaArpsGlobal();
+        const precioEnvio = parseFloat(document.getElementById('precioenvio').value) || 0;
+        const pesoPromedioField = document.getElementById('peso-promedio');
+        const kgsEnviadosField = document.getElementById('kgs-enviados');
+        const kgsMermaField = document.getElementById('kgs-merma');
+        const kgsNetoEnvioField = document.getElementById('kgs-neto-envio');
+        const importeEnvioField = document.getElementById('importeenvio');
+        const importeNetoEnvioField = document.getElementById('importe-neto-envio');
+        
+        // Actualizar peso promedio
+        pesoPromedioField.value = pesoPromedioGlobal.toFixed(2);
+        
+        // Calcular y actualizar kgs enviados
+        if (pesoPromedioGlobal > 0 && noArps > 0) {
+            const kgsEnviados = pesoPromedioGlobal * noArps;
+            kgsEnviadosField.value = kgsEnviados.toFixed(2);
+        } else {
+            kgsEnviadosField.value = '0.00';
+        }
+        
+        // Calcular y actualizar kgs merma (usando merma global)
+        if (mermaArpsGlobal > 0 && noArps > 0) {
+            const kgsMerma = mermaArpsGlobal * noArps;
+            kgsMermaField.value = kgsMerma.toFixed(2);
+        } else {
+            kgsMermaField.value = '0.00';
+        }
+        
+        // Calcular y actualizar kgs neto envío (Kgs Enviados - Kgs Merma)
+        const kgsEnviados = parseFloat(kgsEnviadosField.value) || 0;
+        const kgsMerma = parseFloat(kgsMermaField.value) || 0;
+        const kgsNetoEnvio = kgsEnviados - kgsMerma;
+        kgsNetoEnvioField.value = kgsNetoEnvio.toFixed(2);
+        
+        // Calcular y actualizar importe envío
+        if (precioEnvio > 0 && kgsEnviados > 0) {
+            const importeEnvio = precioEnvio * kgsEnviados;
+            importeEnvioField.value = importeEnvio.toFixed(2);
+        } else {
+            importeEnvioField.value = '0.00';
+        }
+        
+        // Calcular y actualizar importe neto envío (Precio Envío × Kgs Neto Envío)
+        if (precioEnvio > 0 && kgsNetoEnvio > 0) {
+            const importeNetoEnvio = precioEnvio * kgsNetoEnvio;
+            importeNetoEnvioField.value = importeNetoEnvio.toFixed(2);
+        } else {
+            importeNetoEnvioField.value = '0.00';
+        }
+    }
+    
+    // Recalcular todos los detalles existentes cuando cambie el peso bruto o merma global
+    function recalcularTodosDetalles() {
+        const pesoBruto = getPesoBrutoEmbarque();
+        const mermaArpsGlobal = getMermaArpsGlobal();
+        
+        // Calcular total de arps de todos los detalles
+        const totalArps = detallesTemporales.reduce((sum, detalle) => sum + detalle.no_arps, 0);
+        
+        // Calcular peso promedio global: Peso Bruto / Total Arps
+        const pesoPromedioGlobal = totalArps > 0 ? pesoBruto / totalArps : 0;
+        
+        // Debug: Mostrar información del cálculo
+        console.log('=== RECÁLCULO DE DETALLES ===');
+        console.log('Peso Bruto de Embarque:', pesoBruto);
+        console.log('Total Arps:', totalArps);
+        console.log('Peso Promedio Global:', pesoPromedioGlobal.toFixed(2));
+        console.log('Merma/Arps Global:', mermaArpsGlobal);
+        
+        // Recalcular cada detalle con el nuevo peso promedio
+        detallesTemporales.forEach((detalle, index) => {
+            const kgsEnviadosAnterior = detalle.kgs_enviados;
+            const kgsMermaAnterior = detalle.kgs_merma;
+            const kgsNetoEnvioAnterior = detalle.kgs_neto_envio || 0;
+            const importeNetoEnvioAnterior = detalle.importe_neto_envio || 0;
+            
+            detalle.peso_promedio = pesoPromedioGlobal;
+            detalle.kgs_enviados = pesoPromedioGlobal * detalle.no_arps;
+            detalle.merma_arps = mermaArpsGlobal; // Actualizar merma_arps con el valor global
+            detalle.kgs_merma = mermaArpsGlobal * detalle.no_arps;
+            detalle.kgs_neto_envio = detalle.kgs_enviados - detalle.kgs_merma;
+            detalle.importe_envio = detalle.precio_envio * detalle.kgs_enviados;
+            detalle.importe_neto_envio = detalle.precio_envio * detalle.kgs_neto_envio;
+            
+            console.log(`Detalle ${index + 1} (${detalle.cultivo.nombre}):`);
+            console.log(`  No Arps: ${detalle.no_arps}`);
+            console.log(`  Kgs Enviados: ${kgsEnviadosAnterior.toFixed(2)} → ${detalle.kgs_enviados.toFixed(2)}`);
+            console.log(`  Kgs Merma: ${kgsMermaAnterior.toFixed(2)} → ${detalle.kgs_merma.toFixed(2)}`);
+            console.log(`  Kgs Neto Envío: ${kgsNetoEnvioAnterior.toFixed(2)} → ${detalle.kgs_neto_envio.toFixed(2)}`);
+            console.log(`  Importe Envío: ${detalle.importe_envio.toFixed(2)}`);
+            console.log(`  Importe Neto Envío: ${importeNetoEnvioAnterior.toFixed(2)} → ${detalle.importe_neto_envio.toFixed(2)}`);
+        });
+        
+        // Actualizar la tabla
+        updateDetallesTable();
     }
     
     // Event listeners para el modal
     document.getElementById('no-arps').addEventListener('input', calcularPesoPromedio);
-    document.getElementById('kgs-enviados').addEventListener('input', calcularPesoPromedio);
+    document.getElementById('precioenvio').addEventListener('input', calcularPesoPromedio);
+    
+    // Event listener para peso bruto de embarque (recalcular todos los detalles)
+    const pesoBrutoField = document.getElementById('peso-bruto');
+    if (pesoBrutoField) {
+        pesoBrutoField.addEventListener('input', function() {
+            recalcularTodosDetalles();
+            calcularPesoPromedio(); // Recalcular el detalle actual
+        });
+    }
+    
+    // Event listener para merma/arps global (recalcular todos los detalles)
+    const mermaArpsGlobalField = document.getElementById('merma-arps-global');
+    if (mermaArpsGlobalField) {
+        mermaArpsGlobalField.addEventListener('input', function() {
+            recalcularTodosDetalles();
+            calcularPesoPromedio(); // Recalcular el detalle actual
+        });
+    }
     
     // Agregar detalle temporal
     document.getElementById('save-detalle-btn').addEventListener('click', function() {
@@ -785,13 +1016,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const calidadSelect = document.getElementById('calidad-select');
         const noArps = document.getElementById('no-arps').value;
         const kgsEnviados = document.getElementById('kgs-enviados').value;
-        const mermaArps = document.getElementById('merma-arps').value || 0;
-        // Los campos de liquidación se establecerán en 0 por defecto
+        const kgsMerma = document.getElementById('kgs-merma').value || 0;
+        const kgsNetoEnvio = document.getElementById('kgs-neto-envio').value || 0;
+        const precioEnvio = document.getElementById('precioenvio').value || 0;
+        const importeEnvio = document.getElementById('importeenvio').value || 0;
+        const importeNetoEnvio = document.getElementById('importe-neto-envio').value || 0;
         const pesoPromedio = document.getElementById('peso-promedio').value || '0.00';
         
         // Validar campos requeridos
-        if (!cultivoSelect.value || !calidadSelect.value || !noArps || !kgsEnviados) {
+        if (!cultivoSelect.value || !calidadSelect.value || !noArps) {
             alert('Por favor, complete todos los campos requeridos.');
+            return;
+        }
+        
+        // Validar que el peso bruto esté definido
+        const pesoBruto = getPesoBrutoEmbarque();
+        if (pesoBruto <= 0) {
+            alert('Por favor, ingrese el Peso Bruto de Embarque en el encabezado de la remisión.');
             return;
         }
         
@@ -806,19 +1047,26 @@ document.addEventListener('DOMContentLoaded', function() {
             calidad: calidadSelect.value,
             no_arps: parseInt(noArps),
             kgs_enviados: parseFloat(kgsEnviados),
-            merma_arps: parseInt(mermaArps),
-            kgs_liquidados: 0, // Valores por defecto para liquidación
-            kgs_merma: 0,
+            merma_arps: getMermaArpsGlobal(), // Usar el valor global
+            kgs_merma: parseFloat(kgsMerma),
+            kgs_neto_envio: parseFloat(kgsNetoEnvio),
+            precio_envio: parseFloat(precioEnvio),
+            importe_envio: parseFloat(importeEnvio),
+            importe_neto_envio: parseFloat(importeNetoEnvio),
+            peso_promedio: parseFloat(pesoPromedio),
+            // Campos de liquidación (valores por defecto)
+            kgs_liquidados: 0,
             precio: 0,
-            importe_liquidado: 0,
-            peso_promedio: parseFloat(pesoPromedio)
+            importe_liquidado: 0
         };
         
         // Agregar a la lista temporal
         detallesTemporales.push(detalle);
         
-        // Actualizar la tabla
-        updateDetallesTable();
+        // IMPORTANTE: Recalcular todos los detalles existentes con el nuevo peso promedio global
+        // Esto es necesario porque al agregar un nuevo detalle, el total de arps cambia,
+        // por lo que el peso promedio se recalcula y todos los kgs enviados deben actualizarse
+        recalcularTodosDetalles();
         
         // Actualizar contadores
         updateDetallesCount();
@@ -827,6 +1075,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Limpiar formulario y cerrar modal
         document.getElementById('detalle-form').reset();
         document.getElementById('peso-promedio').value = '0.00';
+        document.getElementById('kgs-neto-envio').value = '0.00';
+        document.getElementById('importe-neto-envio').value = '0.00';
         bootstrap.Modal.getInstance(document.getElementById('detalleModal')).hide();
     });
     
@@ -844,9 +1094,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             </td>
                             <td><span class="badge bg-info">${detalle.calidad}</span></td>
                             <td><span class="fw-bold">${detalle.no_arps}</span></td>
-                            <td><span class="text-primary fw-bold">${detalle.kgs_enviados.toFixed(2)}</span></td>
-                            <td><span class="text-warning fw-bold">${detalle.merma_arps}</span></td>
-                            <td><span class="text-success fw-bold">${detalle.peso_promedio.toFixed(2)}</span></td>
+                            <td><span class="text-primary fw-bold">${detalle.kgs_enviados.toFixed(2)} kg</span></td>
+                            <td><span class="text-danger fw-bold">${detalle.kgs_merma.toFixed(2)} kg</span></td>
+                            <td><span class="text-warning fw-bold">${detalle.kgs_neto_envio.toFixed(2)} kg</span></td>
+                            <td><span class="text-info fw-bold">$${detalle.precio_envio.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></td>
+                            <td><span class="text-success fw-bold">$${detalle.importe_envio.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></td>
+                            <td><span class="text-dark fw-bold">$${detalle.importe_neto_envio.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></td>
+                            <td><span class="text-secondary fw-bold">${detalle.peso_promedio.toFixed(2)} kg/arp</span></td>
                             <td>
                                 <div class="btn-group" role="group">
                                     <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeDetalle(${index})" title="Eliminar detalle">
@@ -863,7 +1117,10 @@ document.addEventListener('DOMContentLoaded', function() {
     window.removeDetalle = function(index) {
         if (confirm('¿Está seguro de que desea eliminar este detalle?')) {
             detallesTemporales.splice(index, 1);
-            updateDetallesTable();
+            
+            // Recalcular todos los detalles restantes
+            recalcularTodosDetalles();
+            
             updateDetallesCount();
             updateTotales();
         }
@@ -873,11 +1130,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 function updateTotales() {
                     const totalArps = detallesTemporales.reduce((sum, detalle) => sum + detalle.no_arps, 0);
                     const totalKgsEnviados = detallesTemporales.reduce((sum, detalle) => sum + detalle.kgs_enviados, 0);
-                    const totalMermaArps = detallesTemporales.reduce((sum, detalle) => sum + detalle.merma_arps, 0);
+                    const totalKgsMerma = detallesTemporales.reduce((sum, detalle) => sum + detalle.kgs_merma, 0);
+                    const totalKgsNetos = detallesTemporales.reduce((sum, detalle) => sum + detalle.kgs_neto_envio, 0);
+                    const totalImporteNetoEnvio = detallesTemporales.reduce((sum, detalle) => sum + detalle.importe_neto_envio, 0);
+                    const pesoPromedioGlobal = calcularPesoPromedioGlobal();
                     
                     document.getElementById('total-arps').textContent = totalArps;
-                    document.getElementById('total-kgs-enviados').textContent = totalKgsEnviados.toFixed(2);
-                    document.getElementById('total-merma-arps').textContent = totalMermaArps;
+                    document.getElementById('total-kgs-enviados').textContent = totalKgsEnviados.toFixed(2) + ' kg';
+                    document.getElementById('total-kgs-merma').textContent = totalKgsMerma.toFixed(2) + ' kg';
+                    document.getElementById('total-kgs-netos').textContent = totalKgsNetos.toFixed(2) + ' kg';
+                    document.getElementById('total-importe-envio').textContent = '$' + totalImporteNetoEnvio.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    
+                    // Mostrar peso promedio global en algún lugar si es necesario
+                    const pesoPromedioGlobalElement = document.getElementById('peso-promedio-global');
+                    if (pesoPromedioGlobalElement) {
+                        pesoPromedioGlobalElement.textContent = pesoPromedioGlobal.toFixed(2) + ' kg/arp';
+                    }
                     
                     // Actualizar contador de detalles
                     const detallesCountField = document.getElementById('detalles_count');
