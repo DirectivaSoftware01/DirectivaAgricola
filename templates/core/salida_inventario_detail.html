@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-box-arrow-right text-danger"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                {% if salida.activo %}
+                    <a href="{% url 'core:salida_inventario_update' salida.pk %}" class="btn btn-warning">
+                        <i class="bi bi-pencil"></i> Editar Salida
+                    </a>
+                {% endif %}
+                <a href="{% url 'core:salida_inventario_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a la Lista
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botones de Acción -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group" role="group">
+                <a href="{% url 'core:salida_inventario_imprimir' salida.pk %}" class="btn btn-success" target="_blank">
+                    <i class="bi bi-printer"></i> Imprimir Salida
+                </a>
+                <a href="{% url 'core:salida_inventario_update' salida.pk %}" class="btn btn-primary">
+                    <i class="bi bi-pencil"></i> Editar
+                </a>
+                <a href="{% url 'core:salida_inventario_delete' salida.pk %}" class="btn btn-danger">
+                    <i class="bi bi-trash"></i> Eliminar
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Contenido principal -->
+        <div class="col-md-8">
+            <!-- Información General -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información General
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Folio:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-primary fs-6">{{ salida.folio }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Fecha:</dt>
+                                <dd class="col-sm-8">
+                                    <strong>{{ salida.fecha|date:"d/m/Y" }}</strong>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Ciclo:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-info">{{ salida.ciclo }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Estado:</dt>
+                                <dd class="col-sm-8">
+                                    {% if salida.activo %}
+                                        <span class="badge bg-success">Activa</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactiva</span>
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Autorizó:</dt>
+                                <dd class="col-sm-8">{{ salida.autorizo.nombre }}</dd>
+                                
+                                <dt class="col-sm-4">Tipo de Salida:</dt>
+                                <dd class="col-sm-8">{{ salida.tipo_salida.descripcion }}</dd>
+                                
+                                <dt class="col-sm-4">Creado por:</dt>
+                                <dd class="col-sm-8">{{ salida.usuario_creacion.nombre }}</dd>
+                                
+                                <dt class="col-sm-4">Fecha de creación:</dt>
+                                <dd class="col-sm-8">{{ salida.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+                            </dl>
+                        </div>
+                    </div>
+                    
+                    {% if salida.observaciones %}
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <dt>Observaciones:</dt>
+                                <dd class="mt-2">{{ salida.observaciones }}</dd>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Detalle de Productos -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list-ul"></i> Detalle de Productos
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if detalles %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Producto/Servicio</th>
+                                        <th>Almacén</th>
+                                        <th>Cantidad</th>
+                                        <th>Centro de Costo</th>
+                                        <th>Fecha</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for detalle in detalles %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex flex-column">
+                                                    <strong class="text-dark">{{ detalle.producto.descripcion }}</strong>
+                                                    <small class="text-muted">SKU: {{ detalle.producto.sku }}</small>
+                                                </div>
+                                            </td>
+                                            <td>{{ detalle.almacen.descripcion }}</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-danger fs-6 px-3 py-2">
+                                                    {{ detalle.cantidad|floatformat:2 }}
+                                                </span>
+                                            </td>
+                                            <td>{{ detalle.centro_costo.descripcion }}</td>
+                                            <td class="text-center">
+                                                <small class="text-muted">
+                                                    {{ detalle.fecha_creacion|date:"d/m/Y" }}
+                                                    <br>
+                                                    <span class="text-muted">{{ detalle.fecha_creacion|date:"H:i" }}</span>
+                                                </small>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-list-ul display-4 text-muted"></i>
+                            <h5 class="text-muted mt-3">No hay productos en esta salida</h5>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel lateral -->
+        <div class="col-md-4">
+            <!-- Estadísticas -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-graph-up"></i> Estadísticas
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <h4 class="text-primary mb-0">{{ detalles.count }}</h4>
+                                <small class="text-muted">Productos</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h4 class="text-danger mb-0">
+                                {% widthratio detalles.count 1 1 %}
+                            </h4>
+                            <small class="text-muted">Total Cantidad</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información de Auditoría -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-clock-history"></i> Información de Auditoría
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Creado:</dt>
+                        <dd class="col-sm-7">{{ salida.fecha_creacion|date:"d/m/Y H:i" }}</dd>
+                        
+                        <dt class="col-sm-5">Por:</dt>
+                        <dd class="col-sm-7">{{ salida.usuario_creacion.nombre }}</dd>
+                        
+                        {% if salida.usuario_modificacion %}
+                            <dt class="col-sm-5">Modificado:</dt>
+                            <dd class="col-sm-7">{{ salida.fecha_modificacion|date:"d/m/Y H:i" }}</dd>
+                            
+                            <dt class="col-sm-5">Por:</dt>
+                            <dd class="col-sm-7">{{ salida.usuario_modificacion.nombre }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

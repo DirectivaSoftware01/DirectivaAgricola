@@ -46,6 +46,13 @@ from .views import (
     reactivar_emisor_ajax
 )
 
+# Importar vistas de salidas de inventario
+from .salida_views import (
+    salida_inventario_list, salida_inventario_create, salida_inventario_detail,
+    salida_inventario_update, salida_inventario_delete, crear_tipo_salida,
+    obtener_existencia_producto, salida_inventario_imprimir
+)
+
 # Importar vistas de facturación
 from .factura_views import (
     FacturacionView, ListadoFacturasView, FacturaDetailView,
@@ -57,7 +64,8 @@ from .factura_ajax_views import (
     obtener_emisor_ajax, obtener_cliente_ajax, obtener_producto_ajax, guardar_factura_ajax, timbrar_factura_ajax,
     probar_conexion_pac_ajax
 )
-from .catalogos_ajax_views import obtener_usos_cfdi_ajax
+from .catalogos_ajax_views import obtener_usos_cfdi_ajax, obtener_autorizo_gastos_ajax, crear_autorizo_gasto_ajax
+from .views.main_views import cancelar_gasto_ajax, almacenes_list, almacen_create, almacen_edit, almacen_delete, compras_list, compra_create, compra_edit, compra_delete, compra_detail, kardex_list, existencias_list, kardex_producto
 # Importar vistas de herramientas de mantenimiento
 from .views.herramientas import (
     estado_sistema, verificar_certificados, actualizar_catalogos, probar_conexion_pac
@@ -105,6 +113,12 @@ urlpatterns = [
     path('transportistas/<int:pk>/', TransportistaDetailView.as_view(), name='transportista_detail'),
     path('transportistas/<int:pk>/editar/', TransportistaUpdateView.as_view(), name='transportista_update'),
     path('transportistas/<int:pk>/eliminar/', TransportistaDeleteView.as_view(), name='transportista_delete'),
+    
+    # URLs de almacenes
+    path('almacenes/', almacenes_list, name='almacenes_list'),
+    path('almacenes/nuevo/', almacen_create, name='almacen_create'),
+    path('almacenes/<int:codigo>/editar/', almacen_edit, name='almacen_edit'),
+    path('almacenes/<int:codigo>/eliminar/', almacen_delete, name='almacen_delete'),
     
     # URLs de lotes - origen
     path('lotes-origen/', LoteOrigenListView.as_view(), name='lote_origen_list'),
@@ -238,6 +252,9 @@ urlpatterns = [
     
     # URLs AJAX para catálogos
     path('ajax/catalogos/usos-cfdi/', obtener_usos_cfdi_ajax, name='obtener_usos_cfdi_ajax'),
+    path('ajax/catalogos/autorizo-gastos/', obtener_autorizo_gastos_ajax, name='obtener_autorizo_gastos_ajax'),
+    path('ajax/catalogos/autorizo-gastos/crear/', crear_autorizo_gasto_ajax, name='crear_autorizo_gasto_ajax'),
+    path('ajax/gastos/<int:gasto_id>/cancelar/', cancelar_gasto_ajax, name='cancelar_gasto_ajax'),
     
     # URLs para herramientas de mantenimiento
     path('herramientas/', HerramientasMantenimientoView.as_view(), name='herramientas_mantenimiento'),
@@ -265,4 +282,28 @@ urlpatterns = [
     path('complemento-pago/<int:pago_id>/vista-previa/', vista_previa_complemento_pago, name='vista_previa_complemento_pago'),
     path('complemento-pago/<int:pago_id>/imprimir/', imprimir_complemento_pago, name='imprimir_complemento_pago'),
     path('complemento-pago/<int:pago_id>/xml/', descargar_xml_complemento_pago, name='descargar_xml_complemento_pago'),
+    
+    # URLs para compras
+    path('compras/', compras_list, name='compras_list'),
+    path('compras/nuevo/', compra_create, name='compra_create'),
+    path('compras/<int:folio>/editar/', compra_edit, name='compra_edit'),
+    path('compras/<int:folio>/eliminar/', compra_delete, name='compra_delete'),
+    path('compras/<int:folio>/', compra_detail, name='compra_detail'),
+    
+    # URLs para kardex y existencias
+    path('kardex/', kardex_list, name='kardex_list'),
+    path('existencias/', existencias_list, name='existencias_list'),
+    path('kardex/producto/<int:producto_codigo>/almacen/<int:almacen_codigo>/', kardex_producto, name='kardex_producto'),
+    
+    # URLs para salidas de inventario
+    path('salidas-inventario/', salida_inventario_list, name='salida_inventario_list'),
+    path('salidas-inventario/nuevo/', salida_inventario_create, name='salida_inventario_create'),
+    path('salidas-inventario/<int:pk>/', salida_inventario_detail, name='salida_inventario_detail'),
+    path('salidas-inventario/<int:pk>/editar/', salida_inventario_update, name='salida_inventario_update'),
+    path('salidas-inventario/<int:pk>/eliminar/', salida_inventario_delete, name='salida_inventario_delete'),
+    path('salidas-inventario/<int:pk>/imprimir/', salida_inventario_imprimir, name='salida_inventario_imprimir'),
+    
+    # URLs AJAX para salidas de inventario
+    path('ajax/crear-tipo-salida/', crear_tipo_salida, name='crear_tipo_salida'),
+    path('ajax/existencia-producto/', obtener_existencia_producto, name='obtener_existencia_producto'),
 ]

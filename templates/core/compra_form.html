@@ -1,0 +1,860 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-cart-plus-fill text-primary"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="{% url 'core:compras_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a la Lista
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario con Pestañas -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" id="compraForm">
+                        {% csrf_token %}
+                        <input type="hidden" id="detallesData" name="detalles_data" value="">
+
+                        <!-- Pestañas -->
+                        <ul class="nav nav-tabs" id="compraTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab" aria-controls="info" aria-selected="true">
+                                    <i class="bi bi-info-circle"></i> Información de la Compra
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="detalle-tab" data-bs-toggle="tab" data-bs-target="#detalle" type="button" role="tab" aria-controls="detalle" aria-selected="false">
+                                    <i class="bi bi-list-ul"></i> Detalle de la Compra
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Contenido de las pestañas -->
+                        <div class="tab-content" id="compraTabsContent">
+                            <!-- Pestaña 1: Información de la Compra -->
+                            <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
+                                <div class="p-4">
+                                    <!-- Información General -->
+                                    <div class="field-group">
+                                        <h6><i class="bi bi-info-circle"></i> Información General</h6>
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.fecha.id_for_label }}" class="form-label">
+                                                        {{ form.fecha.label }} <span class="text-danger">*</span>
+                                                    </label>
+                                                    <input type="date" 
+                                                           name="{{ form.fecha.name }}" 
+                                                           id="{{ form.fecha.id_for_label }}" 
+                                                           class="form-control" 
+                                                           value="{% if form.fecha.value %}{{ form.fecha.value|date:'Y-m-d' }}{% else %}{{ 'now'|date:'Y-m-d' }}{% endif %}"
+                                                           required>
+                                                    {% if form.fecha.errors %}
+                                                        <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                            {{ form.fecha.errors.0 }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-5">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.proveedor.id_for_label }}" class="form-label">
+                                                        {{ form.proveedor.label }} <span class="text-danger">*</span>
+                                                    </label>
+                                                    {{ form.proveedor }}
+                                                    {% if form.proveedor.errors %}
+                                                        <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                            {{ form.proveedor.errors.0 }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.estado.id_for_label }}" class="form-label">
+                                                        {{ form.estado.label }}
+                                                    </label>
+                                                    {{ form.estado }}
+                                                    {% if form.estado.errors %}
+                                                        <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                            {{ form.estado.errors.0 }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Información de Facturación -->
+                                    <div class="field-group">
+                                        <h6><i class="bi bi-receipt"></i> Información de Facturación</h6>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.factura.id_for_label }}" class="form-label">
+                                                        {{ form.factura.label }}
+                                                    </label>
+                                                    {{ form.factura }}
+                                                    {% if form.factura.errors %}
+                                                        <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                            {{ form.factura.errors.0 }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="{{ form.serie.id_for_label }}" class="form-label">
+                                                        {{ form.serie.label }}
+                                                    </label>
+                                                    {{ form.serie }}
+                                                    {% if form.serie.errors %}
+                                                        <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                            {{ form.serie.errors.0 }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Campo oculto para impuestos -->
+                                    <div style="display: none;">
+                                        {{ form.impuestos }}
+                                        {{ form.subtotal }}
+                                        {{ form.total }}
+                                    </div>
+
+                                    <!-- Errores generales del formulario -->
+                                    {% if form.non_field_errors %}
+                                        <div class="alert alert-danger">
+                                            {% for error in form.non_field_errors %}
+                                                <div>{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Pestaña 2: Detalle de la Compra -->
+                            <div class="tab-pane fade" id="detalle" role="tabpanel" aria-labelledby="detalle-tab">
+                                <div class="p-4">
+                                           <!-- Botón para agregar productos -->
+                                           <div class="d-flex justify-content-between align-items-center mb-4">
+                                               <h6 class="mb-0"><i class="bi bi-list-ul"></i> Productos de la Compra</h6>
+                                               {% if compra %}
+                                                   <button type="button" class="btn btn-success btn-sm" id="add-producto-btn" data-bs-toggle="modal" data-bs-target="#productoModal">
+                                                       <i class="bi bi-plus-circle"></i> Agregar Producto
+                                                   </button>
+                                               {% else %}
+                                                   <button type="button" class="btn btn-success btn-sm" id="add-producto-btn" data-bs-toggle="modal" data-bs-target="#productoModal">
+                                                       <i class="bi bi-plus-circle"></i> Agregar Producto
+                                                   </button>
+                                               {% endif %}
+                                           </div>
+
+                                           <!-- Tabla de productos temporales -->
+                                           {% if not compra %}
+                                               <div class="table-responsive">
+                                                   <table class="table table-hover">
+                                                       <thead class="table-light">
+                                                           <tr>
+                                                               <th>Producto/Servicio</th>
+                                                               <th>Almacén</th>
+                                                               <th>Cantidad</th>
+                                                               <th>Precio Unitario</th>
+                                                               <th>Importe</th>
+                                                               <th>Impuestos</th>
+                                                               <th>Total</th>
+                                                               <th>Acciones</th>
+                                                           </tr>
+                                                       </thead>
+                                                       <tbody id="productos-tbody">
+                                                           <!-- Los productos temporales se agregarán aquí -->
+                                                       </tbody>
+                                                   </table>
+                                               </div>
+                                               
+                                               <!-- Resumen de Totales Temporales -->
+                                               <div class="row mt-4" id="resumen-temporales">
+                                                   <div class="col-md-12">
+                                                       <div class="card bg-light">
+                                                           <div class="card-body">
+                                                               <h6 class="card-title">Resumen de Totales</h6>
+                                                               <div class="row">
+                                                                   <div class="col-md-3">
+                                                                       <div class="text-center">
+                                                                           <h6 class="text-muted">Subtotal</h6>
+                                                                           <h4 class="text-primary" id="total-subtotal">$0.00</h4>
+                                                                       </div>
+                                                                   </div>
+                                                                   <div class="col-md-3">
+                                                                       <div class="text-center">
+                                                                           <h6 class="text-muted">Impuestos</h6>
+                                                                           <h4 class="text-warning" id="total-impuestos">$0.00</h4>
+                                                                       </div>
+                                                                   </div>
+                                                                   <div class="col-md-3">
+                                                                       <div class="text-center">
+                                                                           <h6 class="text-muted">Total</h6>
+                                                                           <h4 class="text-success" id="total-general">$0.00</h4>
+                                                                       </div>
+                                                                   </div>
+                                                                   <div class="col-md-3">
+                                                                       <div class="text-center">
+                                                                           <h6 class="text-muted">Productos</h6>
+                                                                           <h4 class="text-info" id="total-productos">0</h4>
+                                                                       </div>
+                                                                   </div>
+                                                               </div>
+                                                           </div>
+                                                       </div>
+                                                   </div>
+                                               </div>
+                                           {% else %}
+                                               <!-- Tabla de productos existentes para edición -->
+                                               {% if detalles %}
+                                                   <div class="table-responsive">
+                                                       <table class="table table-hover">
+                                                           <thead class="table-light">
+                                                               <tr>
+                                                                   <th>Producto/Servicio</th>
+                                                                   <th>Almacén</th>
+                                                                   <th>Cantidad</th>
+                                                                   <th>Precio Unitario</th>
+                                                                   <th>Importe</th>
+                                                                   <th>Impuestos</th>
+                                                                   <th>Total</th>
+                                                                   <th>Acciones</th>
+                                                               </tr>
+                                                           </thead>
+                                                           <tbody>
+                                                               {% for detalle in detalles %}
+                                                               <tr>
+                                                                   <td>
+                                                                       <strong>{{ detalle.producto.descripcion }}</strong><br>
+                                                                       <small class="text-muted">{{ detalle.producto.sku }}</small>
+                                                                   </td>
+                                                                   <td><span class="badge bg-info">{{ detalle.almacen.descripcion }}</span></td>
+                                                                   <td><span class="fw-bold">{{ detalle.cantidad }}</span></td>
+                                                                   <td><span class="text-primary fw-bold">${{ detalle.precio|floatformat:2 }}</span></td>
+                                                                   <td><span class="text-success fw-bold">${{ detalle.subtotal|floatformat:2 }}</span></td>
+                                                                   <td><span class="text-warning fw-bold">${{ detalle.impuestos|floatformat:2 }}</span></td>
+                                                                   <td><span class="text-dark fw-bold">${{ detalle.total|floatformat:2 }}</span></td>
+                                                                   <td>
+                                                                       <div class="btn-group" role="group">
+                                                                           <button type="button" class="btn btn-sm btn-outline-primary" title="Editar producto" disabled>
+                                                                               <i class="bi bi-pencil"></i>
+                                                                           </button>
+                                                                           <button type="button" class="btn btn-sm btn-outline-danger" title="Eliminar producto" disabled>
+                                                                               <i class="bi bi-trash"></i>
+                                                                           </button>
+                                                                       </div>
+                                                                   </td>
+                                                               </tr>
+                                                               {% endfor %}
+                                                           </tbody>
+                                                       </table>
+                                                   </div>
+                                               {% else %}
+                                                   <div class="text-center py-3">
+                                                       <p class="text-muted">No hay productos agregados. Haz clic en "Agregar Producto" para comenzar.</p>
+                                                   </div>
+                                               {% endif %}
+                                           {% endif %}
+                                    
+                                    <!-- Totales -->
+                                    <div class="row mt-4">
+                                        <div class="col-md-8"></div>
+                                        <div class="col-md-4">
+                                            <div class="card bg-light">
+                                                <div class="card-body">
+                                                    <div class="row mb-2">
+                                                        <div class="col-6"><strong>Subtotal:</strong></div>
+                                                        <div class="col-6 text-end">$<span id="totalSubtotal">0.00</span></div>
+                                                    </div>
+                                                    <div class="row mb-2">
+                                                        <div class="col-6"><strong>Impuestos:</strong></div>
+                                                        <div class="col-6 text-end">$<span id="totalImpuestos">0.00</span></div>
+                                                    </div>
+                                                    <hr>
+                                                    <div class="row">
+                                                        <div class="col-6"><strong>Total:</strong></div>
+                                                        <div class="col-6 text-end">$<span id="totalGeneral">0.00</span></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botones de acción -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-end gap-2">
+                                    <a href="{% url 'core:compras_list' %}" class="btn btn-secondary">
+                                        <i class="bi bi-x-circle"></i> Cancelar
+                                    </a>
+                                    <button type="submit" class="btn btn-primary" id="btnGuardar">
+                                        <i class="bi bi-check-circle"></i> {% if compra %}Actualizar Compra{% else %}Crear Compra{% endif %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<style>
+.field-group {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.field-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.field-group h6 {
+    color: #495057;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.alert-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+}
+</style>
+
+<script>
+// Cache buster para forzar actualización
+console.log('Compra form script loaded at:', new Date().toISOString());
+
+// Funcionalidad para productos temporales (solo para nuevas compras)
+{% if not compra %}
+let productosTemporales = [];
+{% endif %}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Configurar fecha actual por defecto
+    const fechaField = document.getElementById('{{ form.fecha.id_for_label }}');
+    if (fechaField && !fechaField.value) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        fechaField.value = `${year}-${month}-${day}`;
+    }
+    
+    // Auto-focus en el primer campo
+    if (fechaField) {
+        fechaField.focus();
+    }
+
+    // Inicializar contador de detalles
+    const detallesExistentes = document.querySelectorAll('.detalle-item');
+    detalleIndex = detallesExistentes.length;
+
+    // Calcular totales iniciales (solo para compras existentes)
+    {% if compra %}
+    calcularTotales();
+    {% endif %}
+
+           // Event listeners para cálculos automáticos (solo para compras existentes)
+           {% if compra %}
+           document.addEventListener('change', function(e) {
+               if (e.target.classList.contains('cantidad-input') || 
+                   e.target.classList.contains('precio-input') ||
+                   e.target.classList.contains('producto-select')) {
+                   calcularSubtotalDetalle(e.target.closest('.detalle-item'));
+                   calcularTotales();
+               }
+           });
+
+           document.addEventListener('input', function(e) {
+               if (e.target.classList.contains('cantidad-input') || 
+                   e.target.classList.contains('precio-input')) {
+                   calcularSubtotalDetalle(e.target.closest('.detalle-item'));
+                   calcularTotales();
+               }
+           });
+           {% endif %}
+
+
+
+    {% if not compra %}
+    // Configurar event listeners del modal después de que el DOM esté cargado
+    const productoSelect = document.getElementById('producto-select');
+    const cantidadInput = document.getElementById('cantidad-input');
+    const precioInput = document.getElementById('precio-input');
+    
+    if (productoSelect) {
+        productoSelect.addEventListener('change', function() {
+            const precio = this.options[this.selectedIndex].getAttribute('data-precio');
+            if (precio && precio > 0) {
+                document.getElementById('precio-input').value = precio;
+                calcularTotalesModal();
+            }
+        });
+    }
+    
+    if (cantidadInput) {
+        cantidadInput.addEventListener('input', calcularTotalesModal);
+    }
+    
+    if (precioInput) {
+        precioInput.addEventListener('input', calcularTotalesModal);
+    }
+    
+    // Configurar botón de agregar producto
+    const agregarProductoBtn = document.getElementById('agregar-producto-btn');
+    if (agregarProductoBtn) {
+        agregarProductoBtn.addEventListener('click', function() {
+            const productoSelect = document.getElementById('producto-select');
+            const almacenSelect = document.getElementById('almacen-select');
+            const cantidad = parseFloat(document.getElementById('cantidad-input').value);
+            const precio = parseFloat(document.getElementById('precio-input').value);
+            
+            // Debug: Verificar elementos
+            console.log('productoSelect:', productoSelect);
+            console.log('productoSelect.value:', productoSelect ? productoSelect.value : 'ELEMENTO NO ENCONTRADO');
+            console.log('almacenSelect:', almacenSelect);
+            console.log('almacenSelect.value:', almacenSelect ? almacenSelect.value : 'ELEMENTO NO ENCONTRADO');
+            console.log('cantidad:', cantidad);
+            console.log('precio:', precio);
+            
+            // Validar campos requeridos con mensajes específicos
+            if (!productoSelect) {
+                alert('Error: No se encontró el campo de producto.');
+                return;
+            }
+            if (!productoSelect.value) {
+                alert('Por favor seleccione un producto.');
+                return;
+            }
+            if (!almacenSelect.value) {
+                alert('Por favor seleccione un almacén.');
+                return;
+            }
+            if (isNaN(cantidad) || cantidad <= 0) {
+                alert('Por favor ingrese una cantidad válida mayor a 0.');
+                return;
+            }
+            if (isNaN(precio) || precio <= 0) {
+                alert('Por favor ingrese un precio válido mayor a 0.');
+                return;
+            }
+            
+            // Obtener datos del producto y almacén seleccionados
+            const productoOption = productoSelect.options[productoSelect.selectedIndex];
+            const almacenOption = almacenSelect.options[almacenSelect.selectedIndex];
+            
+                const producto = {
+                    codigo: productoSelect.value,
+                    descripcion: productoOption.getAttribute('data-descripcion'),
+                    sku: productoOption.getAttribute('data-sku'),
+                    impuesto: productoOption.getAttribute('data-impuesto')
+                };
+            
+            const almacen = {
+                codigo: almacenSelect.value,
+                descripcion: almacenOption.getAttribute('data-descripcion')
+            };
+            
+            // Calcular totales
+            const importe = cantidad * precio;
+            let tasaImpuesto = 0;
+            switch(producto.impuesto) {
+                case 'IVA_16':
+                    tasaImpuesto = 0.16;
+                    break;
+                case 'IVA_0':
+                    tasaImpuesto = 0;
+                    break;
+                case 'IVA_EXENTO':
+                    tasaImpuesto = 0;
+                    break;
+                default:
+                    tasaImpuesto = 0;
+            }
+            const impuestos = importe * tasaImpuesto;
+            const total = importe + impuestos;
+            
+            // Crear objeto del producto temporal
+            const productoTemporal = {
+                producto: producto,
+                almacen: almacen,
+                cantidad: cantidad,
+                precio: precio,
+                importe: importe,
+                impuestos: impuestos,
+                total: total
+            };
+            
+            // Agregar a la lista temporal
+            productosTemporales.push(productoTemporal);
+            
+            // Actualizar tabla y totales
+            updateProductosTable();
+            updateTotales();
+            
+            // Limpiar modal y cerrarlo
+            document.getElementById('producto-form').reset();
+            bootstrap.Modal.getInstance(document.getElementById('productoModal')).hide();
+        });
+    }
+    {% endif %}
+});
+
+{% if not compra %}
+// Funciones para manejar productos temporales
+
+// Calcular importe, impuestos y total en el modal
+function calcularTotalesModal() {
+    console.log('Calculando totales del modal...');
+    
+    const cantidad = parseFloat(document.getElementById('cantidad-input').value) || 0;
+    const precio = parseFloat(document.getElementById('precio-input').value) || 0;
+    const productoSelect = document.getElementById('producto-select');
+    
+    console.log('Cantidad:', cantidad, 'Precio:', precio);
+    
+    const importe = cantidad * precio;
+    document.getElementById('importe-calculado').value = importe.toFixed(2);
+    
+    // Calcular impuestos basándose en el tipo de impuesto del producto
+    let tasaImpuesto = 0;
+    if (productoSelect.selectedIndex > 0) {
+        const impuestoTipo = productoSelect.options[productoSelect.selectedIndex].getAttribute('data-impuesto');
+        console.log('Tipo de impuesto:', impuestoTipo);
+        switch(impuestoTipo) {
+            case 'IVA_16':
+                tasaImpuesto = 0.16;
+                break;
+            case 'IVA_0':
+                tasaImpuesto = 0;
+                break;
+            case 'IVA_EXENTO':
+                tasaImpuesto = 0;
+                break;
+            default:
+                tasaImpuesto = 0;
+        }
+    }
+    
+    const impuestos = importe * tasaImpuesto;
+    const total = importe + impuestos;
+    
+    console.log('Importe:', importe, 'Impuestos:', impuestos, 'Total:', total);
+    
+    document.getElementById('impuestos-calculado').value = impuestos.toFixed(2);
+    document.getElementById('total-calculado').value = total.toFixed(2);
+}
+
+
+// Actualizar tabla de productos temporales
+function updateProductosTable() {
+    const tbody = document.getElementById('productos-tbody');
+    tbody.innerHTML = '';
+    
+    productosTemporales.forEach((producto, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <strong>${producto.producto.descripcion}</strong><br>
+                <small class="text-muted">${producto.producto.sku}</small>
+            </td>
+            <td><span class="badge bg-info">${producto.almacen.descripcion}</span></td>
+            <td><span class="fw-bold">${producto.cantidad}</span></td>
+            <td><span class="text-primary fw-bold">$${producto.precio.toFixed(2)}</span></td>
+            <td><span class="text-success fw-bold">$${producto.importe.toFixed(2)}</span></td>
+            <td><span class="text-warning fw-bold">$${producto.impuestos.toFixed(2)}</span></td>
+            <td><span class="text-dark fw-bold">$${producto.total.toFixed(2)}</span></td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeProducto(${index})" title="Eliminar producto">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Eliminar producto temporal
+window.removeProducto = function(index) {
+    if (confirm('¿Está seguro de que desea eliminar este producto?')) {
+        productosTemporales.splice(index, 1);
+        updateProductosTable();
+        updateTotales();
+    }
+};
+
+// Actualizar totales
+function updateTotales() {
+    const totalSubtotal = productosTemporales.reduce((sum, producto) => sum + producto.importe, 0);
+    const totalImpuestos = productosTemporales.reduce((sum, producto) => sum + producto.impuestos, 0);
+    const totalGeneral = productosTemporales.reduce((sum, producto) => sum + producto.total, 0);
+    
+    // Actualizar campos del formulario (ocultos)
+    const subtotalField = document.getElementById('{{ form.subtotal.id_for_label }}');
+    const totalField = document.getElementById('{{ form.total.id_for_label }}');
+    const impuestosHiddenField = document.getElementById('{{ form.impuestos.id_for_label }}');
+    
+    if (subtotalField) subtotalField.value = totalSubtotal.toFixed(2);
+    if (totalField) totalField.value = totalGeneral.toFixed(2);
+    if (impuestosHiddenField) impuestosHiddenField.value = totalImpuestos.toFixed(2);
+    
+    // Actualizar display de totales en el resumen
+    document.getElementById('total-subtotal').textContent = '$' + totalSubtotal.toFixed(2);
+    document.getElementById('total-impuestos').textContent = '$' + totalImpuestos.toFixed(2);
+    document.getElementById('total-general').textContent = '$' + totalGeneral.toFixed(2);
+    document.getElementById('total-productos').textContent = productosTemporales.length;
+    
+    // Actualizar campos de totales antiguos (compatibilidad)
+    document.getElementById('totalSubtotal').textContent = totalSubtotal.toFixed(2);
+    document.getElementById('totalImpuestos').textContent = totalImpuestos.toFixed(2);
+    document.getElementById('totalGeneral').textContent = totalGeneral.toFixed(2);
+}
+
+{% endif %}
+
+{% if compra %}
+// Funciones para compras existentes (edición)
+function calcularSubtotalDetalle(detalleItem) {
+    const cantidadInput = detalleItem.querySelector('.cantidad-input');
+    const precioInput = detalleItem.querySelector('.precio-input');
+    const subtotalInput = detalleItem.querySelector('.subtotal-input');
+    
+    const cantidad = parseFloat(cantidadInput.value) || 0;
+    const precio = parseFloat(precioInput.value) || 0;
+    const subtotal = cantidad * precio;
+    
+    subtotalInput.value = subtotal.toFixed(2);
+}
+
+function calcularTotales() {
+    let totalSubtotal = 0;
+    let totalImpuestos = 0;
+    
+    // Calcular subtotal e impuestos de todos los detalles
+    document.querySelectorAll('.detalle-item').forEach(detalleItem => {
+        const subtotalInput = detalleItem.querySelector('.subtotal-input');
+        const productoSelect = detalleItem.querySelector('.producto-select');
+        
+        if (subtotalInput && productoSelect) {
+            const subtotal = parseFloat(subtotalInput.value) || 0;
+            totalSubtotal += subtotal;
+            
+            // Calcular impuestos basándose en el tipo de impuesto del producto
+            const impuestoTipo = productoSelect.options[productoSelect.selectedIndex].getAttribute('data-impuesto');
+            let tasaImpuesto = 0;
+            
+            switch(impuestoTipo) {
+                case 'IVA_16':
+                    tasaImpuesto = 0.16;
+                    break;
+                case 'IVA_0':
+                    tasaImpuesto = 0;
+                    break;
+                case 'IVA_EXENTO':
+                    tasaImpuesto = 0;
+                    break;
+                default:
+                    tasaImpuesto = 0;
+            }
+            
+            totalImpuestos += subtotal * tasaImpuesto;
+        }
+    });
+    
+    // Calcular total
+    const total = totalSubtotal + totalImpuestos;
+    
+    // Actualizar campos del formulario (ocultos)
+    const subtotalField = document.getElementById('{{ form.subtotal.id_for_label }}');
+    const totalField = document.getElementById('{{ form.total.id_for_label }}');
+    const impuestosHiddenField = document.getElementById('{{ form.impuestos.id_for_label }}');
+    
+    if (subtotalField) subtotalField.value = totalSubtotal.toFixed(2);
+    if (totalField) totalField.value = total.toFixed(2);
+    if (impuestosHiddenField) impuestosHiddenField.value = totalImpuestos.toFixed(2);
+    
+    // Actualizar display de totales
+    document.getElementById('totalSubtotal').textContent = totalSubtotal.toFixed(2);
+    document.getElementById('totalImpuestos').textContent = totalImpuestos.toFixed(2);
+    document.getElementById('totalGeneral').textContent = total.toFixed(2);
+}
+{% endif %}
+
+// Funciones antiguas eliminadas - ahora se usa el sistema de modal
+</script>
+
+<!-- Modal para agregar productos -->
+<div class="modal fade" id="productoModal" tabindex="-1" aria-labelledby="productoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="productoModalLabel">
+                    <i class="bi bi-plus-circle"></i> Agregar Producto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="producto-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="producto-select" class="form-label">Producto/Servicio <span class="text-danger">*</span></label>
+                                <select class="form-select" id="producto-select" required>
+                                    <option value="">Seleccionar producto...</option>
+                                        {% for producto in productos %}
+                                            <option value="{{ producto.codigo }}" 
+                                                    data-precio="{{ producto.precio|default:0 }}"
+                                                    data-impuesto="{{ producto.impuesto }}"
+                                                    data-descripcion="{{ producto.descripcion }}"
+                                                    data-sku="{{ producto.sku }}">
+                                                {{ producto.descripcion }} - {{ producto.sku }}
+                                            </option>
+                                        {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="almacen-select" class="form-label">Almacén <span class="text-danger">*</span></label>
+                                <select class="form-select" id="almacen-select" required>
+                                    <option value="">Seleccionar almacén...</option>
+                                    {% for almacen in almacenes %}
+                                        <option value="{{ almacen.codigo }}" data-descripcion="{{ almacen.descripcion }}">
+                                            {{ almacen.descripcion }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cantidad-input" class="form-label">Cantidad <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="cantidad-input" step="0.01" min="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="precio-input" class="form-label">Precio Unitario <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="precio-input" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="importe-calculado" class="form-label">Importe</label>
+                                <input type="number" class="form-control" id="importe-calculado" step="0.01" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="impuestos-calculado" class="form-label">Impuestos</label>
+                                <input type="number" class="form-control" id="impuestos-calculado" step="0.01" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="total-calculado" class="form-label">Total</label>
+                                <input type="number" class="form-control" id="total-calculado" step="0.01" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="agregar-producto-btn">Agregar Producto</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== CÓDIGO DEL BOTÓN AL FINAL DEL TEMPLATE ===== -->
+<script>
+{% if not compra %}
+// Función para preparar productos para envío
+function prepararProductosParaEnvio() {
+    console.log('Preparando productos para envío...');
+    console.log('Productos temporales:', productosTemporales);
+    
+    const detallesDataInput = document.getElementById('detallesData');
+    if (detallesDataInput && typeof productosTemporales !== 'undefined') {
+        detallesDataInput.value = JSON.stringify(productosTemporales);
+        console.log('JSON enviado:', detallesDataInput.value);
+    } else {
+        console.error('No se encontró el input detallesData o productosTemporales no está definido');
+    }
+}
+
+// Configurar el botón cuando el DOM esté completamente cargado
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM cargado, configurando botón...');
+    
+    const btnGuardar = document.getElementById('btnGuardar');
+    if (btnGuardar) {
+        console.log('Botón encontrado, agregando event listener...');
+        
+        btnGuardar.addEventListener('click', function(e) {
+            console.log('Botón clickeado!');
+            
+            // Preparar los datos antes del envío
+            prepararProductosParaEnvio();
+            
+            console.log('Datos preparados, enviando formulario...');
+            // El formulario se enviará automáticamente
+        });
+        
+        console.log('Event listener agregado al botón');
+    } else {
+        console.error('No se encontró el botón con ID btnGuardar');
+    }
+});
+{% endif %}
+</script>
+
+{% endblock %}

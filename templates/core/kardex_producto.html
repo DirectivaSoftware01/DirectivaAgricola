@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-graph-up text-info"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:existencias_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a Existencias
+                </a>
+                <a href="{% url 'core:kardex_list' %}" class="btn btn-info">
+                    <i class="bi bi-list-ul"></i> Ver Kardex Completo
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información del producto y almacén -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-box-seam"></i> Información del Producto
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Descripción:</strong> {{ producto.descripcion }}</p>
+                    <p><strong>Clave:</strong> {{ producto.clave }}</p>
+                    <p><strong>Unidad:</strong> {{ producto.unidad }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-building"></i> Información del Almacén
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Almacén:</strong> {{ almacen.descripcion }}</p>
+                    <p><strong>Código:</strong> {{ almacen.codigo }}</p>
+                    <p><strong>Ubicación:</strong> {{ almacen.ubicacion|default:"No especificada" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen de movimientos -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Entradas</h6>
+                            <h3 class="mb-0">{{ total_entradas|floatformat:2 }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-arrow-down-circle display-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Salidas</h6>
+                            <h3 class="mb-0">{{ total_salidas|floatformat:2 }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-arrow-up-circle display-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Existencia Actual</h6>
+                            <h3 class="mb-0">{{ existencia_actual|floatformat:2 }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-box-seam display-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Costo Promedio</h6>
+                            <h3 class="mb-0">${{ costo_promedio_actual|floatformat:2 }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-currency-dollar display-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de movimientos -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-list-ul"></i> Historial de Movimientos
+                <span class="badge bg-primary ms-2">{{ page_obj.paginator.count }} {% if page_obj.paginator.count == 1 %}movimiento{% else %}movimientos{% endif %}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if page_obj %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Cantidad</th>
+                                <th>Precio Unitario</th>
+                                <th>Costo Total</th>
+                                <th>Existencia Anterior</th>
+                                <th>Existencia Actual</th>
+                                <th>Costo Promedio Anterior</th>
+                                <th>Costo Promedio Actual</th>
+                                <th>Referencia</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movimiento in page_obj %}
+                            <tr>
+                                <td>
+                                    <small>{{ movimiento.fecha|date:"d/m/Y H:i" }}</small>
+                                </td>
+                                <td>
+                                    {% if movimiento.tipo_movimiento == 'entrada' %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-arrow-down-circle"></i> Entrada
+                                        </span>
+                                    {% elif movimiento.tipo_movimiento == 'salida' %}
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-arrow-up-circle"></i> Salida
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-arrow-repeat"></i> Ajuste
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <strong>{{ movimiento.cantidad|floatformat:2 }}</strong>
+                                </td>
+                                <td class="text-end">
+                                    ${{ movimiento.precio_unitario|floatformat:2 }}
+                                </td>
+                                <td class="text-end">
+                                    <strong>${{ movimiento.costo_total|floatformat:2 }}</strong>
+                                </td>
+                                <td class="text-end">
+                                    {{ movimiento.existencia_anterior|floatformat:2 }}
+                                </td>
+                                <td class="text-end">
+                                    <strong class="text-primary">{{ movimiento.existencia_actual|floatformat:2 }}</strong>
+                                </td>
+                                <td class="text-end">
+                                    ${{ movimiento.costo_promedio_anterior|floatformat:2 }}
+                                </td>
+                                <td class="text-end">
+                                    <strong class="text-info">${{ movimiento.costo_promedio_actual|floatformat:2 }}</strong>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ movimiento.referencia|default:"-" }}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                {% if page_obj.has_other_pages %}
+                <nav aria-label="Paginación de movimientos">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">
+                                    <i class="bi bi-chevron-double-left"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                    <i class="bi bi-chevron-left"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                    <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">
+                                    <i class="bi bi-chevron-double-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-graph-up display-1 text-muted"></i>
+                    <h4 class="text-muted mt-3">No hay movimientos registrados</h4>
+                    <p class="text-muted">Los movimientos aparecerán aquí cuando se registren compras o salidas de este producto.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

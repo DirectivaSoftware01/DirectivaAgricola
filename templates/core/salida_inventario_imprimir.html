@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salida de Inventario {{ salida.folio }}</title>
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 0.5cm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 10px;
+            line-height: 1.2;
+            color: #333;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 5px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #2c5aa0;
+        }
+        
+        .company-info {
+            flex: 1;
+        }
+        
+        .company-logo-section {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .company-logo-img {
+            height: 40px;
+            width: auto;
+            margin-right: 10px;
+        }
+        
+        .company-text {
+            flex: 1;
+        }
+        
+        .company-logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 5px;
+        }
+        
+        .company-slogan {
+            font-size: 10px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .company-details {
+            font-size: 9px;
+            line-height: 1.1;
+        }
+        
+        .document-info {
+            text-align: right;
+            flex: 0 0 200px;
+        }
+        
+        .document-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 10px;
+        }
+        
+        .document-number {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .document-date {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .date-section {
+            margin-bottom: 20px;
+        }
+        
+        .date-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        
+        .date-field {
+            border: 1px solid #ccc;
+            padding: 5px;
+            text-align: center;
+            background-color: #f9f9f9;
+        }
+        
+        .client-section {
+            margin-bottom: 5px;
+        }
+        
+        .section-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 3px;
+            padding-bottom: 2px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .client-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .client-field {
+            margin-bottom: 4px;
+        }
+        
+        .field-label {
+            font-weight: bold;
+            color: #555;
+            font-size: 10px;
+        }
+        
+        .field-value {
+            font-size: 11px;
+            margin-top: 2px;
+        }
+        
+        .product-section {
+            margin-bottom: 5px;
+        }
+        
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+        }
+        
+        .product-table th,
+        .product-table td {
+            border: 1px solid #ccc;
+            padding: 2px;
+            text-align: center;
+            font-size: 9px;
+        }
+        
+        .product-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .product-table .text-left {
+            text-align: left;
+        }
+        
+        .product-table .text-right {
+            text-align: right;
+        }
+        
+        .signatures-section {
+            margin-top: 8px;
+            display: flex;
+            justify-content: center;
+            gap: 100px;
+        }
+        
+        .signature-box {
+            width: 200px;
+            text-align: center;
+        }
+        
+        .signature-line {
+            border-bottom: 1px solid #333;
+            height: 30px;
+            margin-bottom: 3px;
+        }
+        
+        .notice-section {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            font-size: 10px;
+        }
+        
+        .notice-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 5px;
+        }
+        
+        @media print {
+            body {
+                font-size: 11px;
+            }
+            
+            .no-print {
+                display: none;
+            }
+            
+            .company-logo-img {
+                height: 50px;
+                width: auto;
+            }
+            
+            .company-logo-section {
+                margin-bottom: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="company-info">
+            <div class="company-logo-section">
+                {% if configuracion.logo_empresa %}
+                    <img src="{{ configuracion.logo_empresa.url }}" alt="{{ configuracion.razon_social|default:'Empresa' }}" class="company-logo-img">
+                {% else %}
+                    <img src="/static/images/logoAgroDam.png" alt="{{ configuracion.razon_social|default:'Empresa' }}" class="company-logo-img">
+                {% endif %}
+            </div>
+            <div class="company-details">
+                {% if configuracion.razon_social %}
+                    <strong>{{ configuracion.razon_social }}</strong><br>
+                {% endif %}
+                {% if configuracion.rfc %}
+                    RFC: {{ configuracion.rfc }}<br>
+                {% endif %}
+                {% if configuracion.direccion %}
+                    {{ configuracion.direccion }}<br>
+                {% endif %}
+                {% if configuracion.telefono %}
+                    Tel: {{ configuracion.telefono }}
+                {% endif %}
+            </div>
+        </div>
+        <div class="document-info">
+            <div class="document-title">SALIDA DE INVENTARIO</div>
+            <div class="document-number">{{ salida.folio }}</div>
+            <div class="document-date">{{ salida.fecha|date:"d/m/Y" }}</div>
+        </div>
+    </div>
+
+    <!-- Información General -->
+    <div class="client-section">
+        <div class="section-title">Información General</div>
+        <div class="client-grid">
+            <div>
+                <div class="client-field">
+                    <div class="field-label">Ciclo:</div>
+                    <div class="field-value"><strong>{{ salida.ciclo }}</strong></div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Tipo de Salida:</div>
+                    <div class="field-value">{{ salida.tipo_salida.descripcion }}</div>
+                </div>
+            </div>
+            <div>
+                <div class="client-field">
+                    <div class="field-label">Autorizó:</div>
+                    <div class="field-value"><strong>{{ salida.autorizo.nombre }}</strong></div>
+                </div>
+                <div class="client-field">
+                    <div class="field-label">Observaciones:</div>
+                    <div class="field-value">{{ salida.observaciones|default:"Ninguna" }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalles de Productos -->
+    {% if detalles %}
+    <div class="product-section">
+        <div class="section-title">Detalles de Productos</div>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Producto/Servicio</th>
+                    <th>Almacén</th>
+                    <th>Cantidad</th>
+                    <th>Centro de Costo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for detalle in detalles %}
+                <tr>
+                    <td class="text-left">
+                        <strong>{{ detalle.producto.descripcion }}</strong><br>
+                        <small>{{ detalle.producto.clave }}</small>
+                    </td>
+                    <td>{{ detalle.almacen.descripcion }}</td>
+                    <td>{{ detalle.cantidad|floatformat:2 }}</td>
+                    <td>{{ detalle.centro_costo.descripcion }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Firmas -->
+    <div class="signatures-section">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="field-label">Autorizó: {{ salida.autorizo.nombre }}</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="field-label">Recibe</div>
+        </div>
+    </div>
+
+    <!-- Aviso Importante -->
+    <div class="notice-section">
+        <div class="notice-title">Aviso Importante</div>
+        <p>Esta salida de inventario debe ser verificada y firmada por la persona que recibe los productos. Los productos entregados deben coincidir con los especificados en este documento.</p>
+        <p style="margin-top: 10px;">
+            <strong>Atte: {{ configuracion.razon_social|default:"Directiva Agrícola" }}</strong><br>
+            {% if configuracion.rfc %}RFC: {{ configuracion.rfc }}<br>{% endif %}
+            {% if configuracion.telefono %}Tel: {{ configuracion.telefono }}{% endif %}
+        </p>
+    </div>
+
+    <script>
+        // Auto-imprimir cuando se carga la página
+        window.onload = function() {
+            window.print();
+        };
+    </script>
+</body>
+</html>

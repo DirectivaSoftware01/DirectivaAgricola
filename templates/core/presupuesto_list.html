@@ -39,7 +39,7 @@
 <!-- Filtros de búsqueda -->
 <div class="card mb-4">
     <div class="card-header">
-        <h5 class="mb-0">
+        <h5 class="mb-0" style="color: #ffffff !important; font-weight: 600;">
             <i class="bi bi-search"></i> Filtros de Búsqueda
         </h5>
     </div>
@@ -81,7 +81,7 @@
 <!-- Lista de presupuestos -->
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0">
+        <h5 class="mb-0" style="color: #ffffff !important; font-weight: 600;">
             <i class="bi bi-list-ul"></i> Presupuestos
             <span class="badge bg-secondary ms-2">{{ presupuestos_con_gastos|length }}</span>
         </h5>
@@ -90,7 +90,7 @@
         {% if presupuestos_con_gastos %}
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                    <thead class="table-dark">
+                    <thead class="table-light">
                         <tr>
                             <th class="d-none">Código</th>
                             <th>Centro de Costo</th>
@@ -267,12 +267,14 @@
                     <!-- Tabla de Detalles -->
                     <div class="table-responsive mb-3" id="detalles-table-container" style="display: none;">
                         <table class="table table-striped">
-                            <thead class="table-dark">
+                            <thead class="table-light">
                                 <tr>
                                     <th>Proveedor</th>
                                     <th>Factura</th>
                                     <th>Clasificación</th>
                                     <th>Concepto</th>
+                                    <th>Forma de Pago</th>
+                                    <th>Autorizó</th>
                                     <th class="text-end">Importe</th>
                                     <th class="text-center">Acciones</th>
                                 </tr>
@@ -312,6 +314,7 @@
             <div class="modal-header">
                 <h5 class="modal-title" id="detalleModalLabel">
                     <i class="bi bi-plus-circle"></i> Agregar Detalle de Gasto
+                    <small class="text-muted">(v4.0 - Campo Forma de Pago incluido)</small>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -338,6 +341,45 @@
                         <input type="text" class="form-control" id="concepto" name="concepto" required placeholder="Concepto o descripción del gasto">
                     </div>
                     <div class="mb-3">
+                        <label for="forma_pago" class="form-label">Forma de Pago <span class="text-danger">*</span></label>
+                        <select class="form-select" id="forma_pago" name="forma_pago" required>
+                            <option value="">Seleccionar forma de pago...</option>
+                            <option value="01">01 - Efectivo</option>
+                            <option value="02">02 - Cheque nominativo</option>
+                            <option value="03">03 - Transferencia electrónica de fondos</option>
+                            <option value="04">04 - Tarjeta de crédito</option>
+                            <option value="05">05 - Monedero electrónico</option>
+                            <option value="06">06 - Dinero electrónico</option>
+                            <option value="08">08 - Vales de despensa</option>
+                            <option value="12">12 - Dación en pago</option>
+                            <option value="13">13 - Pago por subrogación</option>
+                            <option value="14">14 - Pago por consignación</option>
+                            <option value="15">15 - Condonación</option>
+                            <option value="17">17 - Compensación</option>
+                            <option value="23">23 - Novación</option>
+                            <option value="24">24 - Confusión</option>
+                            <option value="25">25 - Remisión de deuda</option>
+                            <option value="26">26 - Prescripción o caducidad</option>
+                            <option value="27">27 - A satisfacción del acreedor</option>
+                            <option value="28">28 - Tarjeta de débito</option>
+                            <option value="29">29 - Tarjeta de servicios</option>
+                            <option value="30">30 - Aplicación de anticipos</option>
+                            <option value="31">31 - Intermediario pagos</option>
+                            <option value="99">99 - Por definir</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="autorizo" class="form-label">Autorizó <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <select class="form-select" id="autorizo" name="autorizo" required>
+                                <option value="">Seleccionar persona que autoriza...</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-success" id="add-autorizo-btn" title="Agregar nueva persona">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
                         <label for="importe" class="form-label">Importe <span class="text-danger">*</span></label>
                         <input type="number" class="form-control" id="importe" name="importe" step="0.01" min="0.01" required placeholder="0.00">
                     </div>
@@ -347,6 +389,35 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="save-detalle-btn">
                     <i class="bi bi-save"></i> Guardar Detalle
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar Persona que Autoriza Gastos -->
+<div class="modal fade" id="autorizoModal" tabindex="-1" aria-labelledby="autorizoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="autorizoModalLabel">
+                    <i class="bi bi-person-plus"></i> Agregar Persona que Autoriza Gastos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="autorizo-form">
+                    <div class="mb-3">
+                        <label for="nombre_autorizo" class="form-label">Nombre Completo <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="nombre_autorizo" name="nombre_autorizo" required placeholder="Nombre completo de la persona">
+                        <div class="form-text">Ingresa el nombre completo de la persona que autoriza gastos</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="save-autorizo-btn">
+                    <i class="bi bi-save"></i> Guardar Persona
                 </button>
             </div>
         </div>
@@ -399,9 +470,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const addDetalleBtn = document.getElementById('addDetalleBtn');
     if (addDetalleBtn) {
         addDetalleBtn.addEventListener('click', function() {
-            // Cargar proveedores y clasificaciones
+            // Cargar proveedores, clasificaciones y personas que autorizan
             loadProveedores();
             loadClasificacionesGastos();
+            loadAutorizos();
             
             // Mostrar modal
             const detalleModal = new bootstrap.Modal(document.getElementById('detalleModal'));
@@ -433,10 +505,38 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Cargar personas que autorizan gastos
+    function loadAutorizos() {
+        const autorizoSelect = document.getElementById('autorizo');
+        if (autorizoSelect) {
+            autorizoSelect.innerHTML = '<option value="">Seleccionar persona que autoriza...</option>';
+            
+            fetch('/ajax/catalogos/autorizo-gastos/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.autorizos.forEach(autorizo => {
+                            const option = document.createElement('option');
+                            option.value = autorizo.id;
+                            option.textContent = autorizo.nombre;
+                            autorizoSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar personas que autorizan:', error);
+                });
+        }
+    }
+    
     // Cargar clasificaciones de gastos del presupuesto
     function loadClasificacionesGastos() {
+        console.log('DEBUG: loadClasificacionesGastos llamada');
+        console.log('DEBUG: presupuestoActual =', presupuestoActual);
         const clasificacionSelect = document.getElementById('clasificacion_gasto');
+        console.log('DEBUG: clasificacionSelect encontrado:', !!clasificacionSelect);
         if (clasificacionSelect && presupuestoActual) {
+            console.log('DEBUG: Cargando clasificaciones para presupuesto:', presupuestoActual);
             clasificacionSelect.innerHTML = '<option value="">Seleccionar clasificación...</option>';
             
             fetch(`/ajax/presupuestos/${presupuestoActual}/clasificaciones/`)
@@ -465,10 +565,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const factura = document.getElementById('factura').value;
             const clasificacionSelect = document.getElementById('clasificacion_gasto');
             const concepto = document.getElementById('concepto').value;
+            const formaPagoSelect = document.getElementById('forma_pago');
+            const autorizoSelect = document.getElementById('autorizo');
             const importe = document.getElementById('importe').value;
             
             // Validar campos
-            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !importe) {
+            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !formaPagoSelect.value || !autorizoSelect.value || !importe) {
                 alert('Por favor completa todos los campos obligatorios.');
                 return;
             }
@@ -498,6 +600,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     descripcion: clasificacionSelect.options[clasificacionSelect.selectedIndex].text
                 },
                 concepto: concepto,
+                forma_pago: {
+                    codigo: formaPagoSelect.value,
+                    descripcion: formaPagoSelect.options[formaPagoSelect.selectedIndex].text
+                },
+                autorizo: {
+                    id: autorizoSelect.value,
+                    nombre: autorizoSelect.options[autorizoSelect.selectedIndex].text
+                },
                 importe: importeNumerico
             };
             
@@ -531,6 +641,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${detalle.factura}</td>
                     <td>${detalle.clasificacion_gasto.descripcion}</td>
                     <td>${detalle.concepto}</td>
+                    <td><span class="badge bg-secondary">${detalle.forma_pago.descripcion}</span></td>
+                    <td><span class="badge bg-info">${detalle.autorizo.nombre}</span></td>
                     <td class="text-end">$${detalle.importe.toFixed(2)}</td>
                     <td class="text-center">
                         <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeDetalle(${index})">
@@ -551,6 +663,67 @@ document.addEventListener('DOMContentLoaded', function() {
         detallesTemporales.splice(index, 1);
         updateDetallesTable();
     };
+    
+    // Manejar botón de agregar persona que autoriza gastos
+    const addAutorizoBtn = document.getElementById('add-autorizo-btn');
+    if (addAutorizoBtn) {
+        addAutorizoBtn.addEventListener('click', function() {
+            // Mostrar modal para agregar persona
+            const autorizoModal = new bootstrap.Modal(document.getElementById('autorizoModal'));
+            autorizoModal.show();
+        });
+    }
+    
+    // Manejar guardado de persona que autoriza gastos
+    const saveAutorizoBtn = document.getElementById('save-autorizo-btn');
+    if (saveAutorizoBtn) {
+        saveAutorizoBtn.addEventListener('click', function() {
+            const nombreAutorizo = document.getElementById('nombre_autorizo').value.trim();
+            
+            if (!nombreAutorizo) {
+                alert('Por favor ingresa el nombre de la persona.');
+                return;
+            }
+            
+            // Crear nueva persona que autoriza gastos
+            fetch('/ajax/catalogos/autorizo-gastos/crear/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    nombre: nombreAutorizo
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Agregar nueva opción al select
+                    const autorizoSelect = document.getElementById('autorizo');
+                    const option = document.createElement('option');
+                    option.value = data.autorizo.id;
+                    option.textContent = data.autorizo.nombre;
+                    autorizoSelect.appendChild(option);
+                    
+                    // Seleccionar la nueva opción
+                    autorizoSelect.value = data.autorizo.id;
+                    
+                    // Cerrar modal y limpiar formulario
+                    bootstrap.Modal.getInstance(document.getElementById('autorizoModal')).hide();
+                    document.getElementById('autorizo-form').reset();
+                    
+                    alert('Persona agregada exitosamente.');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error al crear persona que autoriza:', error);
+                alert('Error al crear la persona. Inténtalo de nuevo.');
+            });
+        });
+    }
     
     // Manejar guardado del gasto
     const saveGastoBtn = document.getElementById('saveGastoBtn');

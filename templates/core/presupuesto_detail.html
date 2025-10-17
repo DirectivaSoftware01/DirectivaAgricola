@@ -28,7 +28,7 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">
+                <h5 class="mb-0" style="color: #ffffff !important; font-weight: 600;">
                     <i class="bi bi-info-circle"></i> Información del Presupuesto
                 </h5>
             </div>
@@ -89,7 +89,7 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">
+                <h5 class="mb-0" style="color: #ffffff !important; font-weight: 600;">
                     <i class="bi bi-person"></i> Información de Auditoría
                 </h5>
             </div>
@@ -117,7 +117,7 @@
 <!-- Detalles de Clasificaciones de Gastos -->
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0">
+        <h5 class="mb-0" style="color: #ffffff !important; font-weight: 600;">
             <i class="bi bi-list-ul"></i> Clasificaciones de Gastos
             <span class="badge bg-secondary ms-2">{{ detalles|length }}</span>
         </h5>
@@ -133,7 +133,6 @@
                             <th class="text-end">Importe Presupuestado</th>
                             <th class="text-end">Importe Gastos</th>
                             <th class="text-center">Porcentaje</th>
-                            <th class="text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -173,13 +172,6 @@
                                     <span class="badge bg-secondary">0%</span>
                                 {% endif %}
                             </td>
-                        <td class="text-center">
-                            <a href="{% url 'core:presupuesto_gasto_form' presupuesto.codigo %}" 
-                               class="btn btn-outline-success btn-sm" 
-                               title="Capturar gastos">
-                                <i class="bi bi-cash-coin"></i>
-                            </a>
-                        </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -226,7 +218,7 @@
 {% if detalles %}
 <div class="card mt-4">
     <div class="card-header">
-        <h5 class="mb-0">
+        <h5 class="mb-0" style="color: #ffffff !important; font-weight: 600;">
             <i class="bi bi-pie-chart"></i> Gráficos de Consumo por Clasificación
         </h5>
     </div>
@@ -276,7 +268,7 @@
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body">
-                                    <h6 class="card-title">
+                                    <h6 class="card-title" style="color: #212529 !important;">
                                         <i class="bi bi-info-circle"></i> Información del Presupuesto
                                     </h6>
                                     <p class="mb-1"><strong>Presupuesto:</strong> <span id="presupuesto_desc"></span></p>
@@ -287,7 +279,7 @@
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body">
-                                    <h6 class="card-title">
+                                    <h6 class="card-title" style="color: #212529 !important;">
                                         <i class="bi bi-calendar"></i> Información del Gasto
                                     </h6>
                                     <div class="mb-3">
@@ -324,6 +316,7 @@
                                                 <th>Factura</th>
                                                 <th>Clasificación</th>
                                                 <th>Concepto</th>
+                                                <th>Forma de Pago</th>
                                                 <th class="text-end">Importe</th>
                                                 <th class="text-center">Acciones</th>
                                             </tr>
@@ -359,6 +352,7 @@
             <div class="modal-header">
                 <h5 class="modal-title" id="detalleModalLabel">
                     <i class="bi bi-plus-circle"></i> Agregar Detalle de Gasto
+                    <small class="text-muted">(v2.0 - Campo Forma de Pago incluido)</small>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -383,6 +377,35 @@
                     <div class="mb-3">
                         <label for="concepto" class="form-label">Concepto *</label>
                         <input type="text" class="form-control" id="concepto" name="concepto" required>
+                    </div>
+                    <!-- DEBUG: Campo Forma de Pago agregado -->
+                    <div class="mb-3">
+                        <label for="forma_pago" class="form-label">Forma de Pago *</label>
+                        <select class="form-select" id="forma_pago" name="forma_pago" required>
+                            <option value="">Seleccionar forma de pago...</option>
+                            <option value="01">01 - Efectivo</option>
+                            <option value="02">02 - Cheque nominativo</option>
+                            <option value="03">03 - Transferencia electrónica de fondos</option>
+                            <option value="04">04 - Tarjeta de crédito</option>
+                            <option value="05">05 - Monedero electrónico</option>
+                            <option value="06">06 - Dinero electrónico</option>
+                            <option value="08">08 - Vales de despensa</option>
+                            <option value="12">12 - Dación en pago</option>
+                            <option value="13">13 - Pago por subrogación</option>
+                            <option value="14">14 - Pago por consignación</option>
+                            <option value="15">15 - Condonación</option>
+                            <option value="17">17 - Compensación</option>
+                            <option value="23">23 - Novación</option>
+                            <option value="24">24 - Confusión</option>
+                            <option value="25">25 - Remisión de deuda</option>
+                            <option value="26">26 - Prescripción o caducidad</option>
+                            <option value="27">27 - A satisfacción del acreedor</option>
+                            <option value="28">28 - Tarjeta de débito</option>
+                            <option value="29">29 - Tarjeta de servicios</option>
+                            <option value="30">30 - Aplicación de anticipos</option>
+                            <option value="31">31 - Intermediario pagos</option>
+                            <option value="99">99 - Por definir</option>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label for="importe" class="form-label">Importe *</label>
@@ -455,6 +478,7 @@
                                     <th>Factura</th>
                                     <th>Clasificación</th>
                                     <th>Concepto</th>
+                                    <th>Forma de Pago</th>
                                     <th class="text-end">Importe</th>
                                     <th class="text-center">Acciones</th>
                                 </tr>
@@ -542,6 +566,7 @@
                                             <th>Factura</th>
                                             <th>Clasificación</th>
                                             <th>Concepto</th>
+                                            <th>Forma de Pago</th>
                                             <th class="text-end">Importe</th>
                                             <th class="text-center">Acciones</th>
                                         </tr>
@@ -608,6 +633,35 @@
                     </div>
                     
                     <div class="mb-3">
+                        <label for="forma_pago_detail" class="form-label">Forma de Pago <span class="text-danger">*</span></label>
+                        <select class="form-select" id="forma_pago_detail" name="forma_pago" required>
+                            <option value="">Seleccionar forma de pago...</option>
+                            <option value="01">01 - Efectivo</option>
+                            <option value="02">02 - Cheque nominativo</option>
+                            <option value="03">03 - Transferencia electrónica de fondos</option>
+                            <option value="04">04 - Tarjeta de crédito</option>
+                            <option value="05">05 - Monedero electrónico</option>
+                            <option value="06">06 - Dinero electrónico</option>
+                            <option value="08">08 - Vales de despensa</option>
+                            <option value="12">12 - Dación en pago</option>
+                            <option value="13">13 - Pago por subrogación</option>
+                            <option value="14">14 - Pago por consignación</option>
+                            <option value="15">15 - Condonación</option>
+                            <option value="17">17 - Compensación</option>
+                            <option value="23">23 - Novación</option>
+                            <option value="24">24 - Confusión</option>
+                            <option value="25">25 - Remisión de deuda</option>
+                            <option value="26">26 - Prescripción o caducidad</option>
+                            <option value="27">27 - A satisfacción del acreedor</option>
+                            <option value="28">28 - Tarjeta de débito</option>
+                            <option value="29">29 - Tarjeta de servicios</option>
+                            <option value="30">30 - Aplicación de anticipos</option>
+                            <option value="31">31 - Intermediario pagos</option>
+                            <option value="99">99 - Por definir</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
                         <label for="importe_detail" class="form-label">Importe <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
@@ -657,6 +711,67 @@ document.addEventListener('DOMContentLoaded', function() {
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('fecha_gasto_detail').value = today;
         });
+    }
+    
+    // Manejar botón para agregar detalle - Primer modal
+    const addDetalleBtn = document.getElementById('addDetalleBtn');
+    if (addDetalleBtn) {
+        addDetalleBtn.addEventListener('click', function() {
+            loadProveedores();
+            loadClasificacionesGastos();
+            // Mostrar el modal usando Bootstrap
+            const modalElement = document.getElementById('detalleModal');
+            if (modalElement) {
+                const modal = new bootstrap.Modal(modalElement);
+                modal.show();
+            }
+        });
+    }
+    
+    // Cargar proveedores - Primer modal
+    function loadProveedores() {
+        const proveedorSelect = document.getElementById('proveedor');
+        if (proveedorSelect) {
+            proveedorSelect.innerHTML = '<option value="">Seleccionar proveedor...</option>';
+            fetch('/ajax/proveedores/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.proveedores.forEach(proveedor => {
+                            const option = document.createElement('option');
+                            option.value = proveedor.codigo;
+                            option.textContent = proveedor.nombre;
+                            proveedorSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar proveedores:', error);
+                });
+        }
+    }
+    
+    // Cargar clasificaciones de gastos - Primer modal
+    function loadClasificacionesGastos() {
+        const clasificacionSelect = document.getElementById('clasificacion_gasto');
+        if (clasificacionSelect && presupuestoActualDetail) {
+            clasificacionSelect.innerHTML = '<option value="">Seleccionar clasificación...</option>';
+            fetch(`/ajax/presupuestos/${presupuestoActualDetail}/clasificaciones/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.clasificaciones.forEach(clasificacion => {
+                            const option = document.createElement('option');
+                            option.value = clasificacion.codigo;
+                            option.textContent = clasificacion.descripcion;
+                            clasificacionSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar clasificaciones:', error);
+                });
+        }
     }
     
     // Manejar botón para agregar detalle - Exclusivo para Detalle
@@ -738,13 +853,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const factura = document.getElementById('factura_detail').value;
             const clasificacionSelect = document.getElementById('clasificacion_gasto_detail');
             const concepto = document.getElementById('concepto_detail').value;
+            const formaPagoSelect = document.getElementById('forma_pago_detail');
             const importe = document.getElementById('importe_detail').value;
             
             // Limpiar importe (quitar $ y comas)
             const importeLimpio = importe.replace(/[$,]/g, '');
             const importeNumerico = parseFloat(importeLimpio);
             
-            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !importe || isNaN(importeNumerico) || importeNumerico <= 0) {
+            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !formaPagoSelect.value || !importe || isNaN(importeNumerico) || importeNumerico <= 0) {
                 alert('Por favor completa todos los campos obligatorios y asegúrate que el importe sea un número mayor a cero.');
                 return;
             }
@@ -760,6 +876,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     descripcion: clasificacionSelect.options[clasificacionSelect.selectedIndex].text
                 },
                 concepto: concepto,
+                forma_pago: {
+                    codigo: formaPagoSelect.value,
+                    descripcion: formaPagoSelect.options[formaPagoSelect.selectedIndex].text
+                },
                 importe: importeNumerico
             };
             
@@ -790,6 +910,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${detalle.factura}</td>
                     <td>${detalle.clasificacion_gasto.descripcion}</td>
                     <td>${detalle.concepto}</td>
+                    <td>${detalle.forma_pago.descripcion}</td>
                     <td class="text-end">$${detalle.importe.toFixed(2)}</td>
                     <td class="text-center">
                         <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeDetalleDetail(${index})">
@@ -897,7 +1018,64 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Manejar guardado de detalle - Primer modal
+    const saveDetalleBtn = document.getElementById('save-detalle-btn');
+    if (saveDetalleBtn) {
+        saveDetalleBtn.addEventListener('click', function() {
+            const proveedorSelect = document.getElementById('proveedor');
+            const factura = document.getElementById('factura').value;
+            const clasificacionSelect = document.getElementById('clasificacion_gasto');
+            const concepto = document.getElementById('concepto').value;
+            const formaPagoSelect = document.getElementById('forma_pago');
+            const importe = document.getElementById('importe').value;
+            
+            // Limpiar importe (quitar $ y comas)
+            const importeLimpio = importe.replace(/[$,]/g, '');
+            const importeNumerico = parseFloat(importeLimpio);
+            
+            if (!proveedorSelect.value || !factura || !clasificacionSelect.value || !concepto || !formaPagoSelect.value || !importe || isNaN(importeNumerico) || importeNumerico <= 0) {
+                alert('Por favor completa todos los campos obligatorios y asegúrate que el importe sea un número mayor a cero.');
+                return;
+            }
+            
+            const detalle = {
+                proveedor: {
+                    codigo: proveedorSelect.value,
+                    nombre: proveedorSelect.options[proveedorSelect.selectedIndex].text
+                },
+                factura: factura,
+                clasificacion_gasto: {
+                    codigo: clasificacionSelect.value,
+                    descripcion: clasificacionSelect.options[clasificacionSelect.selectedIndex].text
+                },
+                concepto: concepto,
+                forma_pago: {
+                    codigo: formaPagoSelect.value,
+                    descripcion: formaPagoSelect.options[formaPagoSelect.selectedIndex].text
+                },
+                importe: importeNumerico
+            };
+            
+            // Aquí deberías agregar la lógica para manejar el primer modal
+            // Por ahora solo mostramos un mensaje
+            alert('Detalle agregado: ' + detalle.concepto + ' - ' + detalle.forma_pago.descripcion);
+            
+            // Limpiar formulario y cerrar modal
+            document.getElementById('detalle-form').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('detalleModal'));
+            if (modal) {
+                modal.hide();
+            }
+        });
+    }
+    
     console.log('Página de detalles del presupuesto cargada - Modales exclusivos');
+    
+    // Debug: Verificar que el campo forma de pago esté presente
+    const formaPagoField = document.getElementById('forma_pago');
+    const formaPagoFieldDetail = document.getElementById('forma_pago_detail');
+    console.log('Campo forma_pago encontrado:', formaPagoField);
+    console.log('Campo forma_pago_detail encontrado:', formaPagoFieldDetail);
     
     // Crear gráficos individuales por clasificación con un pequeño delay
     setTimeout(() => {
@@ -1034,3 +1212,4 @@ function verGastos() {
 }
 </script>
 {% endblock %}
+<!-- Cache buster: 1760396857 -->

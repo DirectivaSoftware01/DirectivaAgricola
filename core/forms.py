@@ -1,8 +1,9 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.db import models
+from django.utils import timezone
 from decimal import Decimal
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle
+from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Almacen, Compra, CompraDetalle, Kardex, TipoSalida, SalidaInventario, SalidaInventarioDetalle
 import re
 
 class DecimalFieldWithRounding(forms.DecimalField):
@@ -753,7 +754,7 @@ class ProductoServicioForm(forms.ModelForm):
     
     class Meta:
         model = ProductoServicio
-        fields = ['sku', 'descripcion', 'producto_servicio', 'unidad_medida', 'clave_sat', 'impuesto', 'activo']
+        fields = ['sku', 'descripcion', 'producto_servicio', 'unidad_medida', 'clave_sat', 'impuesto', 'clasificacion_gasto', 'activo']
         widgets = {
             'sku': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -782,6 +783,9 @@ class ProductoServicioForm(forms.ModelForm):
             'impuesto': forms.Select(attrs={
                 'class': 'form-select'
             }),
+            'clasificacion_gasto': forms.Select(attrs={
+                'class': 'form-select'
+            }),
             'activo': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
             })
@@ -793,6 +797,9 @@ class ProductoServicioForm(forms.ModelForm):
         for field_name, field in self.fields.items():
             if field_name in ['sku', 'descripcion', 'unidad_medida', 'clave_sat', 'impuesto']:
                 field.required = True
+        
+        # Cargar clasificaciones de gastos activas
+        self.fields['clasificacion_gasto'].queryset = ClasificacionGasto.objects.filter(activo=True).order_by('descripcion')
     
     def clean_sku(self):
         sku = self.cleaned_data.get('sku')
@@ -1993,3 +2000,348 @@ class GastoDetalleForm(forms.ModelForm):
                 id__in=clasificaciones_ids,
                 activo=True
             ).order_by('descripcion')
+
+
+class AlmacenForm(forms.ModelForm):
+    """Formulario para crear/editar almacenes"""
+    
+    class Meta:
+        model = Almacen
+        fields = ['descripcion', 'activo']
+        widgets = {
+            'descripcion': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Descripción del almacén',
+                'maxlength': '200'
+            }),
+            'activo': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            })
+        }
+        labels = {
+            'descripcion': 'Descripción',
+            'activo': 'Activo'
+        }
+        help_texts = {
+            'descripcion': 'Descripción del almacén',
+            'activo': 'Indica si el almacén está activo'
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Marcar campos requeridos
+        self.fields['descripcion'].required = True
+    
+    def clean_descripcion(self):
+        descripcion = self.cleaned_data.get('descripcion')
+        if descripcion:
+            descripcion = descripcion.strip()
+            if len(descripcion) < 2:
+                raise forms.ValidationError('La descripción debe tener al menos 2 caracteres.')
+            
+            # Verificar si ya existe un almacén con la misma descripción (excluyendo el actual si estamos editando)
+            queryset = Almacen.objects.filter(descripcion__iexact=descripcion)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            
+            if queryset.exists():
+                raise forms.ValidationError('Ya existe un almacén con esta descripción.')
+        
+        return descripcion
+
+
+class AlmacenSearchForm(forms.Form):
+    """Formulario para buscar almacenes"""
+    busqueda = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar por descripción o código...',
+            'autocomplete': 'off'
+        }),
+        label='Buscar almacén'
+    )
+    
+    activo = forms.ChoiceField(
+        choices=[
+            ('', 'Todos'),
+            ('1', 'Activos'),
+            ('0', 'Inactivos')
+        ],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Estado'
+    )
+
+# ===========================
+# FORMULARIOS PARA COMPRAS
+# ===========================
+
+class CompraForm(forms.ModelForm):
+    """Formulario para crear/editar compras"""
+    
+    class Meta:
+        model = Compra
+        fields = ['fecha', 'proveedor', 'factura', 'serie', 'subtotal', 'impuestos', 'total', 'estado']
+        widgets = {
+            'fecha': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+            'proveedor': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'factura': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Número de factura',
+                'maxlength': '50'
+            }),
+            'serie': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Serie de la factura',
+                'maxlength': '20'
+            }),
+            'subtotal': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'readonly': True
+            }),
+            'impuestos': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            }),
+            'total': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'readonly': True
+            }),
+            'estado': forms.Select(attrs={
+                'class': 'form-select'
+            })
+        }
+        labels = {
+            'fecha': 'Fecha de Compra',
+            'proveedor': 'Proveedor',
+            'factura': 'Factura',
+            'serie': 'Serie',
+            'subtotal': 'Subtotal',
+            'impuestos': 'Impuestos',
+            'total': 'Total',
+            'estado': 'Estado'
+        }
+        help_texts = {
+            'fecha': 'Fecha en que se realizó la compra',
+            'proveedor': 'Proveedor de la compra',
+            'factura': 'Número de factura del proveedor',
+            'serie': 'Serie de la factura',
+            'subtotal': 'Subtotal calculado automáticamente',
+            'impuestos': 'Impuestos de la compra',
+            'total': 'Total calculado automáticamente',
+            'estado': 'Estado de la compra'
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Marcar campos requeridos
+        self.fields['fecha'].required = True
+        self.fields['proveedor'].required = True
+        self.fields['impuestos'].required = True
+        
+        # Configurar fecha actual por defecto si es una nueva compra
+        if not self.instance.pk:
+            self.fields['fecha'].initial = timezone.now().date()
+        
+        # Cargar opciones de proveedores activos
+        self.fields['proveedor'].queryset = Proveedor.objects.filter(activo=True).order_by('nombre')
+    
+    def clean_fecha(self):
+        fecha = self.cleaned_data.get('fecha')
+        if fecha and fecha > timezone.now().date():
+            raise forms.ValidationError('La fecha no puede ser futura.')
+        return fecha
+    
+    def clean_impuestos(self):
+        impuestos = self.cleaned_data.get('impuestos')
+        if impuestos is not None and impuestos < 0:
+            raise forms.ValidationError('Los impuestos no pueden ser negativos.')
+        return impuestos
+
+
+class CompraDetalleForm(forms.ModelForm):
+    """Formulario para crear/editar detalles de compra"""
+    
+    class Meta:
+        model = CompraDetalle
+        fields = ['producto', 'almacen', 'cantidad', 'precio']
+        widgets = {
+            'producto': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'almacen': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'cantidad': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0.01'
+            }),
+            'precio': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            })
+        }
+        labels = {
+            'producto': 'Producto/Servicio',
+            'almacen': 'Almacén',
+            'cantidad': 'Cantidad',
+            'precio': 'Precio Unitario'
+        }
+        help_texts = {
+            'producto': 'Producto o servicio a comprar',
+            'almacen': 'Almacén donde se almacenará',
+            'cantidad': 'Cantidad a comprar',
+            'precio': 'Precio unitario del producto'
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Marcar campos requeridos
+        self.fields['producto'].required = True
+        self.fields['almacen'].required = True
+        self.fields['cantidad'].required = True
+        self.fields['precio'].required = True
+        
+        # Cargar opciones activas
+        self.fields['producto'].queryset = ProductoServicio.objects.filter(activo=True).order_by('descripcion')
+        self.fields['almacen'].queryset = Almacen.objects.filter(activo=True).order_by('descripcion')
+    
+    def clean_cantidad(self):
+        cantidad = self.cleaned_data.get('cantidad')
+        if cantidad is not None and cantidad <= 0:
+            raise forms.ValidationError('La cantidad debe ser mayor a cero.')
+        return cantidad
+    
+    def clean_precio(self):
+        precio = self.cleaned_data.get('precio')
+        if precio is not None and precio < 0:
+            raise forms.ValidationError('El precio no puede ser negativo.')
+        return precio
+
+
+class CompraSearchForm(forms.Form):
+    """Formulario para buscar compras"""
+    
+    busqueda = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar por folio, proveedor o factura...',
+            'autocomplete': 'off'
+        }),
+        label='Buscar compra'
+    )
+    
+    proveedor = forms.ModelChoiceField(
+        queryset=Proveedor.objects.filter(activo=True).order_by('nombre'),
+        required=False,
+        empty_label="Todos los proveedores",
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Proveedor'
+    )
+    
+    estado = forms.ChoiceField(
+        choices=[
+            ('', 'Todos'),
+            ('activa', 'Activas'),
+            ('cancelada', 'Canceladas')
+        ],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Estado'
+    )
+    
+    fecha_desde = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        }),
+        label='Fecha desde'
+    )
+    
+    fecha_hasta = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        }),
+        label='Fecha hasta'
+    )
+
+
+class KardexSearchForm(forms.Form):
+    """Formulario para buscar en kardex"""
+    
+    producto = forms.ModelChoiceField(
+        queryset=ProductoServicio.objects.filter(activo=True).order_by('descripcion'),
+        required=False,
+        empty_label="Todos los productos",
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Producto'
+    )
+    
+    almacen = forms.ModelChoiceField(
+        queryset=Almacen.objects.filter(activo=True).order_by('descripcion'),
+        required=False,
+        empty_label="Todos los almacenes",
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Almacén'
+    )
+    
+    tipo_movimiento = forms.ChoiceField(
+        choices=[
+            ('', 'Todos'),
+            ('entrada', 'Entradas'),
+            ('salida', 'Salidas'),
+            ('ajuste', 'Ajustes')
+        ],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Tipo de Movimiento'
+    )
+    
+    fecha_desde = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        }),
+        label='Fecha desde'
+    )
+    
+    fecha_hasta = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date'
+        }),
+        label='Fecha hasta'
+    )

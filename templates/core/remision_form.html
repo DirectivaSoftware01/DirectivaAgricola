@@ -635,14 +635,6 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="kgs-enviados" class="form-label">Kgs Enviados <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="kgs-enviados" step="0.01" min="0" required>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
                                 <label for="kgs-merma" class="form-label">Kgs Merma</label>
                                 <input type="number" class="form-control" id="kgs-merma" step="0.01" min="0" readonly>
                                 <div class="form-text">
@@ -650,11 +642,19 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
+                        <div class="col-md-6 d-none">
+                            <div class="mb-3 d-none">
+                                <label for="kgs-enviados" class="form-label">Kgs Enviados <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control d-none" id="kgs-enviados" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 d-none">
+                            <div class="mb-3 d-none">
                                 <label for="kgs-neto-envio" class="form-label">Kgs Neto Envío</label>
-                                <input type="number" class="form-control" id="kgs-neto-envio" step="0.01" min="0" readonly>
-                                <div class="form-text">
+                                <input type="number" class="form-control d-none" id="kgs-neto-envio" step="0.01" min="0" readonly>
+                                <div class="form-text d-none">
                                     <small class="text-muted">Calculado automáticamente: Kgs Enviados - Kgs Merma</small>
                                 </div>
                             </div>
@@ -669,30 +669,30 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="importeenvio" class="form-label">Importe Envío</label>
-                                <input type="number" class="form-control" id="importeenvio" step="0.01" min="0" readonly>
+                                <label for="peso-promedio" class="form-label">Peso Promedio</label>
+                                <input type="number" class="form-control" id="peso-promedio" step="0.01" min="0" readonly>
                                 <div class="form-text">
+                                    <small class="text-muted">Calculado automáticamente: Peso Bruto / Total Arps</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 d-none">
+                            <div class="mb-3 d-none">
+                                <label for="importeenvio" class="form-label">Importe Envío</label>
+                                <input type="number" class="form-control d-none" id="importeenvio" step="0.01" min="0" readonly>
+                                <div class="form-text d-none">
                                     <small class="text-muted">Calculado automáticamente: Precio Envío × Kgs Enviados</small>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
+                        <div class="col-md-6 d-none">
+                            <div class="mb-3 d-none">
                                 <label for="importe-neto-envio" class="form-label">Importe Neto Envío</label>
-                                <input type="number" class="form-control" id="importe-neto-envio" step="0.01" min="0" readonly>
-                                <div class="form-text">
+                                <input type="number" class="form-control d-none" id="importe-neto-envio" step="0.01" min="0" readonly>
+                                <div class="form-text d-none">
                                     <small class="text-muted">Calculado automáticamente: Precio Envío × Kgs Neto Envío</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="peso-promedio" class="form-label">Peso Promedio</label>
-                                <input type="number" class="form-control" id="peso-promedio" step="0.01" min="0" readonly>
-                                <div class="form-text">
-                                    <small class="text-muted">Calculado automáticamente: Peso Bruto / Total Arps</small>
                                 </div>
                             </div>
                         </div>
@@ -900,6 +900,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const importeEnvioField = document.getElementById('importeenvio');
         const importeNetoEnvioField = document.getElementById('importe-neto-envio');
         
+        // Debug: Mostrar información del cálculo
+        console.log('=== CÁLCULO DE CAMPOS OCULTOS ===');
+        console.log('Peso Promedio Global:', pesoPromedioGlobal);
+        console.log('No Arps:', noArps);
+        console.log('Merma/Arps Global:', mermaArpsGlobal);
+        console.log('Precio Envío:', precioEnvio);
+        
         // Actualizar peso promedio
         pesoPromedioField.value = pesoPromedioGlobal.toFixed(2);
         
@@ -907,16 +914,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (pesoPromedioGlobal > 0 && noArps > 0) {
             const kgsEnviados = pesoPromedioGlobal * noArps;
             kgsEnviadosField.value = kgsEnviados.toFixed(2);
+            console.log('Kgs Enviados calculados:', kgsEnviados.toFixed(2));
         } else {
             kgsEnviadosField.value = '0.00';
+            console.log('Kgs Enviados: 0.00 (sin datos)');
         }
         
         // Calcular y actualizar kgs merma (usando merma global)
         if (mermaArpsGlobal > 0 && noArps > 0) {
             const kgsMerma = mermaArpsGlobal * noArps;
             kgsMermaField.value = kgsMerma.toFixed(2);
+            console.log('Kgs Merma calculados:', kgsMerma.toFixed(2));
         } else {
             kgsMermaField.value = '0.00';
+            console.log('Kgs Merma: 0.00 (sin datos)');
         }
         
         // Calcular y actualizar kgs neto envío (Kgs Enviados - Kgs Merma)
@@ -924,22 +935,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const kgsMerma = parseFloat(kgsMermaField.value) || 0;
         const kgsNetoEnvio = kgsEnviados - kgsMerma;
         kgsNetoEnvioField.value = kgsNetoEnvio.toFixed(2);
+        console.log('Kgs Neto Envío calculados:', kgsNetoEnvio.toFixed(2));
         
         // Calcular y actualizar importe envío
         if (precioEnvio > 0 && kgsEnviados > 0) {
             const importeEnvio = precioEnvio * kgsEnviados;
             importeEnvioField.value = importeEnvio.toFixed(2);
+            console.log('Importe Envío calculado:', importeEnvio.toFixed(2));
         } else {
             importeEnvioField.value = '0.00';
+            console.log('Importe Envío: 0.00 (sin datos)');
         }
         
         // Calcular y actualizar importe neto envío (Precio Envío × Kgs Neto Envío)
         if (precioEnvio > 0 && kgsNetoEnvio > 0) {
             const importeNetoEnvio = precioEnvio * kgsNetoEnvio;
             importeNetoEnvioField.value = importeNetoEnvio.toFixed(2);
+            console.log('Importe Neto Envío calculado:', importeNetoEnvio.toFixed(2));
         } else {
             importeNetoEnvioField.value = '0.00';
+            console.log('Importe Neto Envío: 0.00 (sin datos)');
         }
+        
+        console.log('=== FIN CÁLCULO ===');
     }
     
     // Recalcular todos los detalles existentes cuando cambie el peso bruto o merma global

@@ -166,6 +166,7 @@
         <div class="filters-section no-print">
             <h5><i class="bi bi-funnel"></i> Filtros de Búsqueda</h5>
             <form method="get" id="formFiltros">
+                {% csrf_token %}
                 <div class="row">
                     <div class="col-md-3">
                         <div class="filter-group">
@@ -205,6 +206,49 @@
                             <label class="filter-label">Proveedor:</label>
                             <select id="filtroProveedor" class="form-select form-select-sm">
                                 <option value="">Todos los proveedores</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Forma de Pago:</label>
+                            <select id="filtroFormaPago" name="forma_pago" class="form-select form-select-sm">
+                                <option value="">Todas las formas de pago</option>
+                                <option value="01" {% if forma_pago == '01' %}selected{% endif %}>01 - Efectivo</option>
+                                <option value="02" {% if forma_pago == '02' %}selected{% endif %}>02 - Cheque nominativo</option>
+                                <option value="03" {% if forma_pago == '03' %}selected{% endif %}>03 - Transferencia electrónica de fondos</option>
+                                <option value="04" {% if forma_pago == '04' %}selected{% endif %}>04 - Tarjeta de crédito</option>
+                                <option value="05" {% if forma_pago == '05' %}selected{% endif %}>05 - Monedero electrónico</option>
+                                <option value="06" {% if forma_pago == '06' %}selected{% endif %}>06 - Dinero electrónico</option>
+                                <option value="08" {% if forma_pago == '08' %}selected{% endif %}>08 - Vales de despensa</option>
+                                <option value="12" {% if forma_pago == '12' %}selected{% endif %}>12 - Dación en pago</option>
+                                <option value="13" {% if forma_pago == '13' %}selected{% endif %}>13 - Pago por subrogación</option>
+                                <option value="14" {% if forma_pago == '14' %}selected{% endif %}>14 - Pago por consignación</option>
+                                <option value="15" {% if forma_pago == '15' %}selected{% endif %}>15 - Condonación</option>
+                                <option value="17" {% if forma_pago == '17' %}selected{% endif %}>17 - Compensación</option>
+                                <option value="23" {% if forma_pago == '23' %}selected{% endif %}>23 - Novación</option>
+                                <option value="24" {% if forma_pago == '24' %}selected{% endif %}>24 - Confusión</option>
+                                <option value="25" {% if forma_pago == '25' %}selected{% endif %}>25 - Remisión de deuda</option>
+                                <option value="26" {% if forma_pago == '26' %}selected{% endif %}>26 - Prescripción o caducidad</option>
+                                <option value="27" {% if forma_pago == '27' %}selected{% endif %}>27 - A satisfacción del acreedor</option>
+                                <option value="28" {% if forma_pago == '28' %}selected{% endif %}>28 - Tarjeta de débito</option>
+                                <option value="29" {% if forma_pago == '29' %}selected{% endif %}>29 - Tarjeta de servicios</option>
+                                <option value="30" {% if forma_pago == '30' %}selected{% endif %}>30 - Aplicación de anticipos</option>
+                                <option value="31" {% if forma_pago == '31' %}selected{% endif %}>31 - Intermediario pagos</option>
+                                <option value="99" {% if forma_pago == '99' %}selected{% endif %}>99 - Por definir</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="filter-group">
+                            <label class="filter-label">Autorizó:</label>
+                            <select id="filtroAutorizo" name="autorizo" class="form-select form-select-sm">
+                                <option value="">Todas las personas</option>
+                                {% for persona in personas_autorizan %}
+                                    <option value="{{ persona.id }}" {% if persona.id|stringformat:"s" == autorizo_id %}selected{% endif %}>{{ persona.nombre }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
@@ -292,7 +336,10 @@
                                     <th>Proveedor</th>
                                     <th>Factura</th>
                                     <th>Concepto</th>
+                                    <th>Forma de Pago</th>
+                                    <th>Autorizó</th>
                                     <th class="text-right">Importe</th>
+                                    <th class="text-center no-print">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -310,14 +357,89 @@
                                         <td>{{ detalle.proveedor.nombre }}</td>
                                         <td>{{ detalle.factura }}</td>
                                         <td>{{ detalle.concepto }}</td>
+                                        <td>
+                                            {% if detalle.forma_pago %}
+                                                {% if detalle.forma_pago == '01' %}
+                                                    <span class="badge bg-secondary">01 - Efectivo</span>
+                                                {% elif detalle.forma_pago == '02' %}
+                                                    <span class="badge bg-secondary">02 - Cheque nominativo</span>
+                                                {% elif detalle.forma_pago == '03' %}
+                                                    <span class="badge bg-secondary">03 - Transferencia electrónica de fondos</span>
+                                                {% elif detalle.forma_pago == '04' %}
+                                                    <span class="badge bg-secondary">04 - Tarjeta de crédito</span>
+                                                {% elif detalle.forma_pago == '05' %}
+                                                    <span class="badge bg-secondary">05 - Monedero electrónico</span>
+                                                {% elif detalle.forma_pago == '06' %}
+                                                    <span class="badge bg-secondary">06 - Dinero electrónico</span>
+                                                {% elif detalle.forma_pago == '08' %}
+                                                    <span class="badge bg-secondary">08 - Vales de despensa</span>
+                                                {% elif detalle.forma_pago == '12' %}
+                                                    <span class="badge bg-secondary">12 - Dación en pago</span>
+                                                {% elif detalle.forma_pago == '13' %}
+                                                    <span class="badge bg-secondary">13 - Pago por subrogación</span>
+                                                {% elif detalle.forma_pago == '14' %}
+                                                    <span class="badge bg-secondary">14 - Pago por consignación</span>
+                                                {% elif detalle.forma_pago == '15' %}
+                                                    <span class="badge bg-secondary">15 - Condonación</span>
+                                                {% elif detalle.forma_pago == '17' %}
+                                                    <span class="badge bg-secondary">17 - Compensación</span>
+                                                {% elif detalle.forma_pago == '23' %}
+                                                    <span class="badge bg-secondary">23 - Novación</span>
+                                                {% elif detalle.forma_pago == '24' %}
+                                                    <span class="badge bg-secondary">24 - Confusión</span>
+                                                {% elif detalle.forma_pago == '25' %}
+                                                    <span class="badge bg-secondary">25 - Remisión de deuda</span>
+                                                {% elif detalle.forma_pago == '26' %}
+                                                    <span class="badge bg-secondary">26 - Prescripción o caducidad</span>
+                                                {% elif detalle.forma_pago == '27' %}
+                                                    <span class="badge bg-secondary">27 - A satisfacción del acreedor</span>
+                                                {% elif detalle.forma_pago == '28' %}
+                                                    <span class="badge bg-secondary">28 - Tarjeta de débito</span>
+                                                {% elif detalle.forma_pago == '29' %}
+                                                    <span class="badge bg-secondary">29 - Tarjeta de servicios</span>
+                                                {% elif detalle.forma_pago == '30' %}
+                                                    <span class="badge bg-secondary">30 - Aplicación de anticipos</span>
+                                                {% elif detalle.forma_pago == '31' %}
+                                                    <span class="badge bg-secondary">31 - Intermediario pagos</span>
+                                                {% elif detalle.forma_pago == '99' %}
+                                                    <span class="badge bg-secondary">99 - Por definir</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ detalle.forma_pago }}</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if detalle.autorizo %}
+                                                <span class="badge bg-info">{{ detalle.autorizo.nombre }}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
                                         <td class="text-right">${{ detalle.importe|floatformat:2 }}</td>
+                                        <td class="text-center">
+                                            {% if detalle.gasto.activo %}
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-danger cancelar-gasto-btn no-print" 
+                                                        data-gasto-id="{{ detalle.gasto.codigo }}"
+                                                        data-gasto-factura="{{ detalle.factura }}"
+                                                        data-gasto-proveedor="{{ detalle.proveedor.nombre }}"
+                                                        title="Cancelar gasto">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Cancelado</span>
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr class="subtotal-row">
-                                    <td colspan="5" class="text-right"><strong>{{ clasificacion_data.clasificacion.descripcion }}:</strong></td>
+                                    <td colspan="8" class="text-right"><strong>{{ clasificacion_data.clasificacion.descripcion }}:</strong></td>
                                     <td class="text-right"><strong>${{ clasificacion_data.subtotal|floatformat:2 }}</strong></td>
+                                    <td></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -335,6 +457,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
+        document.addEventListener('DOMContentLoaded', function() {
         // Variables globales para el filtrado
         let gastosOriginales = [];
         let gastosFiltrados = [];
@@ -499,6 +622,106 @@
         document.getElementById('filtroFechaDesde').addEventListener('change', aplicarFiltros);
         document.getElementById('filtroFechaHasta').addEventListener('change', aplicarFiltros);
         document.getElementById('filtroClasificacion').addEventListener('change', aplicarFiltros);
+        
+        // Manejar cancelación de gastos
+        let gastoACancelar = null;
+        console.log('JavaScript de cancelación de gastos cargado');
+        
+        // Event listener para botones de cancelar gasto
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.cancelar-gasto-btn')) {
+                console.log('Botón de cancelar gasto clickeado');
+                e.preventDefault();
+                const btn = e.target.closest('.cancelar-gasto-btn');
+                gastoACancelar = {
+                    id: btn.dataset.gastoId,
+                    factura: btn.dataset.gastoFactura,
+                    proveedor: btn.dataset.gastoProveedor,
+                    importe: btn.closest('tr').querySelector('td:last-child').previousElementSibling.textContent
+                };
+                
+                // Llenar modal con datos del gasto
+                document.getElementById('modal-proveedor').textContent = gastoACancelar.proveedor;
+                document.getElementById('modal-factura').textContent = gastoACancelar.factura;
+                document.getElementById('modal-importe').textContent = gastoACancelar.importe;
+                
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('cancelarGastoModal'));
+                modal.show();
+            }
+        });
+        
+        // Confirmar cancelación de gasto
+        const confirmarBtn = document.getElementById('confirmarCancelarGasto');
+        if (confirmarBtn) {
+            confirmarBtn.addEventListener('click', function() {
+                if (gastoACancelar) {
+                    cancelarGasto(gastoACancelar.id);
+                }
+            });
+        }
+        
+        // Función para cancelar gasto
+        function cancelarGasto(gastoId) {
+            console.log('Iniciando cancelación del gasto:', gastoId);
+            fetch(`/ajax/gastos/${gastoId}/cancelar/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Cerrar modal
+                    bootstrap.Modal.getInstance(document.getElementById('cancelarGastoModal')).hide();
+                    
+                    // Mostrar mensaje de éxito
+                    alert('Gasto cancelado exitosamente.');
+                    
+                    // Recargar la página para actualizar los datos
+                    window.location.reload();
+                } else {
+                    alert('Error al cancelar el gasto: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al cancelar el gasto. Inténtalo de nuevo.');
+            });
+        }
+        }); // Cerrar DOMContentLoaded
     </script>
+
+    <!-- Modal de Confirmación para Cancelar Gasto -->
+    <div class="modal fade" id="cancelarGastoModal" tabindex="-1" aria-labelledby="cancelarGastoModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cancelarGastoModalLabel">
+                        <i class="bi bi-exclamation-triangle text-warning"></i> Confirmar Cancelación de Gasto
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>¿Estás seguro de que deseas cancelar este gasto?</p>
+                    <div class="alert alert-warning">
+                        <strong>Detalles del gasto:</strong><br>
+                        <strong>Proveedor:</strong> <span id="modal-proveedor"></span><br>
+                        <strong>Factura:</strong> <span id="modal-factura"></span><br>
+                        <strong>Importe:</strong> <span id="modal-importe"></span>
+                    </div>
+                    <p class="text-muted">Esta acción marcará el gasto como inactivo y no se podrá deshacer.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="confirmarCancelarGasto">
+                        <i class="bi bi-x-circle"></i> Sí, Cancelar Gasto
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

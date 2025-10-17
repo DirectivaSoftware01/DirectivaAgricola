@@ -400,8 +400,10 @@
             <thead>
                 <tr>
                     <th>Calidad</th>
-                    <th>No Arpillas</th>
+                    <th>No Arps/cajas</th>
+                    <th>No Arps/cajas Recibidas</th>
                     <th>Kgs Enviados</th>
+                    <th>Kgs Recibidos</th>
                     <th>Merma</th>
                     <th>Peso Promedio</th>
                     <th>Kgs Liquidados</th>
@@ -415,7 +417,9 @@
                 <tr>
                     <td>{{ detalle.calidad }}</td>
                     <td>{{ detalle.no_arps|floatformat:0 }}</td>
+                    <td>{{ detalle.no_arps_liquidados|floatformat:0 }}</td>
                     <td>{{ detalle.kgs_enviados|floatformat:2 }}</td>
+                    <td>{{ detalle.kgs_liquidados|floatformat:2 }}</td>
                     <td>{{ detalle.merma_arps|floatformat:0 }}</td>
                     <td>{{ detalle.peso_promedio|floatformat:2 }}</td>
                     <td>{{ detalle.kgs_liquidados|floatformat:2 }}</td>
@@ -428,6 +432,8 @@
             <tfoot>
                 <tr style="background-color: #f0f0f0; font-weight: bold;">
                     <td>TOTAL</td>
+                    <td>-</td>
+                    <td>-</td>
                     <td>-</td>
                     <td>-</td>
                     <td>-</td>

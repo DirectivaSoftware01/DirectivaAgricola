@@ -157,8 +157,8 @@
                 </div>
                 <div class="card-body">
                     {% if detalles %}
-                        <div class="table-responsive">
-                            <table class="table table-hover">
+                        <div class="table-responsive" style="overflow-x: auto; white-space: nowrap;">
+                            <table class="table table-hover" style="min-width: 2000px;">
                                 <thead class="table-light">
                                     <tr>
                                         <th>Cultivo</th>
@@ -172,18 +172,18 @@
                                         <th>Importe Envío</th>
                                         <th>Importe Neto Envío</th>
                                         <th>Peso Promedio</th>
-                                        <th>No Arps Liquidados</th>
+                                        <th style="min-width: 120px;">No Arps Liquidados</th>
                                         <th>Peso Promedio Liquidado</th>
                                         <th>Kgs Liquidados</th>
                                         <th>Kgs Merma Liquidados</th>
                                         <th>Precio</th>
                                         <th>Importe Liquidado</th>
-                                        <th>Dif Peso Promedio</th>
-                                        <th>Dif No Arps</th>
-                                        <th>Dif Kgs Merma</th>
-                                        <th>Dif Kgs Liquidados</th>
-                                        <th>Dif Precio</th>
-                                        <th>Dif Importes</th>
+                                        <th class="d-none">Dif Peso Promedio</th>
+                                        <th class="d-none">Dif No Arps</th>
+                                        <th class="d-none">Dif Kgs Merma</th>
+                                        <th class="d-none">Dif Kgs Liquidados</th>
+                                        <th class="d-none">Dif Precio</th>
+                                        <th class="d-none">Dif Importes</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -224,7 +224,7 @@
                                         <td>
                                             <span class="text-secondary fw-bold">{{ detalle.peso_promedio|floatformat:2 }} kg/arp</span>
                                         </td>
-                                        <td>
+                                        <td style="min-width: 120px;">
                                             <span class="text-primary fw-bold">{{ detalle.no_arps_liquidados }}</span>
                                         </td>
                                         <td>
@@ -242,22 +242,22 @@
                                         <td>
                                             <span class="text-success fw-bold">${{ detalle.importe_liquidado|floatformat:2 }}</span>
                                         </td>
-                                        <td>
+                                        <td class="d-none">
                                             <span class="text-info fw-bold">{{ detalle.dif_peso_promedio|floatformat:2 }} kg/arp</span>
                                         </td>
-                                        <td>
+                                        <td class="d-none">
                                             <span class="text-primary fw-bold">{{ detalle.dif_no_arps }}</span>
                                         </td>
-                                        <td>
+                                        <td class="d-none">
                                             <span class="text-warning fw-bold">{{ detalle.dif_kgs_merma|floatformat:2 }} kg</span>
                                         </td>
-                                        <td>
+                                        <td class="d-none">
                                             <span class="text-danger fw-bold">{{ detalle.dif_kgs_liquidados|floatformat:2 }} kg</span>
                                         </td>
-                                        <td>
+                                        <td class="d-none">
                                             <span class="text-secondary fw-bold">${{ detalle.dif_precio|floatformat:2 }}</span>
                                         </td>
-                                        <td>
+                                        <td class="d-none">
                                             <span class="text-dark fw-bold">${{ detalle.dif_importes|floatformat:2 }}</span>
                                         </td>
                                         <td>

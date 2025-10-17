@@ -1,0 +1,578 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-box-arrow-right text-danger"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:salida_inventario_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a la Lista
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario con Pestañas -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" id="salidaForm">
+                        {% csrf_token %}
+                        <input type="hidden" id="detallesData" name="detalles_data" value="">
+
+                        <!-- Pestañas -->
+                        <ul class="nav nav-tabs" id="salidaTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab" aria-controls="info" aria-selected="true">
+                                    <i class="bi bi-info-circle"></i> Información de la Salida
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="detalle-tab" data-bs-toggle="tab" data-bs-target="#detalle" type="button" role="tab" aria-controls="detalle" aria-selected="false">
+                                    <i class="bi bi-list-ul"></i> Detalle de la Salida
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Contenido de las pestañas -->
+                        <div class="tab-content" id="salidaTabsContent">
+                            
+                            <!-- Pestaña 1: Información de la Salida -->
+                            <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
+                                <div class="p-4">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="{{ form.fecha.id_for_label }}" class="form-label">
+                                                    {{ form.fecha.label }} <span class="text-danger">*</span>
+                                                </label>
+                                                {{ form.fecha }}
+                                                {% if form.fecha.errors %}
+                                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        {{ form.fecha.errors.0 }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="{{ form.ciclo.id_for_label }}" class="form-label">
+                                                    {{ form.ciclo.label }} <span class="text-danger">*</span>
+                                                </label>
+                                                {{ form.ciclo }}
+                                                {% if form.ciclo.errors %}
+                                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        {{ form.ciclo.errors.0 }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="{{ form.autorizo.id_for_label }}" class="form-label">
+                                                    {{ form.autorizo.label }} <span class="text-danger">*</span>
+                                                </label>
+                                                {{ form.autorizo }}
+                                                {% if form.autorizo.errors %}
+                                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        {{ form.autorizo.errors.0 }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="{{ form.tipo_salida.id_for_label }}" class="form-label">
+                                                    {{ form.tipo_salida.label }} <span class="text-danger">*</span>
+                                                </label>
+                                                <div class="input-group">
+                                                    {{ form.tipo_salida }}
+                                                    <button type="button" class="btn btn-outline-success" id="add-tipo-salida-btn" data-bs-toggle="modal" data-bs-target="#tipoSalidaModal">
+                                                        <i class="bi bi-plus"></i>
+                                                    </button>
+                                                </div>
+                                                {% if form.tipo_salida.errors %}
+                                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        {{ form.tipo_salida.errors.0 }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <div class="mb-3">
+                                                <label for="{{ form.observaciones.id_for_label }}" class="form-label">
+                                                    {{ form.observaciones.label }}
+                                                </label>
+                                                {{ form.observaciones }}
+                                                {% if form.observaciones.errors %}
+                                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        {{ form.observaciones.errors.0 }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Errores generales del formulario -->
+                                    {% if form.non_field_errors %}
+                                        <div class="alert alert-danger">
+                                            {% for error in form.non_field_errors %}
+                                                <div>{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Pestaña 2: Detalle de la Salida -->
+                            <div class="tab-pane fade" id="detalle" role="tabpanel" aria-labelledby="detalle-tab">
+                                <div class="p-4">
+                                    <!-- Botón para agregar productos -->
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <h6 class="mb-0"><i class="bi bi-list-ul"></i> Productos de la Salida</h6>
+                                        <button type="button" class="btn btn-success btn-sm" id="add-producto-btn" data-bs-toggle="modal" data-bs-target="#productoModal">
+                                            <i class="bi bi-plus-circle"></i> Agregar Producto
+                                        </button>
+                                    </div>
+
+                                    <!-- Tabla de productos temporales -->
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Producto/Servicio</th>
+                                                    <th>Almacén</th>
+                                                    <th>Cantidad</th>
+                                                    <th>Centro de Costo</th>
+                                                    <th>Existencia Disponible</th>
+                                                    <th>Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="productos-tbody">
+                                                <!-- Los productos temporales se agregarán aquí -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    <!-- Resumen de Totales Temporales -->
+                                    <div class="row mt-4" id="resumen-temporales">
+                                        <div class="col-md-6">
+                                            <div class="card bg-light">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">Resumen de la Salida</h6>
+                                                    <p class="mb-1"><strong>Total de productos:</strong> <span id="total-productos">0</span></p>
+                                                    <p class="mb-0"><strong>Total de cantidad:</strong> <span id="total-cantidad">0</span></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botones de acción -->
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'core:salida_inventario_list' %}" class="btn btn-secondary">
+                                    <i class="bi bi-x-circle"></i> Cancelar
+                                </a>
+                                <button type="submit" class="btn btn-primary" id="guardar-salida-btn">
+                                    <i class="bi bi-check-circle"></i> Guardar Salida
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para agregar productos -->
+<div class="modal fade" id="productoModal" tabindex="-1" aria-labelledby="productoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="productoModalLabel">
+                    <i class="bi bi-plus-circle"></i> Agregar Producto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="producto-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="producto-select" class="form-label">Producto/Servicio <span class="text-danger">*</span></label>
+                                <select class="form-select" id="producto-select" required>
+                                    <option value="">Seleccionar producto...</option>
+                                    {% for producto in productos %}
+                                        <option value="{{ producto.codigo }}" 
+                                                data-descripcion="{{ producto.descripcion }}"
+                                                data-sku="{{ producto.sku }}">
+                                            {{ producto.descripcion }} - {{ producto.sku }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="almacen-select" class="form-label">Almacén <span class="text-danger">*</span></label>
+                                <select class="form-select" id="almacen-select" required>
+                                    <option value="">Seleccionar almacén...</option>
+                                    {% for almacen in almacenes %}
+                                        <option value="{{ almacen.codigo }}" 
+                                                data-descripcion="{{ almacen.descripcion }}">
+                                            {{ almacen.descripcion }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cantidad-input" class="form-label">Cantidad <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="cantidad-input" step="0.01" min="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="centro-costo-select" class="form-label">Centro de Costo <span class="text-danger">*</span></label>
+                                <select class="form-select" id="centro-costo-select" required>
+                                    <option value="">Seleccionar centro de costo...</option>
+                                    {% for centro in centros_costo %}
+                                        <option value="{{ centro.codigo }}" 
+                                                data-descripcion="{{ centro.descripcion }}">
+                                            {{ centro.descripcion }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label class="form-label">Existencia Disponible</label>
+                                <div class="form-control-plaintext" id="existencia-disponible">
+                                    Seleccione producto y almacén
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="agregar-producto-btn">Agregar Producto</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para agregar tipo de salida -->
+<div class="modal fade" id="tipoSalidaModal" tabindex="-1" aria-labelledby="tipoSalidaModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tipoSalidaModalLabel">
+                    <i class="bi bi-plus"></i> Agregar Tipo de Salida
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="tipo-salida-form">
+                    <div class="mb-3">
+                        <label for="tipo-salida-descripcion" class="form-label">Descripción <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="tipo-salida-descripcion" placeholder="Descripción del tipo de salida" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="crear-tipo-salida-btn">Crear Tipo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let productosTemporales = [];
+    
+    // Función para actualizar existencia
+    function actualizarExistencia() {
+        const productoSelect = document.getElementById('producto-select');
+        const almacenSelect = document.getElementById('almacen-select');
+        const existenciaDiv = document.getElementById('existencia-disponible');
+        
+        if (productoSelect.value && almacenSelect.value) {
+            fetch(`/ajax/existencia-producto/?producto_id=${productoSelect.value}&almacen_id=${almacenSelect.value}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        existenciaDiv.textContent = `${data.existencia} unidades`;
+                        existenciaDiv.className = 'form-control-plaintext text-success';
+                    } else {
+                        existenciaDiv.textContent = 'Error al obtener existencia';
+                        existenciaDiv.className = 'form-control-plaintext text-danger';
+                    }
+                })
+                .catch(error => {
+                    existenciaDiv.textContent = 'Error al obtener existencia';
+                    existenciaDiv.className = 'form-control-plaintext text-danger';
+                });
+        } else {
+            existenciaDiv.textContent = 'Seleccione producto y almacén';
+            existenciaDiv.className = 'form-control-plaintext';
+        }
+    }
+    
+    // Event listeners para actualizar existencia
+    document.getElementById('producto-select').addEventListener('change', actualizarExistencia);
+    document.getElementById('almacen-select').addEventListener('change', actualizarExistencia);
+    
+    // Función para agregar producto
+    document.getElementById('agregar-producto-btn').addEventListener('click', function() {
+        const productoSelect = document.getElementById('producto-select');
+        const almacenSelect = document.getElementById('almacen-select');
+        const cantidad = parseFloat(document.getElementById('cantidad-input').value);
+        const centroCostoSelect = document.getElementById('centro-costo-select');
+        
+        // Validar campos
+        if (!productoSelect.value || !almacenSelect.value || !centroCostoSelect.value) {
+            alert('Por favor complete todos los campos requeridos.');
+            return;
+        }
+        
+        if (isNaN(cantidad) || cantidad <= 0) {
+            alert('Por favor ingrese una cantidad válida mayor a 0.');
+            return;
+        }
+        
+        // Verificar existencia antes de agregar
+        fetch(`/ajax/existencia-producto/?producto_id=${productoSelect.value}&almacen_id=${almacenSelect.value}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const existenciaDisponible = data.existencia;
+                    
+                    if (cantidad > existenciaDisponible) {
+                        alert(`La cantidad solicitada (${cantidad}) excede la existencia disponible (${existenciaDisponible}) en el almacén seleccionado.`);
+                        return;
+                    }
+                    
+                    // Obtener datos
+                    const productoOption = productoSelect.options[productoSelect.selectedIndex];
+                    const almacenOption = almacenSelect.options[almacenSelect.selectedIndex];
+                    const centroCostoOption = centroCostoSelect.options[centroCostoSelect.selectedIndex];
+                    
+                    const producto = {
+                        codigo: productoSelect.value,
+                        descripcion: productoOption.dataset.descripcion,
+                        sku: productoOption.dataset.sku,
+                        almacen: {
+                            codigo: almacenSelect.value,
+                            descripcion: almacenOption.dataset.descripcion
+                        },
+                        cantidad: cantidad,
+                        centro_costo: {
+                            codigo: centroCostoSelect.value,
+                            descripcion: centroCostoOption.dataset.descripcion
+                        }
+                    };
+                    
+                    // Verificar si ya existe
+                    const existe = productosTemporales.some(p => 
+                        p.codigo === producto.codigo && p.almacen.codigo === producto.almacen.codigo
+                    );
+                    
+                    if (existe) {
+                        alert('Este producto ya está agregado para este almacén.');
+                        return;
+                    }
+                    
+                    // Agregar a la lista
+                    productosTemporales.push(producto);
+                    actualizarTabla();
+                    
+                    // Limpiar formulario
+                    document.getElementById('producto-form').reset();
+                    document.getElementById('existencia-disponible').textContent = 'Seleccione producto y almacén';
+                    document.getElementById('existencia-disponible').className = 'form-control-plaintext';
+                    
+                    // Cerrar modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('productoModal'));
+                    modal.hide();
+                } else {
+                    alert('Error al verificar la existencia del producto.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al verificar la existencia del producto.');
+            });
+    });
+    
+    // Función para actualizar tabla
+    function actualizarTabla() {
+        const tbody = document.getElementById('productos-tbody');
+        tbody.innerHTML = '';
+        
+        productosTemporales.forEach((producto, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <strong>${producto.descripcion}</strong><br>
+                    <small class="text-muted">SKU: ${producto.sku}</small>
+                </td>
+                <td>${producto.almacen.descripcion}</td>
+                <td class="text-end">${producto.cantidad}</td>
+                <td>${producto.centro_costo.descripcion}</td>
+                <td class="text-center">
+                    <span class="badge bg-info" id="existencia-${index}">Consultando...</span>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="eliminarProducto(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+            
+            // Obtener existencia
+            fetch(`/ajax/existencia-producto/?producto_id=${producto.codigo}&almacen_id=${producto.almacen.codigo}`)
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById(`existencia-${index}`);
+                    if (data.success) {
+                        badge.textContent = `${data.existencia} unidades`;
+                        badge.className = data.existencia >= producto.cantidad ? 'badge bg-success' : 'badge bg-warning';
+                    } else {
+                        badge.textContent = 'Error';
+                        badge.className = 'badge bg-danger';
+                    }
+                });
+        });
+        
+        // Actualizar resumen
+        document.getElementById('total-productos').textContent = productosTemporales.length;
+        document.getElementById('total-cantidad').textContent = productosTemporales.reduce((sum, p) => sum + p.cantidad, 0);
+        
+        // Actualizar datos ocultos
+        document.getElementById('detallesData').value = JSON.stringify(productosTemporales.map(p => ({
+            producto: p.codigo,
+            almacen: p.almacen.codigo,
+            cantidad: p.cantidad,
+            centro_costo: p.centro_costo.codigo
+        })));
+    }
+    
+    // Función para eliminar producto
+    window.eliminarProducto = function(index) {
+        productosTemporales.splice(index, 1);
+        actualizarTabla();
+    };
+    
+    // Función para crear tipo de salida
+    document.getElementById('crear-tipo-salida-btn').addEventListener('click', function() {
+        const descripcion = document.getElementById('tipo-salida-descripcion').value.trim();
+        
+        if (!descripcion) {
+            alert('Por favor ingrese una descripción.');
+            return;
+        }
+        
+        fetch('/ajax/crear-tipo-salida/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ descripcion: descripcion })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Agregar opción al select
+                const select = document.getElementById('id_tipo_salida');
+                const option = document.createElement('option');
+                option.value = data.tipo_salida.codigo;
+                option.textContent = data.tipo_salida.descripcion;
+                option.selected = true;
+                select.appendChild(option);
+                
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('tipoSalidaModal'));
+                modal.hide();
+                
+                // Limpiar formulario
+                document.getElementById('tipo-salida-form').reset();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error al crear el tipo de salida.');
+        });
+    });
+    
+    // Establecer fecha actual por defecto
+    const fechaInput = document.getElementById('id_fecha');
+    if (fechaInput && !fechaInput.value) {
+        const hoy = new Date();
+        const fechaFormateada = hoy.toISOString().split('T')[0];
+        fechaInput.value = fechaFormateada;
+    }
+    
+    // Validación del formulario principal
+    document.getElementById('salidaForm').addEventListener('submit', function(e) {
+        if (productosTemporales.length === 0) {
+            e.preventDefault();
+            alert('Debe agregar al menos un producto a la salida.');
+            return;
+        }
+        
+        // Validar que todas las cantidades sean válidas
+        const cantidadesInvalidas = productosTemporales.some(p => p.cantidad <= 0);
+        if (cantidadesInvalidas) {
+            e.preventDefault();
+            alert('Todas las cantidades deben ser mayores a 0.');
+            return;
+        }
+    });
+});
+</script>
+{% endblock %}

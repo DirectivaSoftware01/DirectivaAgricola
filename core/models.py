@@ -710,6 +710,15 @@ class ProductoServicio(models.Model):
         help_text="Tipo de impuesto aplicable"
     )
     
+    clasificacion_gasto = models.ForeignKey(
+        ClasificacionGasto,
+        on_delete=models.PROTECT,
+        verbose_name="Clasificación de Gasto",
+        help_text="Clasificación de gasto para este producto o servicio",
+        blank=True,
+        null=True
+    )
+    
     activo = models.BooleanField(
         default=True,
         verbose_name="Activo",
@@ -2038,7 +2047,9 @@ class GastoDetalle(models.Model):
         Proveedor,
         on_delete=models.PROTECT,
         verbose_name="Proveedor",
-        help_text="Proveedor que emitió la factura"
+        help_text="Proveedor que emitió la factura",
+        blank=True,
+        null=True
     )
     factura = models.CharField(
         max_length=100,
@@ -2055,6 +2066,45 @@ class GastoDetalle(models.Model):
         max_length=255,
         verbose_name="Concepto",
         help_text="Concepto o descripción del gasto"
+    )
+    forma_pago = models.CharField(
+        max_length=2,
+        choices=[
+            ('01', '01 - Efectivo'),
+            ('02', '02 - Cheque nominativo'),
+            ('03', '03 - Transferencia electrónica de fondos'),
+            ('04', '04 - Tarjeta de crédito'),
+            ('05', '05 - Monedero electrónico'),
+            ('06', '06 - Dinero electrónico'),
+            ('08', '08 - Vales de despensa'),
+            ('12', '12 - Dación en pago'),
+            ('13', '13 - Pago por subrogación'),
+            ('14', '14 - Pago por consignación'),
+            ('15', '15 - Condonación'),
+            ('17', '17 - Compensación'),
+            ('23', '23 - Novación'),
+            ('24', '24 - Confusión'),
+            ('25', '25 - Remisión de deuda'),
+            ('26', '26 - Prescripción o caducidad'),
+            ('27', '27 - A satisfacción del acreedor'),
+            ('28', '28 - Tarjeta de débito'),
+            ('29', '29 - Tarjeta de servicios'),
+            ('30', '30 - Aplicación de anticipos'),
+            ('31', '31 - Intermediario pagos'),
+            ('99', '99 - Por definir'),
+        ],
+        verbose_name="Forma de Pago",
+        help_text="Forma de pago según catálogo SAT",
+        blank=True,
+        null=True
+    )
+    autorizo = models.ForeignKey(
+        'AutorizoGasto',
+        on_delete=models.PROTECT,
+        verbose_name="Autorizó",
+        help_text="Persona que autorizó el gasto",
+        blank=True,
+        null=True
     )
     importe = models.DecimalField(
         max_digits=12,
@@ -2515,3 +2565,676 @@ class PagoFactura(models.Model):
     def saldo_despues(self):
         """Obtiene el saldo después de este pago"""
         return self.saldo_anterior - self.monto_pago
+
+
+class AutorizoGasto(models.Model):
+    """Catálogo de personas que autorizan gastos"""
+    nombre = models.CharField(
+        max_length=200, 
+        verbose_name="Nombre completo",
+        help_text="Nombre completo de la persona que autoriza gastos"
+    )
+    activo = models.BooleanField(
+        default=True, 
+        verbose_name="Activo",
+        help_text="Indica si la persona está activa para autorizar gastos"
+    )
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True, 
+        verbose_name="Fecha de creación"
+    )
+    
+    class Meta:
+        verbose_name = "Autorizó Gasto"
+        verbose_name_plural = "Autorizó Gastos"
+        db_table = 'autorizo_gasto'
+        ordering = ['nombre']
+    
+    def __str__(self):
+        return self.nombre
+
+
+class Almacen(models.Model):
+    """Modelo para gestión de almacenes"""
+    
+    codigo = models.AutoField(
+        primary_key=True, 
+        verbose_name="Código"
+    )
+    
+    descripcion = models.CharField(
+        max_length=200, 
+        verbose_name="Descripción",
+        help_text="Descripción del almacén"
+    )
+    
+    activo = models.BooleanField(
+        default=True, 
+        verbose_name="Activo",
+        help_text="Indica si el almacén está activo"
+    )
+    
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True, 
+        verbose_name="Fecha de creación"
+    )
+    
+    fecha_modificacion = models.DateTimeField(
+        auto_now=True, 
+        verbose_name="Fecha de modificación"
+    )
+    
+    class Meta:
+        verbose_name = "Almacén"
+        verbose_name_plural = "Almacenes"
+        db_table = 'almacenes'
+        ordering = ['descripcion']
+    
+    def __str__(self):
+        return f"{self.codigo} - {self.descripcion}"
+
+
+class Compra(models.Model):
+    """Modelo para gestión de compras de productos"""
+    
+    ESTADO_CHOICES = [
+        ('activa', 'Activa'),
+        ('cancelada', 'Cancelada'),
+    ]
+    
+    folio = models.AutoField(
+        primary_key=True,
+        verbose_name="Folio"
+    )
+    
+    fecha = models.DateField(
+        verbose_name="Fecha de compra",
+        help_text="Fecha en que se realizó la compra"
+    )
+    
+    proveedor = models.ForeignKey(
+        Proveedor,
+        on_delete=models.PROTECT,
+        verbose_name="Proveedor",
+        help_text="Proveedor de la compra"
+    )
+    
+    factura = models.CharField(
+        max_length=50,
+        verbose_name="Factura",
+        help_text="Número de factura del proveedor",
+        blank=True,
+        null=True
+    )
+    
+    serie = models.CharField(
+        max_length=20,
+        verbose_name="Serie",
+        help_text="Serie de la factura",
+        blank=True,
+        null=True
+    )
+    
+    subtotal = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Subtotal",
+        help_text="Subtotal de la compra"
+    )
+    
+    impuestos = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Impuestos",
+        help_text="Impuestos de la compra"
+    )
+    
+    total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Total",
+        help_text="Total de la compra"
+    )
+    
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='activa',
+        verbose_name="Estado",
+        help_text="Estado de la compra"
+    )
+    
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de creación"
+    )
+    
+    fecha_modificacion = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Fecha de modificación"
+    )
+    
+    class Meta:
+        verbose_name = "Compra"
+        verbose_name_plural = "Compras"
+        db_table = 'compras'
+        ordering = ['-fecha', '-folio']
+    
+    def __str__(self):
+        return f"Compra {self.folio:06d} - {self.proveedor.nombre}"
+
+
+class CompraDetalle(models.Model):
+    """Modelo para detalle de compras de productos"""
+    
+    compra = models.ForeignKey(
+        Compra,
+        on_delete=models.CASCADE,
+        related_name='detalles',
+        verbose_name="Compra"
+    )
+    
+    producto = models.ForeignKey(
+        ProductoServicio,
+        on_delete=models.PROTECT,
+        verbose_name="Producto/Servicio",
+        help_text="Producto o servicio comprado"
+    )
+    
+    almacen = models.ForeignKey(
+        Almacen,
+        on_delete=models.PROTECT,
+        verbose_name="Almacén",
+        help_text="Almacén donde se almacenará el producto"
+    )
+    
+    cantidad = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Cantidad",
+        help_text="Cantidad comprada"
+    )
+    
+    precio = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Precio Unitario",
+        help_text="Precio unitario del producto"
+    )
+    
+    subtotal = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Subtotal",
+        help_text="Subtotal del detalle (cantidad × precio)"
+    )
+    
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de creación"
+    )
+    
+    class Meta:
+        verbose_name = "Detalle de Compra"
+        verbose_name_plural = "Detalles de Compra"
+        db_table = 'compra_detalles'
+        ordering = ['id']
+    
+    def __str__(self):
+        return f"{self.compra.folio:06d} - {self.producto.descripcion}"
+    
+    def save(self, *args, **kwargs):
+        # Calcular subtotal automáticamente
+        self.subtotal = self.cantidad * self.precio
+        super().save(*args, **kwargs)
+
+
+class Kardex(models.Model):
+    """Modelo para control de existencias y costos (Kardex)"""
+    
+    TIPO_MOVIMIENTO_CHOICES = [
+        ('entrada', 'Entrada'),
+        ('salida', 'Salida'),
+        ('ajuste', 'Ajuste'),
+    ]
+    
+    producto = models.ForeignKey(
+        ProductoServicio,
+        on_delete=models.CASCADE,
+        verbose_name="Producto/Servicio"
+    )
+    
+    almacen = models.ForeignKey(
+        Almacen,
+        on_delete=models.CASCADE,
+        verbose_name="Almacén"
+    )
+    
+    fecha = models.DateTimeField(
+        verbose_name="Fecha del movimiento"
+    )
+    
+    tipo_movimiento = models.CharField(
+        max_length=20,
+        choices=TIPO_MOVIMIENTO_CHOICES,
+        verbose_name="Tipo de Movimiento"
+    )
+    
+    cantidad = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Cantidad"
+    )
+    
+    precio_unitario = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Precio Unitario"
+    )
+    
+    costo_total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Costo Total"
+    )
+    
+    existencia_anterior = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name="Existencia Anterior"
+    )
+    
+    existencia_actual = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Existencia Actual"
+    )
+    
+    costo_promedio_anterior = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name="Costo Promedio Anterior"
+    )
+    
+    costo_promedio_actual = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Costo Promedio Actual"
+    )
+    
+    referencia = models.CharField(
+        max_length=100,
+        verbose_name="Referencia",
+        help_text="Referencia del movimiento (folio de compra, etc.)",
+        blank=True,
+        null=True
+    )
+    
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de creación"
+    )
+    
+    class Meta:
+        verbose_name = "Kardex"
+        verbose_name_plural = "Kardex"
+        db_table = 'kardex'
+        ordering = ['-fecha', '-id']
+        unique_together = ['producto', 'almacen', 'fecha', 'tipo_movimiento']
+    
+    def __str__(self):
+        return f"{self.producto.descripcion} - {self.almacen.descripcion} - {self.get_tipo_movimiento_display()}"
+    
+    def save(self, *args, **kwargs):
+        # Calcular costo total
+        self.costo_total = self.cantidad * self.precio_unitario
+        
+        # Obtener el último movimiento para calcular existencias y costo promedio
+        ultimo_movimiento = Kardex.objects.filter(
+            producto=self.producto,
+            almacen=self.almacen
+        ).exclude(id=self.id).order_by('-fecha', '-id').first()
+        
+        if ultimo_movimiento:
+            self.existencia_anterior = ultimo_movimiento.existencia_actual
+            self.costo_promedio_anterior = ultimo_movimiento.costo_promedio_actual
+        else:
+            self.existencia_anterior = 0
+            self.costo_promedio_anterior = 0
+        
+        # Calcular existencia actual según el tipo de movimiento
+        if self.tipo_movimiento == 'entrada':
+            self.existencia_actual = self.existencia_anterior + self.cantidad
+        elif self.tipo_movimiento == 'salida':
+            self.existencia_actual = self.existencia_anterior - self.cantidad
+        else:  # ajuste
+            self.existencia_actual = self.cantidad
+        
+        # Calcular costo promedio actual (método de costo promedio)
+        if self.tipo_movimiento == 'entrada':
+            if self.existencia_anterior > 0:
+                costo_total_anterior = self.existencia_anterior * self.costo_promedio_anterior
+                costo_total_actual = costo_total_anterior + self.costo_total
+                self.costo_promedio_actual = costo_total_actual / self.existencia_actual
+            else:
+                self.costo_promedio_actual = self.precio_unitario
+        else:
+            self.costo_promedio_actual = self.costo_promedio_anterior
+        
+        super().save(*args, **kwargs)
+
+
+class TipoSalida(models.Model):
+    """Modelo para tipos de salida de inventario"""
+    
+    codigo = models.AutoField(
+        primary_key=True,
+        verbose_name="Código"
+    )
+    
+    descripcion = models.CharField(
+        max_length=100,
+        verbose_name="Descripción",
+        help_text="Descripción del tipo de salida"
+    )
+    
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si el tipo de salida está activo"
+    )
+    
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de creación"
+    )
+    
+    class Meta:
+        verbose_name = "Tipo de Salida"
+        verbose_name_plural = "Tipos de Salida"
+        db_table = 'tipos_salida'
+        ordering = ['descripcion']
+    
+    def __str__(self):
+        return self.descripcion
+
+
+class SalidaInventario(models.Model):
+    """Modelo maestro para salidas de inventario"""
+    
+    codigo = models.AutoField(
+        primary_key=True,
+        verbose_name="Código"
+    )
+    
+    folio = models.CharField(
+        max_length=20,
+        unique=True,
+        verbose_name="Folio",
+        help_text="Folio único de la salida"
+    )
+    
+    fecha = models.DateField(
+        verbose_name="Fecha de salida",
+        help_text="Fecha en que se realiza la salida"
+    )
+    
+    ciclo = models.CharField(
+        max_length=10,
+        verbose_name="Ciclo",
+        help_text="Ciclo de producción actual"
+    )
+    
+    autorizo = models.ForeignKey(
+        'AutorizoGasto',
+        on_delete=models.PROTECT,
+        verbose_name="Autorizó",
+        help_text="Persona que autoriza la salida"
+    )
+    
+    tipo_salida = models.ForeignKey(
+        TipoSalida,
+        on_delete=models.PROTECT,
+        verbose_name="Tipo de salida",
+        help_text="Tipo de salida de inventario"
+    )
+    
+    observaciones = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones",
+        help_text="Observaciones adicionales"
+    )
+    
+    activo = models.BooleanField(
+        default=True,
+        verbose_name="Activo",
+        help_text="Indica si la salida está activa"
+    )
+    
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de creación"
+    )
+    
+    usuario_creacion = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='salidas_inventario_creadas',
+        verbose_name="Usuario que creó el registro"
+    )
+    
+    fecha_modificacion = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Fecha de modificación"
+    )
+    
+    usuario_modificacion = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='salidas_inventario_modificadas',
+        verbose_name="Usuario que modificó el registro",
+        blank=True,
+        null=True
+    )
+    
+    class Meta:
+        verbose_name = "Salida de Inventario"
+        verbose_name_plural = "Salidas de Inventario"
+        db_table = 'salidas_inventario'
+        ordering = ['-fecha', '-folio']
+    
+    def __str__(self):
+        return f"Salida {self.folio} - {self.fecha}"
+    
+    def save(self, *args, **kwargs):
+        """Generar folio automáticamente si no existe"""
+        if not self.folio:
+            # Obtener el último folio
+            ultima_salida = SalidaInventario.objects.filter(
+                folio__startswith='SAL'
+            ).order_by('-folio').first()
+            
+            if ultima_salida:
+                # Extraer el número del folio
+                try:
+                    numero = int(ultima_salida.folio.split('-')[-1]) + 1
+                except (ValueError, IndexError):
+                    numero = 1
+            else:
+                numero = 1
+            
+            self.folio = f"SAL-{numero:06d}"
+        
+        super().save(*args, **kwargs)
+
+
+class SalidaInventarioDetalle(models.Model):
+    """Modelo detalle para salidas de inventario"""
+    
+    salida = models.ForeignKey(
+        SalidaInventario,
+        on_delete=models.CASCADE,
+        related_name='detalles',
+        verbose_name="Salida de inventario"
+    )
+    
+    producto = models.ForeignKey(
+        ProductoServicio,
+        on_delete=models.PROTECT,
+        verbose_name="Producto/Servicio",
+        help_text="Producto que se está dando de salida"
+    )
+    
+    almacen = models.ForeignKey(
+        Almacen,
+        on_delete=models.PROTECT,
+        verbose_name="Almacén",
+        help_text="Almacén del cual se saca el producto"
+    )
+    
+    cantidad = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Cantidad",
+        help_text="Cantidad que se da de salida"
+    )
+    
+    centro_costo = models.ForeignKey(
+        CentroCosto,
+        on_delete=models.PROTECT,
+        verbose_name="Centro de Costo",
+        help_text="Centro de costo al que se asigna la salida"
+    )
+    
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Fecha de creación"
+    )
+    
+    class Meta:
+        verbose_name = "Detalle de Salida de Inventario"
+        verbose_name_plural = "Detalles de Salidas de Inventario"
+        db_table = 'salidas_inventario_detalles'
+        ordering = ['id']
+    
+    def __str__(self):
+        return f"{self.salida.folio} - {self.producto.descripcion} - {self.cantidad}"
+    
+    def save(self, *args, **kwargs):
+        """Crear movimiento de Kardex y gasto automático al guardar"""
+        super().save(*args, **kwargs)
+        
+        # Crear movimiento de Kardex
+        self._crear_movimiento_kardex()
+        
+        # Crear gasto automático en el presupuesto
+        self._crear_gasto_automatico()
+    
+    def _crear_movimiento_kardex(self):
+        """Crear movimiento de Kardex para la salida"""
+        # Obtener el último movimiento del producto en el almacén
+        ultimo_movimiento = Kardex.objects.filter(
+            producto=self.producto,
+            almacen=self.almacen
+        ).order_by('-fecha', '-id').first()
+        
+        # Calcular existencia anterior y actual
+        existencia_anterior = ultimo_movimiento.existencia_actual if ultimo_movimiento else 0
+        existencia_actual = existencia_anterior - self.cantidad
+        
+        # Calcular costo promedio (usar el del último movimiento)
+        costo_promedio_anterior = ultimo_movimiento.costo_promedio_actual if ultimo_movimiento else 0
+        costo_promedio_actual = costo_promedio_anterior  # No cambia en salidas
+        
+        # Crear el movimiento de Kardex
+        Kardex.objects.create(
+            producto=self.producto,
+            almacen=self.almacen,
+            fecha=timezone.now(),
+            tipo_movimiento='salida',
+            cantidad=self.cantidad,
+            precio_unitario=costo_promedio_anterior,
+            costo_total=self.cantidad * costo_promedio_anterior,
+            existencia_anterior=existencia_anterior,
+            existencia_actual=existencia_actual,
+            costo_promedio_anterior=costo_promedio_anterior,
+            costo_promedio_actual=costo_promedio_actual,
+            referencia=f"Salida {self.salida.folio}"
+        )
+    
+    def _crear_gasto_automatico(self):
+        """Crear gasto automático en el presupuesto del centro de costo"""
+        try:
+            # Verificar que el producto tenga clasificación de gasto
+            if not self.producto.clasificacion_gasto:
+                return  # No crear gasto si no hay clasificación
+            
+            # Obtener el presupuesto del centro de costo para el ciclo actual
+            presupuesto = Presupuesto.objects.filter(
+                centro_costo=self.centro_costo,
+                ciclo=self.salida.ciclo,
+                activo=True
+            ).first()
+            
+            if not presupuesto:
+                return  # No crear gasto si no hay presupuesto
+            
+            # Verificar que la clasificación de gasto esté en el presupuesto
+            if not presupuesto.detalles.filter(
+                clasificacion_gasto=self.producto.clasificacion_gasto,
+                activo=True
+            ).exists():
+                return  # No crear gasto si la clasificación no está en el presupuesto
+            
+            # Obtener el costo unitario del producto (del último movimiento de Kardex)
+            ultimo_movimiento = Kardex.objects.filter(
+                producto=self.producto,
+                almacen=self.almacen
+            ).order_by('-fecha', '-id').first()
+            
+            costo_unitario = ultimo_movimiento.costo_promedio_actual if ultimo_movimiento else 0
+            importe_gasto = self.cantidad * costo_unitario
+            
+            # Redondear el importe a 2 decimales
+            from decimal import Decimal, ROUND_HALF_UP
+            importe_gasto = importe_gasto.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            
+            # Crear el gasto principal si no existe uno para esta salida
+            gasto, created = Gasto.objects.get_or_create(
+                presupuesto=presupuesto,
+                ciclo=self.salida.ciclo,
+                fecha_gasto=self.salida.fecha,
+                defaults={
+                    'observaciones': f'Gasto automático por salida de inventario {self.salida.folio}',
+                    'activo': True,
+                    'usuario_creacion': self.salida.usuario_creacion
+                }
+            )
+            
+            # Crear el detalle del gasto
+            concepto = f"Salida de inventario - {self.salida.tipo_salida.descripcion} - {self.producto.descripcion}"
+            
+            GastoDetalle.objects.create(
+                gasto=gasto,
+                proveedor=None,  # No hay proveedor en salidas internas
+                factura=f"SAL-{self.salida.folio}",  # Usar el folio como referencia
+                clasificacion_gasto=self.producto.clasificacion_gasto,
+                concepto=concepto,
+                forma_pago='01',  # Efectivo por defecto para salidas internas
+                importe=importe_gasto,
+                autorizo=self.salida.autorizo,
+                activo=True,
+                usuario_creacion=self.salida.usuario_creacion
+            )
+            
+        except Exception as e:
+            # Log del error pero no interrumpir el flujo principal
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al crear gasto automático para salida {self.salida.folio}: {str(e)}")

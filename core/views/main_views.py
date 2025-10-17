@@ -7,16 +7,17 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponseRedirect
-from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from django.shortcuts import render, get_object_or_404
 import json
 from django.db.models import Sum, Count
 from django.db import models
 from django.contrib import messages
 from datetime import datetime
-from ..models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Emisor, Factura, FacturaDetalle
-from ..forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm, PresupuestoGastoForm, PresupuestoGastoSearchForm, PresupuestoForm, PresupuestoDetalleForm, PresupuestoSearchForm, GastoForm, GastoDetalleForm
+from ..models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Emisor, Factura, FacturaDetalle, AutorizoGasto, Almacen, Compra, CompraDetalle, Kardex
+from ..forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm, PresupuestoGastoForm, PresupuestoGastoSearchForm, PresupuestoForm, PresupuestoDetalleForm, PresupuestoSearchForm, GastoForm, GastoDetalleForm, AlmacenForm, AlmacenSearchForm, CompraForm, CompraDetalleForm, CompraSearchForm, KardexSearchForm
 
 # Create your views here.
 
@@ -15936,12 +15937,27 @@ class GastoCreateView(LoginRequiredMixin, CreateView):
                     from decimal import Decimal
                     importe_decimal = Decimal(str(detalle_data['importe']))
                     
+                    # Obtener autorizó si está presente
+                    autorizo = None
+                    if 'autorizo' in detalle_data and detalle_data['autorizo'] and 'id' in detalle_data['autorizo']:
+                        try:
+                            autorizo = AutorizoGasto.objects.get(id=detalle_data['autorizo']['id'])
+                        except AutorizoGasto.DoesNotExist:
+                            pass
+                    
+                    # Extraer el código de forma de pago si viene como objeto
+                    forma_pago_codigo = detalle_data.get('forma_pago')
+                    if isinstance(forma_pago_codigo, dict):
+                        forma_pago_codigo = forma_pago_codigo.get('codigo')
+                    
                     GastoDetalle.objects.create(
                         gasto=gasto,
                         proveedor=proveedor,
                         factura=detalle_data['factura'],
                         clasificacion_gasto=clasificacion_gasto,
                         concepto=detalle_data['concepto'],
+                        forma_pago=forma_pago_codigo,
+                        autorizo=autorizo,
                         importe=importe_decimal,
                         usuario_creacion=request.user
                     )
@@ -16294,12 +16310,27 @@ def eliminar_emisor_ajax(request, codigo):
                     clasificacion_gasto = ClasificacionGasto.objects.get(
                         codigo=detalle_data['clasificacion_gasto']['codigo']
                     )
+                    # Obtener autorizó si está presente
+                    autorizo = None
+                    if 'autorizo' in detalle_data and detalle_data['autorizo'] and 'id' in detalle_data['autorizo']:
+                        try:
+                            autorizo = AutorizoGasto.objects.get(id=detalle_data['autorizo']['id'])
+                        except AutorizoGasto.DoesNotExist:
+                            pass
+                    
+                    # Extraer el código de forma de pago si viene como objeto
+                    forma_pago_codigo = detalle_data.get('forma_pago')
+                    if isinstance(forma_pago_codigo, dict):
+                        forma_pago_codigo = forma_pago_codigo.get('codigo')
+                    
                     GastoDetalle.objects.create(
                         gasto=form.instance,
                         proveedor=proveedor,
                         factura=detalle_data['factura'],
                         clasificacion_gasto=clasificacion_gasto,
                         concepto=detalle_data['concepto'],
+                        forma_pago=forma_pago_codigo,
+                        autorizo=autorizo,
                         importe=detalle_data['importe'],
                         usuario_creacion=self.request.user
                     )
@@ -16970,6 +17001,8 @@ class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
         # Obtener parámetros de filtro
         ciclo = self.request.GET.get('ciclo')
         centro_costo_id = self.request.GET.get('centro_costo')
+        forma_pago = self.request.GET.get('forma_pago')
+        autorizo_id = self.request.GET.get('autorizo')
         
         # Obtener el ciclo actual como default
         try:
@@ -17005,7 +17038,20 @@ class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
         total_gastado = 0
         
         for gasto in gastos_query:
-            for detalle in gasto.detalles.filter(activo=True):
+            detalles_query = gasto.detalles.filter(activo=True)
+            
+            # Aplicar filtros de forma de pago y autorizó
+            if forma_pago:
+                detalles_query = detalles_query.filter(forma_pago=forma_pago)
+            
+            if autorizo_id:
+                try:
+                    autorizo_id_int = int(autorizo_id)
+                    detalles_query = detalles_query.filter(autorizo_id=autorizo_id_int)
+                except (ValueError, TypeError):
+                    pass  # Ignorar si el ID no es válido
+            
+            for detalle in detalles_query:
                 clasificacion = detalle.clasificacion_gasto
                 if clasificacion.codigo not in gastos_por_clasificacion:
                     gastos_por_clasificacion[clasificacion.codigo] = {
@@ -17019,6 +17065,8 @@ class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
                     'proveedor': detalle.proveedor,
                     'factura': detalle.factura,
                     'concepto': detalle.concepto,
+                    'forma_pago': detalle.forma_pago,
+                    'autorizo': detalle.autorizo,
                     'importe': detalle.importe,
                     'fecha_gasto': gasto.fecha_gasto,
                     'presupuesto': gasto.presupuesto,
@@ -17035,14 +17083,18 @@ class PresupuestoGastosReporteView(LoginRequiredMixin, TemplateView):
         # Obtener datos para los filtros
         ciclos_disponibles = Gasto.objects.filter(activo=True).values_list('ciclo', flat=True).distinct().order_by('-ciclo')
         centros_costo = CentroCosto.objects.filter(activo=True).order_by('descripcion')
+        personas_autorizan = AutorizoGasto.objects.filter(activo=True).order_by('nombre')
         
         context['gastos_por_clasificacion'] = gastos_ordenados
         context['total_gastado'] = total_gastado
         context['ciclo_actual'] = ciclo_actual
         context['ciclo'] = ciclo
         context['centro_costo_id'] = centro_costo_id
+        context['forma_pago'] = forma_pago
+        context['autorizo_id'] = autorizo_id
         context['ciclos_disponibles'] = ciclos_disponibles
         context['centros_costo'] = centros_costo
+        context['personas_autorizan'] = personas_autorizan
         
         return context
 
@@ -17223,3 +17275,690 @@ def eliminar_emisor_ajax(request, codigo):
         return JsonResponse({
             'error': f'Error interno del servidor: {str(e)}'
         }, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def cancelar_gasto_ajax(request, gasto_id):
+    """Vista AJAX para cancelar un gasto"""
+    try:
+        # Obtener el gasto
+        gasto = get_object_or_404(Gasto, codigo=gasto_id, activo=True)
+        
+        # Marcar como inactivo
+        gasto.activo = False
+        gasto.usuario_modificacion = request.user
+        gasto.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Gasto cancelado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+# ===========================
+# VISTAS PARA ALMACENES
+# ===========================
+
+@login_required
+def almacenes_list(request):
+    """Vista para listar almacenes"""
+    if not request.user.is_staff:
+        return redirect('login')
+    
+    # Formulario de búsqueda
+    search_form = AlmacenSearchForm(request.GET)
+    
+    # Query base
+    almacenes = Almacen.objects.all()
+    
+    # Aplicar filtros
+    if search_form.is_valid():
+        busqueda = search_form.cleaned_data.get('busqueda')
+        activo = search_form.cleaned_data.get('activo')
+        
+        if busqueda:
+            almacenes = almacenes.filter(
+                Q(descripcion__icontains=busqueda) |
+                Q(codigo__icontains=busqueda)
+            )
+        
+        if activo == '1':
+            almacenes = almacenes.filter(activo=True)
+        elif activo == '0':
+            almacenes = almacenes.filter(activo=False)
+    
+    # Ordenar por descripción
+    almacenes = almacenes.order_by('descripcion')
+    
+    # Paginación
+    paginator = Paginator(almacenes, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'page_obj': page_obj,
+        'search_form': search_form,
+        'title': 'Almacenes'
+    }
+    
+    return render(request, 'core/almacen_list.html', context)
+
+
+@login_required
+def almacen_create(request):
+    """Vista para crear almacén"""
+    if not request.user.is_staff:
+        return redirect('login')
+    
+    if request.method == 'POST':
+        form = AlmacenForm(request.POST)
+        if form.is_valid():
+            almacen = form.save()
+            messages.success(request, f'Almacén "{almacen.descripcion}" creado correctamente.')
+            return redirect('core:almacenes_list')
+    else:
+        form = AlmacenForm()
+    
+    context = {
+        'form': form,
+        'title': 'Crear Almacén',
+        'action': 'Crear'
+    }
+    
+    return render(request, 'core/almacen_form.html', context)
+
+
+@login_required
+def almacen_edit(request, codigo):
+    """Vista para editar almacén"""
+    if not request.user.is_staff:
+        return redirect('login')
+    
+    try:
+        almacen = Almacen.objects.get(codigo=codigo)
+    except Almacen.DoesNotExist:
+        messages.error(request, 'El almacén no existe.')
+        return redirect('almacenes_list')
+    
+    if request.method == 'POST':
+        form = AlmacenForm(request.POST, instance=almacen)
+        if form.is_valid():
+            almacen = form.save()
+            messages.success(request, f'Almacén "{almacen.descripcion}" actualizado correctamente.')
+            return redirect('core:almacenes_list')
+    else:
+        form = AlmacenForm(instance=almacen)
+    
+    context = {
+        'form': form,
+        'almacen': almacen,
+        'title': 'Editar Almacén',
+        'action': 'Actualizar'
+    }
+    
+    return render(request, 'core/almacen_form.html', context)
+
+
+@login_required
+def almacen_delete(request, codigo):
+    """Vista para eliminar almacén"""
+    if not request.user.is_staff:
+        return redirect('login')
+    
+    try:
+        almacen = Almacen.objects.get(codigo=codigo)
+    except Almacen.DoesNotExist:
+        messages.error(request, 'El almacén no existe.')
+        return redirect('almacenes_list')
+    
+    if request.method == 'POST':
+        descripcion = almacen.descripcion
+        almacen.delete()
+        messages.success(request, f'Almacén "{descripcion}" eliminado correctamente.')
+        return redirect('almacenes_list')
+    
+    context = {
+        'almacen': almacen,
+        'title': 'Eliminar Almacén'
+    }
+    
+    return render(request, 'core/almacen_confirm_delete.html', context)
+
+
+# ===========================
+# VISTAS PARA COMPRAS
+# ===========================
+
+@login_required
+def compras_list(request):
+    """Vista para listar compras"""
+    if not request.user.is_staff:
+        return redirect('login')
+
+    # Formulario de búsqueda
+    search_form = CompraSearchForm(request.GET)
+
+    # Query base
+    compras = Compra.objects.select_related('proveedor').all()
+
+    # Aplicar filtros
+    if search_form.is_valid():
+        busqueda = search_form.cleaned_data.get('busqueda')
+        proveedor = search_form.cleaned_data.get('proveedor')
+        estado = search_form.cleaned_data.get('estado')
+        fecha_desde = search_form.cleaned_data.get('fecha_desde')
+        fecha_hasta = search_form.cleaned_data.get('fecha_hasta')
+
+        if busqueda:
+            compras = compras.filter(
+                Q(folio__icontains=busqueda) |
+                Q(proveedor__nombre__icontains=busqueda) |
+                Q(factura__icontains=busqueda) |
+                Q(serie__icontains=busqueda)
+            )
+
+        if proveedor:
+            compras = compras.filter(proveedor=proveedor)
+
+        if estado:
+            compras = compras.filter(estado=estado)
+
+        if fecha_desde:
+            compras = compras.filter(fecha__gte=fecha_desde)
+
+        if fecha_hasta:
+            compras = compras.filter(fecha__lte=fecha_hasta)
+
+    # Ordenar por fecha y folio
+    compras = compras.order_by('-fecha', '-folio')
+
+    # Paginación
+    paginator = Paginator(compras, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'search_form': search_form,
+        'title': 'Compras de Productos'
+    }
+
+    return render(request, 'core/compra_list.html', context)
+
+
+@login_required
+def compra_create(request):
+    """Vista para crear compra"""
+    if not request.user.is_staff:
+        return redirect('login')
+
+    if request.method == 'POST':
+        print(f"=== REQUEST POST RECIBIDO ===")
+        print(f"POST data recibido: {request.POST}")
+        print(f"detalles_data: {request.POST.get('detalles_data', 'NO ENCONTRADO')}")
+        print(f"CSRF token: {request.POST.get('csrfmiddlewaretoken', 'NO ENCONTRADO')}")
+        
+        form = CompraForm(request.POST)
+        print(f"Formulario válido: {form.is_valid()}")
+        if not form.is_valid():
+            print(f"Errores del formulario: {form.errors}")
+        
+        if form.is_valid():
+            try:
+                compra = form.save()
+                print(f"Compra creada con folio: {compra.folio}")
+                
+                # Procesar detalles si se enviaron
+                if 'detalles_data' in request.POST:
+                    print("Procesando detalles...")
+                    procesar_detalles_compra(request, compra)
+                    print("Detalles procesados")
+                
+                messages.success(request, f'Compra {compra.folio:06d} creada correctamente.')
+                print(f"Redirigiendo a: /compras/")
+                return redirect('core:compras_list')
+                
+            except Exception as e:
+                print(f"Error al procesar la compra: {e}")
+                import traceback
+                traceback.print_exc()
+                messages.error(request, f'Error al crear la compra: {str(e)}')
+        else:
+            print(f"Errores del formulario: {form.errors}")
+            messages.error(request, 'Por favor corrija los errores en el formulario.')
+    else:
+        form = CompraForm()
+
+    # Obtener productos y almacenes para el template
+    productos = ProductoServicio.objects.filter(activo=True).order_by('descripcion')
+    almacenes = Almacen.objects.filter(activo=True).order_by('descripcion')
+
+    context = {
+        'form': form,
+        'productos': productos,
+        'almacenes': almacenes,
+        'title': 'Crear Compra',
+        'action': 'Crear'
+    }
+
+    return render(request, 'core/compra_form.html', context)
+
+
+@login_required
+def compra_edit(request, folio):
+    """Vista para editar compra"""
+    if not request.user.is_staff:
+        return redirect('login')
+
+    try:
+        compra = Compra.objects.get(folio=folio)
+    except Compra.DoesNotExist:
+        messages.error(request, 'La compra no existe.')
+        return redirect('core:compras_list')
+
+    if request.method == 'POST':
+        form = CompraForm(request.POST, instance=compra)
+        if form.is_valid():
+            compra = form.save()
+            
+            # Procesar detalles si se enviaron
+            if 'detalles' in request.POST:
+                procesar_detalles_compra(request, compra)
+            
+            messages.success(request, f'Compra {compra.folio:06d} actualizada correctamente.')
+            return redirect('core:compras_list')
+    else:
+        form = CompraForm(instance=compra)
+
+    # Obtener detalles de la compra
+    detalles = CompraDetalle.objects.filter(compra=compra).select_related('producto', 'almacen')
+    
+    # Obtener productos y almacenes para el template
+    productos = ProductoServicio.objects.filter(activo=True).order_by('descripcion')
+    almacenes = Almacen.objects.filter(activo=True).order_by('descripcion')
+
+    context = {
+        'form': form,
+        'compra': compra,
+        'detalles': detalles,
+        'productos': productos,
+        'almacenes': almacenes,
+        'title': 'Editar Compra',
+        'action': 'Actualizar'
+    }
+
+    return render(request, 'core/compra_form.html', context)
+
+
+def procesar_detalles_compra(request, compra):
+    """Procesar los detalles de la compra"""
+    import json
+    from decimal import Decimal
+    
+    try:
+        detalles_json = request.POST.get('detalles_data', '[]')
+        print(f"Detalles JSON recibido: {detalles_json}")
+        
+        detalles_data = json.loads(detalles_json)
+        print(f"Detalles parseados: {detalles_data}")
+        
+        # Eliminar detalles existentes
+        CompraDetalle.objects.filter(compra=compra).delete()
+        
+        # Crear nuevos detalles
+        for detalle_data in detalles_data:
+            if not detalle_data:
+                continue
+                
+            # El JavaScript envía los datos con la estructura: {producto: {codigo: ...}, almacen: {codigo: ...}, ...}
+            producto_obj = detalle_data.get('producto', {})
+            almacen_obj = detalle_data.get('almacen', {})
+            
+            producto_codigo = producto_obj.get('codigo') if isinstance(producto_obj, dict) else producto_obj
+            almacen_codigo = almacen_obj.get('codigo') if isinstance(almacen_obj, dict) else almacen_obj
+            cantidad = detalle_data.get('cantidad')
+            precio = detalle_data.get('precio')
+            
+            print(f"Procesando detalle: producto_codigo={producto_codigo}, almacen_codigo={almacen_codigo}, cantidad={cantidad}, precio={precio}")
+            
+            if producto_codigo and almacen_codigo and cantidad and precio:
+                try:
+                    producto = ProductoServicio.objects.get(codigo=producto_codigo)
+                    almacen = Almacen.objects.get(codigo=almacen_codigo)
+                    
+                    detalle = CompraDetalle.objects.create(
+                        compra=compra,
+                        producto=producto,
+                        almacen=almacen,
+                        cantidad=Decimal(str(cantidad)),
+                        precio=Decimal(str(precio))
+                    )
+                    
+                    print(f"Detalle creado exitosamente: {detalle}")
+                    
+                    # Crear movimiento en kardex (temporalmente deshabilitado para evitar errores)
+                    try:
+                        crear_movimiento_kardex(compra, detalle)
+                    except Exception as kardex_error:
+                        print(f"Error en kardex (no crítico): {kardex_error}")
+                        # Continuar sin interrumpir el proceso de compra
+                    
+                except (ProductoServicio.DoesNotExist, Almacen.DoesNotExist, ValueError, TypeError) as e:
+                    print(f"Error procesando detalle: {e}")
+                    print(f"Datos del detalle: {detalle_data}")
+                    continue
+            else:
+                print(f"Datos incompletos en detalle: {detalle_data}")
+                
+    except json.JSONDecodeError as e:
+        print(f"Error decodificando JSON: {e}")
+        print(f"JSON recibido: {detalles_json}")
+    except Exception as e:
+        print(f"Error general procesando detalles: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def crear_movimiento_kardex(compra, detalle):
+    """Crear movimiento en kardex para el detalle de compra"""
+    from django.utils import timezone
+    from decimal import Decimal
+    
+    try:
+        # Obtener la existencia anterior
+        ultimo_movimiento = Kardex.objects.filter(
+            producto=detalle.producto,
+            almacen=detalle.almacen
+        ).order_by('-fecha', '-id').first()
+        
+        existencia_anterior = ultimo_movimiento.existencia_actual if ultimo_movimiento else Decimal('0')
+        existencia_actual = existencia_anterior + detalle.cantidad
+        
+        # Calcular costo promedio anterior
+        costo_promedio_anterior = ultimo_movimiento.costo_promedio_actual if ultimo_movimiento else Decimal('0')
+        
+        # Calcular costo total
+        costo_total = detalle.cantidad * detalle.precio
+        
+        # Calcular costo promedio actual (método de costo promedio)
+        if existencia_anterior > 0:
+            costo_total_anterior = existencia_anterior * costo_promedio_anterior
+            costo_total_actual = costo_total_anterior + costo_total
+            costo_promedio_actual = costo_total_actual / existencia_actual
+        else:
+            costo_promedio_actual = detalle.precio
+        
+        # Crear el movimiento con todos los campos calculados manualmente
+        kardex = Kardex.objects.create(
+            producto=detalle.producto,
+            almacen=detalle.almacen,
+            fecha=timezone.now(),
+            tipo_movimiento='entrada',
+            cantidad=detalle.cantidad,
+            precio_unitario=detalle.precio,
+            costo_total=costo_total,
+            existencia_anterior=existencia_anterior,
+            existencia_actual=existencia_actual,
+            costo_promedio_anterior=costo_promedio_anterior,
+            costo_promedio_actual=costo_promedio_actual,
+            referencia=f"Compra {compra.folio:06d}"
+        )
+        
+        print(f"Movimiento kardex creado exitosamente: {kardex}")
+        
+    except Exception as e:
+        print(f"Error al crear movimiento kardex: {e}")
+        import traceback
+        traceback.print_exc()
+        # No re-lanzar la excepción para que no interrumpa el proceso de compra
+        # El movimiento de kardex es importante pero no crítico para la compra
+
+
+@login_required
+def compra_delete(request, folio):
+    """Vista para eliminar compra"""
+    if not request.user.is_staff:
+        return redirect('login')
+
+    try:
+        compra = Compra.objects.get(folio=folio)
+    except Compra.DoesNotExist:
+        messages.error(request, 'La compra no existe.')
+        return redirect('core:compras_list')
+
+    if request.method == 'POST':
+        folio_num = compra.folio
+        compra.delete()
+        messages.success(request, f'Compra {folio_num:06d} eliminada correctamente.')
+        return redirect('core:compras_list')
+
+    context = {
+        'compra': compra,
+        'title': 'Eliminar Compra'
+    }
+
+    return render(request, 'core/compra_confirm_delete.html', context)
+
+
+@login_required
+def compra_detail(request, folio):
+    """Vista para ver detalle de compra"""
+    if not request.user.is_staff:
+        return redirect('login')
+
+    try:
+        compra = Compra.objects.get(folio=folio)
+    except Compra.DoesNotExist:
+        messages.error(request, 'La compra no existe.')
+        return redirect('core:compras_list')
+
+    # Obtener detalles de la compra
+    detalles = CompraDetalle.objects.filter(compra=compra).select_related('producto', 'almacen')
+
+    context = {
+        'compra': compra,
+        'detalles': detalles,
+        'title': f'Detalle de Compra {compra.folio:06d}'
+    }
+
+    return render(request, 'core/compra_detail.html', context)
+
+
+# ===========================
+# VISTAS PARA KARDEX
+# ===========================
+
+@login_required
+def kardex_list(request):
+    """Vista para listar kardex"""
+    if not request.user.is_staff:
+        return redirect('login')
+
+    # Formulario de búsqueda
+    search_form = KardexSearchForm(request.GET)
+
+    # Query base
+    kardex = Kardex.objects.select_related('producto', 'almacen').all()
+
+    # Aplicar filtros
+    if search_form.is_valid():
+        producto = search_form.cleaned_data.get('producto')
+        almacen = search_form.cleaned_data.get('almacen')
+        tipo_movimiento = search_form.cleaned_data.get('tipo_movimiento')
+        fecha_desde = search_form.cleaned_data.get('fecha_desde')
+        fecha_hasta = search_form.cleaned_data.get('fecha_hasta')
+
+        if producto:
+            kardex = kardex.filter(producto=producto)
+
+        if almacen:
+            kardex = kardex.filter(almacen=almacen)
+
+        if tipo_movimiento:
+            kardex = kardex.filter(tipo_movimiento=tipo_movimiento)
+
+        if fecha_desde:
+            kardex = kardex.filter(fecha__date__gte=fecha_desde)
+
+        if fecha_hasta:
+            kardex = kardex.filter(fecha__date__lte=fecha_hasta)
+
+    # Ordenar por fecha y producto
+    kardex = kardex.order_by('-fecha', 'producto__descripcion')
+
+    # Paginación
+    paginator = Paginator(kardex, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'search_form': search_form,
+        'title': 'Control de Existencias y Costos (Kardex)'
+    }
+
+    return render(request, 'core/kardex_list.html', context)
+
+
+@login_required
+def existencias_list(request):
+    """Vista para mostrar existencias actuales agrupadas por almacén con botón de Kardex"""
+    if not request.user.is_staff:
+        return redirect('login')
+
+    # Obtener las existencias actuales agrupadas por almacén
+    existencias_por_almacen = {}
+    
+    # Obtener todos los almacenes activos
+    almacenes = Almacen.objects.filter(activo=True).order_by('descripcion')
+    
+    for almacen in almacenes:
+        # Obtener todos los productos únicos que tienen movimientos en este almacén
+        productos_con_movimientos = Kardex.objects.filter(
+            almacen=almacen
+        ).values_list('producto', flat=True).distinct()
+        
+        # Obtener información de existencias para cada producto en este almacén
+        productos_existencias = []
+        
+        for producto_id in productos_con_movimientos:
+            try:
+                producto = ProductoServicio.objects.get(codigo=producto_id)
+                
+                # Obtener el último movimiento para este producto/almacén
+                ultimo_movimiento = Kardex.objects.filter(
+                    producto=producto,
+                    almacen=almacen
+                ).order_by('-fecha', '-id').first()
+                
+                # Solo mostrar productos que tienen existencia > 0
+                if ultimo_movimiento and ultimo_movimiento.existencia_actual > 0:
+                    # Verificar si el producto ya está en la lista
+                    producto_ya_existe = any(
+                        p['producto'].codigo == producto.codigo 
+                        for p in productos_existencias
+                    )
+                    
+                    if not producto_ya_existe:
+                        productos_existencias.append({
+                            'producto': producto,
+                            'existencia_actual': ultimo_movimiento.existencia_actual,
+                            'costo_promedio': ultimo_movimiento.costo_promedio_actual,
+                            'valor_inventario': ultimo_movimiento.existencia_actual * ultimo_movimiento.costo_promedio_actual,
+                            'ultimo_movimiento': ultimo_movimiento.fecha
+                        })
+            except ProductoServicio.DoesNotExist:
+                continue
+        
+        # Ordenar productos por descripción
+        productos_existencias.sort(key=lambda x: x['producto'].descripcion)
+        
+        # Solo agregar almacenes que tienen productos con existencia
+        if productos_existencias:
+            # Calcular valor total del almacén
+            valor_total_almacen = sum(p['valor_inventario'] for p in productos_existencias)
+            existencias_por_almacen[almacen] = {
+                'productos': productos_existencias,
+                'valor_total': valor_total_almacen
+            }
+
+    # Calcular estadísticas generales
+    # Contar productos únicos (no duplicados entre almacenes)
+    productos_unicos = set()
+    for almacen_data in existencias_por_almacen.values():
+        for producto_info in almacen_data['productos']:
+            productos_unicos.add(producto_info['producto'].codigo)
+    
+    total_productos = len(productos_unicos)
+    total_almacenes = len(existencias_por_almacen)
+    valor_total_inventario = sum(almacen_data['valor_total'] for almacen_data in existencias_por_almacen.values())
+    
+    context = {
+        'existencias_por_almacen': existencias_por_almacen,
+        'total_productos': total_productos,
+        'total_almacenes': total_almacenes,
+        'valor_total_inventario': valor_total_inventario,
+        'title': 'Control de Existencias y Costos'
+    }
+
+    return render(request, 'core/existencias_list.html', context)
+
+
+@login_required
+def kardex_producto(request, producto_codigo, almacen_codigo):
+    """Vista para mostrar el kardex de un producto específico en un almacén"""
+    if not request.user.is_staff:
+        return redirect('login')
+
+    try:
+        producto = ProductoServicio.objects.get(codigo=producto_codigo)
+        almacen = Almacen.objects.get(codigo=almacen_codigo)
+    except (ProductoServicio.DoesNotExist, Almacen.DoesNotExist):
+        messages.error(request, 'Producto o almacén no encontrado.')
+        return redirect('core:existencias_list')
+
+    # Obtener todos los movimientos del producto en el almacén
+    movimientos = Kardex.objects.filter(
+        producto=producto,
+        almacen=almacen
+    ).order_by('-fecha', '-id')
+
+    # Calcular estadísticas
+    total_entradas = movimientos.filter(tipo_movimiento='entrada').aggregate(
+        total=models.Sum('cantidad')
+    )['total'] or 0
+    
+    total_salidas = movimientos.filter(tipo_movimiento='salida').aggregate(
+        total=models.Sum('cantidad')
+    )['total'] or 0
+    
+    # Obtener existencia actual (último movimiento)
+    ultimo_movimiento = movimientos.first()
+    existencia_actual = ultimo_movimiento.existencia_actual if ultimo_movimiento else 0
+    costo_promedio_actual = ultimo_movimiento.costo_promedio_actual if ultimo_movimiento else 0
+
+    # Paginación
+    paginator = Paginator(movimientos, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'producto': producto,
+        'almacen': almacen,
+        'page_obj': page_obj,
+        'total_entradas': total_entradas,
+        'total_salidas': total_salidas,
+        'existencia_actual': existencia_actual,
+        'costo_promedio_actual': costo_promedio_actual,
+        'title': f'Kardex - {producto.descripcion} - {almacen.descripcion}'
+    }
+
+    return render(request, 'core/kardex_producto.html', context)

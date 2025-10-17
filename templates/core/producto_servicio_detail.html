@@ -78,6 +78,15 @@
                                         <span class="badge bg-danger">Inactivo</span>
                                     {% endif %}
                                 </dd>
+                                
+                                <dt class="col-sm-4">Clasificación de gastos:</dt>
+                                <dd class="col-sm-8">
+                                    {% if producto_servicio.clasificacion_gasto %}
+                                        <span class="badge bg-info">{{ producto_servicio.clasificacion_gasto.descripcion }}</span>
+                                    {% else %}
+                                        <span class="text-muted">No asignada</span>
+                                    {% endif %}
+                                </dd>
                             </dl>
                         </div>
                         <div class="col-md-6">

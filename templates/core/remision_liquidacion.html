@@ -151,12 +151,12 @@
                                             <th>Kgs Liquidados</th>
                                             <th>Precio por Kg</th>
                                             <th>Importe Liquidado</th>
-                                            <th>Dif Peso Promedio</th>
-                                            <th>Dif No Arps</th>
-                                            <th>Dif Kgs Merma</th>
-                                            <th>Dif Kgs Liquidados</th>
-                                            <th>Dif Precio</th>
-                                            <th>Dif Importes</th>
+                                            <th class="d-none">Dif Peso Promedio</th>
+                                            <th class="d-none">Dif No Arps</th>
+                                            <th class="d-none">Dif Kgs Merma</th>
+                                            <th class="d-none">Dif Kgs Liquidados</th>
+                                            <th class="d-none">Dif Precio</th>
+                                            <th class="d-none">Dif Importes</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -249,42 +249,42 @@
                                                        min="0" 
                                                        placeholder="0.00">
                                             </td>
-                                            <td>
+                                            <td class="d-none">
                                                 <input type="text" 
                                                        class="form-control form-control-sm" 
                                                        id="dif_peso_promedio_{{ detalle.pk }}"
                                                        readonly
                                                        style="background-color: #f8f9fa;">
                                             </td>
-                                            <td>
+                                            <td class="d-none">
                                                 <input type="text" 
                                                        class="form-control form-control-sm" 
                                                        id="dif_no_arps_{{ detalle.pk }}"
                                                        readonly
                                                        style="background-color: #f8f9fa;">
                                             </td>
-                                            <td>
+                                            <td class="d-none">
                                                 <input type="text" 
                                                        class="form-control form-control-sm" 
                                                        id="dif_kgs_merma_{{ detalle.pk }}"
                                                        readonly
                                                        style="background-color: #f8f9fa;">
                                             </td>
-                                            <td>
+                                            <td class="d-none">
                                                 <input type="text" 
                                                        class="form-control form-control-sm" 
                                                        id="dif_kgs_liquidados_{{ detalle.pk }}"
                                                        readonly
                                                        style="background-color: #f8f9fa;">
                                             </td>
-                                            <td>
+                                            <td class="d-none">
                                                 <input type="text" 
                                                        class="form-control form-control-sm" 
                                                        id="dif_precio_{{ detalle.pk }}"
                                                        readonly
                                                        style="background-color: #f8f9fa;">
                                             </td>
-                                            <td>
+                                            <td class="d-none">
                                                 <input type="text" 
                                                        class="form-control form-control-sm" 
                                                        id="dif_importes_{{ detalle.pk }}"
@@ -446,9 +446,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const noArpsLiquidados = parseFloat(document.querySelector(`input[name="no_arps_liquidados_${detalleId}"]`).value) || 0;
         // Usar el valor completo del campo hidden (con todos los decimales)
         const pesoPromedioLiquidado = parseFloat(document.querySelector(`input[id="peso_promedio_liquidado_hidden_${detalleId}"]`).value) || 0;
+        const kgsMermaLiquidados = parseFloat(document.querySelector(`input[name="kgs_merma_liquidados_${detalleId}"]`).value) || 0;
         
-        // Calcular: No Arps Liquidados * Peso Promedio Liquidado (con precisión completa)
-        const kgsLiquidados = noArpsLiquidados * pesoPromedioLiquidado;
+        // Calcular: (No Arps Liquidados * Peso Promedio Liquidado) - Kgs Merma Liquidados
+        const kgsLiquidados = (noArpsLiquidados * pesoPromedioLiquidado) - kgsMermaLiquidados;
         
         const kgsLiquidadosInput = document.querySelector(`input[name="kgs_liquidados_${detalleId}"]`);
         kgsLiquidadosInput.value = kgsLiquidados.toFixed(2);
@@ -566,7 +567,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 noArpsInputs.forEach(noArpsInput => {
                     const detalleId = noArpsInput.name.split('_').pop();
                     calcularKgsMermaLiquidados(detalleId);
+                    calcularKgsLiquidados(detalleId); // Recalcular Kgs Liquidados también
                 });
+                calcularTodasLasDiferencias(); // Recalcular todas las diferencias
+            });
+        }
+        
+        // Recalcular Kgs Liquidados cuando cambien los Kgs Merma Liquidados individuales
+        if (input.name.includes('kgs_merma_liquidados_')) {
+            const detalleId = input.name.split('_').pop();
+            input.addEventListener('input', () => {
+                calcularKgsLiquidados(detalleId);
                 calcularTodasLasDiferencias(); // Recalcular todas las diferencias
             });
         }
