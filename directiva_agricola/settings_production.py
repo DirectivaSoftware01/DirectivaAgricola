@@ -10,7 +10,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-me-in-producti
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['89.116.51.217', 'agricola.directiva.mx', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['89.116.51.217', 'agricola.directiva.mx', 'www.agricola.directiva.mx', 'srv1044326.hstgr.cloud', 'localhost', '127.0.0.1']
 
 # Application definition
 INSTALLED_APPS = [

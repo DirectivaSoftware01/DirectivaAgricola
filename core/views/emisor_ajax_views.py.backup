@@ -16,6 +16,9 @@ from ..models import Emisor, Usuario
 @csrf_exempt
 def listar_emisores_ajax(request):
     """Vista AJAX para listar emisores"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
@@ -62,6 +65,9 @@ def listar_emisores_ajax(request):
 @csrf_exempt
 def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
@@ -196,6 +202,9 @@ def agregar_emisor_ajax(request):
 @csrf_exempt
 def obtener_emisor_ajax(request, codigo):
     """Vista AJAX para obtener datos de un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
@@ -236,6 +245,9 @@ def obtener_emisor_ajax(request, codigo):
 @csrf_exempt
 def validar_emisor_ajax(request, codigo):
     """Vista AJAX para validar certificado de un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
@@ -264,6 +276,9 @@ def validar_emisor_ajax(request, codigo):
 @csrf_exempt
 def eliminar_emisor_ajax(request, codigo):
     """Vista AJAX para eliminar un emisor (eliminación lógica)"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
@@ -299,6 +314,9 @@ def eliminar_emisor_ajax(request, codigo):
 @csrf_exempt
 def reactivar_emisor_ajax(request, codigo):
     """Vista AJAX para reactivar un emisor"""
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     

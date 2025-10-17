@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-arrow-left-right text-primary"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:otros_movimientos_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a la Lista
+                </a>
+                <a href="{% url 'core:otro_movimiento_update' movimiento.folio %}" class="btn btn-warning">
+                    <i class="bi bi-pencil"></i> Editar
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información del movimiento -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle"></i> Información del Movimiento
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Folio:</strong> {{ movimiento.folio }}</p>
+                            <p><strong>Fecha:</strong> {{ movimiento.fecha|date:"d/m/Y" }}</p>
+                            <p><strong>Tipo de Movimiento:</strong> 
+                                {% if movimiento.tipo_movimiento == 'entrada' %}
+                                    <span class="badge bg-success">{{ movimiento.get_tipo_movimiento_display }}</span>
+                                {% elif movimiento.tipo_movimiento == 'salida' %}
+                                    <span class="badge bg-danger">{{ movimiento.get_tipo_movimiento_display }}</span>
+                                {% elif movimiento.tipo_movimiento == 'traspaso' %}
+                                    <span class="badge bg-warning">{{ movimiento.get_tipo_movimiento_display }}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Usuario:</strong> {{ movimiento.usuario_creacion.nombre|default:movimiento.usuario_creacion.username }}</p>
+                            <p><strong>Fecha de Creación:</strong> {{ movimiento.fecha_creacion|date:"d/m/Y H:i" }}</p>
+                            <p><strong>Estado:</strong> 
+                                {% if movimiento.activo %}
+                                    <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactivo</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% if movimiento.observaciones %}
+                    <div class="row">
+                        <div class="col-12">
+                            <p><strong>Observaciones:</strong></p>
+                            <p class="text-muted">{{ movimiento.observaciones }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up"></i> Resumen
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Total de productos:</strong> {{ detalles.count }}</p>
+                    <p><strong>Total de cantidad:</strong> {{ detalles|length }}</p>
+                    <p><strong>Costo total:</strong> ${{ detalles|length|floatformat:2 }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalles del movimiento -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list-ul"></i> Detalles del Movimiento
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if detalles %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Producto/Servicio</th>
+                                        <th>Almacén de Origen</th>
+                                        <th>Almacén de Destino</th>
+                                        <th>Cantidad</th>
+                                        <th>Precio Unitario</th>
+                                        <th>Costo Total</th>
+                                        <th>Observaciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for detalle in detalles %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ detalle.producto.descripcion }}</strong><br>
+                                            <small class="text-muted">SKU: {{ detalle.producto.sku }}</small>
+                                        </td>
+                                        <td>
+                                            {% if detalle.almacen_origen %}
+                                                <span class="badge bg-info">{{ detalle.almacen_origen.descripcion }}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if detalle.almacen_destino %}
+                                                <span class="badge bg-success">{{ detalle.almacen_destino.descripcion }}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">{{ detalle.cantidad }}</td>
+                                        <td class="text-end">${{ detalle.precio_unitario|floatformat:2 }}</td>
+                                        <td class="text-end">${{ detalle.costo_total|floatformat:2 }}</td>
+                                        <td>
+                                            {% if detalle.observaciones %}
+                                                <small class="text-muted">{{ detalle.observaciones }}</small>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-inbox display-4 text-muted"></i>
+                            <p class="text-muted mt-2">No hay detalles registrados para este movimiento.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

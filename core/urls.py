@@ -66,6 +66,7 @@ from .factura_ajax_views import (
 )
 from .catalogos_ajax_views import obtener_usos_cfdi_ajax, obtener_autorizo_gastos_ajax, crear_autorizo_gasto_ajax
 from .views.main_views import cancelar_gasto_ajax, almacenes_list, almacen_create, almacen_edit, almacen_delete, compras_list, compra_create, compra_edit, compra_delete, compra_detail, kardex_list, existencias_list, kardex_producto
+from .otros_movimientos_views import otros_movimientos_list, otro_movimiento_create, otro_movimiento_detail, otro_movimiento_update, otro_movimiento_delete, obtener_existencia_producto_otro_movimiento
 # Importar vistas de herramientas de mantenimiento
 from .views.herramientas import (
     estado_sistema, verificar_certificados, actualizar_catalogos, probar_conexion_pac
@@ -306,4 +307,14 @@ urlpatterns = [
     # URLs AJAX para salidas de inventario
     path('ajax/crear-tipo-salida/', crear_tipo_salida, name='crear_tipo_salida'),
     path('ajax/existencia-producto/', obtener_existencia_producto, name='obtener_existencia_producto'),
+    
+    # URLs para otros movimientos
+    path('otros-movimientos/', otros_movimientos_list, name='otros_movimientos_list'),
+    path('otros-movimientos/nuevo/', otro_movimiento_create, name='otro_movimiento_create'),
+    path('otros-movimientos/<int:folio>/', otro_movimiento_detail, name='otro_movimiento_detail'),
+    path('otros-movimientos/<int:folio>/editar/', otro_movimiento_update, name='otro_movimiento_update'),
+    path('otros-movimientos/<int:folio>/eliminar/', otro_movimiento_delete, name='otro_movimiento_delete'),
+    
+    # URLs AJAX para otros movimientos
+    path('ajax/existencia-producto-otro-movimiento/', obtener_existencia_producto_otro_movimiento, name='obtener_existencia_producto_otro_movimiento'),
 ]

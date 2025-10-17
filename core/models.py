@@ -3238,3 +3238,224 @@ class SalidaInventarioDetalle(models.Model):
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Error al crear gasto automático para salida {self.salida.folio}: {str(e)}")
+
+
+class OtroMovimiento(models.Model):
+    """Modelo para otros movimientos de inventario (entradas, salidas, traspasos)"""
+    
+    TIPO_MOVIMIENTO_CHOICES = [
+        ('entrada', 'Otras entradas'),
+        ('salida', 'Otras salidas'),
+        ('traspaso', 'Traspaso entre almacenes'),
+    ]
+    
+    folio = models.AutoField(primary_key=True, verbose_name="Folio")
+    fecha = models.DateField(verbose_name="Fecha del movimiento")
+    tipo_movimiento = models.CharField(
+        max_length=20,
+        choices=TIPO_MOVIMIENTO_CHOICES,
+        verbose_name="Tipo de Movimiento"
+    )
+    observaciones = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones"
+    )
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    fecha_modificacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de modificación")
+    usuario_creacion = models.ForeignKey(
+        Usuario,
+        on_delete=models.PROTECT,
+        related_name='otros_movimientos_creados',
+        verbose_name="Usuario de creación"
+    )
+    
+    class Meta:
+        verbose_name = "Otro Movimiento"
+        verbose_name_plural = "Otros Movimientos"
+        db_table = 'otros_movimientos'
+        ordering = ['-fecha', '-folio']
+    
+    def __str__(self):
+        return f"{self.folio} - {self.get_tipo_movimiento_display()} - {self.fecha}"
+
+
+class OtroMovimientoDetalle(models.Model):
+    """Detalle de productos en otros movimientos"""
+    
+    movimiento = models.ForeignKey(
+        OtroMovimiento,
+        on_delete=models.CASCADE,
+        related_name='detalles',
+        verbose_name="Movimiento"
+    )
+    producto = models.ForeignKey(
+        ProductoServicio,
+        on_delete=models.PROTECT,
+        verbose_name="Producto/Servicio"
+    )
+    almacen_origen = models.ForeignKey(
+        Almacen,
+        on_delete=models.PROTECT,
+        related_name='movimientos_origen',
+        verbose_name="Almacén de origen",
+        null=True,
+        blank=True
+    )
+    almacen_destino = models.ForeignKey(
+        Almacen,
+        on_delete=models.PROTECT,
+        related_name='movimientos_destino',
+        verbose_name="Almacén de destino",
+        null=True,
+        blank=True
+    )
+    cantidad = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Cantidad"
+    )
+    precio_unitario = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name="Precio Unitario"
+    )
+    costo_total = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name="Costo Total"
+    )
+    observaciones = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Observaciones"
+    )
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    
+    class Meta:
+        verbose_name = "Detalle de Otro Movimiento"
+        verbose_name_plural = "Detalles de Otros Movimientos"
+        db_table = 'otros_movimientos_detalle'
+        ordering = ['-fecha_creacion']
+    
+    def __str__(self):
+        return f"{self.movimiento.folio} - {self.producto.descripcion} - {self.cantidad}"
+    
+    def save(self, *args, **kwargs):
+        # Calcular costo total
+        self.costo_total = self.cantidad * self.precio_unitario
+        super().save(*args, **kwargs)
+        
+        # Crear movimientos en Kardex según el tipo
+        self._crear_movimientos_kardex()
+    
+    def _crear_movimientos_kardex(self):
+        """Crear movimientos en Kardex según el tipo de movimiento"""
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        try:
+            if self.movimiento.tipo_movimiento == 'entrada':
+                # Solo entrada al almacén destino
+                self._crear_movimiento_kardex_entrada()
+            elif self.movimiento.tipo_movimiento == 'salida':
+                # Solo salida del almacén origen
+                self._crear_movimiento_kardex_salida()
+            elif self.movimiento.tipo_movimiento == 'traspaso':
+                # Salida del origen y entrada al destino
+                self._crear_movimiento_kardex_salida()
+                self._crear_movimiento_kardex_entrada()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al crear movimientos Kardex para otro movimiento {self.movimiento.folio}: {str(e)}")
+    
+    def _crear_movimiento_kardex_entrada(self):
+        """Crear movimiento de entrada en Kardex"""
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        almacen = self.almacen_destino or self.almacen_origen
+        if not almacen:
+            return
+            
+        # Obtener último movimiento
+        ultimo_movimiento = Kardex.objects.filter(
+            producto=self.producto,
+            almacen=almacen
+        ).order_by('-fecha', '-id').first()
+        
+        existencia_anterior = ultimo_movimiento.existencia_actual if ultimo_movimiento else Decimal('0')
+        costo_promedio_anterior = ultimo_movimiento.costo_promedio_actual if ultimo_movimiento else Decimal('0')
+        
+        # Calcular nueva existencia y costo promedio
+        existencia_actual = existencia_anterior + self.cantidad
+        
+        if existencia_anterior > 0:
+            # Calcular costo promedio ponderado
+            costo_total_anterior = existencia_anterior * costo_promedio_anterior
+            costo_total_nuevo = self.cantidad * self.precio_unitario
+            costo_promedio_actual = (costo_total_anterior + costo_total_nuevo) / existencia_actual
+        else:
+            costo_promedio_actual = self.precio_unitario
+        
+        # Crear movimiento
+        Kardex.objects.create(
+            producto=self.producto,
+            almacen=almacen,
+            fecha=timezone.now(),
+            tipo_movimiento='entrada',
+            cantidad=self.cantidad,
+            precio_unitario=self.precio_unitario,
+            costo_total=self.costo_total,
+            existencia_anterior=existencia_anterior,
+            existencia_actual=existencia_actual,
+            costo_promedio_anterior=costo_promedio_anterior,
+            costo_promedio_actual=costo_promedio_actual,
+            referencia=f"OTRO-{self.movimiento.folio}"
+        )
+    
+    def _crear_movimiento_kardex_salida(self):
+        """Crear movimiento de salida en Kardex"""
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        almacen = self.almacen_origen
+        if not almacen:
+            return
+            
+        # Obtener último movimiento
+        ultimo_movimiento = Kardex.objects.filter(
+            producto=self.producto,
+            almacen=almacen
+        ).order_by('-fecha', '-id').first()
+        
+        if not ultimo_movimiento or ultimo_movimiento.existencia_actual < self.cantidad:
+            raise ValueError(f"Existencia insuficiente en {almacen.descripcion}")
+        
+        existencia_anterior = ultimo_movimiento.existencia_actual
+        costo_promedio_anterior = ultimo_movimiento.costo_promedio_actual
+        
+        # Calcular nueva existencia (costo promedio se mantiene)
+        existencia_actual = existencia_anterior - self.cantidad
+        costo_promedio_actual = costo_promedio_anterior
+        
+        # Crear movimiento
+        Kardex.objects.create(
+            producto=self.producto,
+            almacen=almacen,
+            fecha=timezone.now(),
+            tipo_movimiento='salida',
+            cantidad=self.cantidad,
+            precio_unitario=self.precio_unitario,
+            costo_total=self.costo_total,
+            existencia_anterior=existencia_anterior,
+            existencia_actual=existencia_actual,
+            costo_promedio_anterior=costo_promedio_anterior,
+            costo_promedio_actual=costo_promedio_actual,
+            referencia=f"OTRO-{self.movimiento.folio}"
+        )

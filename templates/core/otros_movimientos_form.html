@@ -1,0 +1,567 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            <i class="bi bi-arrow-left-right text-primary"></i>
+            {{ title }}
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{% url 'core:otros_movimientos_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver a la Lista
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario con Pestañas -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" id="movimientoForm">
+                        {% csrf_token %}
+                        <input type="hidden" id="detallesData" name="detalles_data" value="">
+
+                        <!-- Pestañas -->
+                        <ul class="nav nav-tabs" id="movimientoTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab" aria-controls="info" aria-selected="true">
+                                    <i class="bi bi-info-circle"></i> Información del Movimiento
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="detalle-tab" data-bs-toggle="tab" data-bs-target="#detalle" type="button" role="tab" aria-controls="detalle" aria-selected="false">
+                                    <i class="bi bi-list-ul"></i> Detalle del Movimiento
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Contenido de las pestañas -->
+                        <div class="tab-content" id="movimientoTabsContent">
+                            
+                            <!-- Pestaña 1: Información del Movimiento -->
+                            <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
+                                <div class="p-4">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="{{ form.fecha.id_for_label }}" class="form-label">
+                                                    {{ form.fecha.label }} <span class="text-danger">*</span>
+                                                </label>
+                                                {{ form.fecha }}
+                                                {% if form.fecha.errors %}
+                                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        {{ form.fecha.errors.0 }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="{{ form.tipo_movimiento.id_for_label }}" class="form-label">
+                                                    {{ form.tipo_movimiento.label }} <span class="text-danger">*</span>
+                                                </label>
+                                                {{ form.tipo_movimiento }}
+                                                {% if form.tipo_movimiento.errors %}
+                                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        {{ form.tipo_movimiento.errors.0 }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <div class="mb-3">
+                                                <label for="{{ form.observaciones.id_for_label }}" class="form-label">
+                                                    {{ form.observaciones.label }}
+                                                </label>
+                                                {{ form.observaciones }}
+                                                {% if form.observaciones.errors %}
+                                                    <div class="alert alert-danger alert-sm mt-2 mb-0">
+                                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        {{ form.observaciones.errors.0 }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Errores generales del formulario -->
+                                    {% if form.non_field_errors %}
+                                        <div class="alert alert-danger">
+                                            {% for error in form.non_field_errors %}
+                                                <div>{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Pestaña 2: Detalle del Movimiento -->
+                            <div class="tab-pane fade" id="detalle" role="tabpanel" aria-labelledby="detalle-tab">
+                                <div class="p-4">
+                                    <!-- Botón para agregar productos -->
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <h6 class="mb-0"><i class="bi bi-list-ul"></i> Productos del Movimiento</h6>
+                                        <button type="button" class="btn btn-success btn-sm" id="add-producto-btn" data-bs-toggle="modal" data-bs-target="#productoModal">
+                                            <i class="bi bi-plus-circle"></i> Agregar Producto
+                                        </button>
+                                    </div>
+
+                                    <!-- Tabla de productos temporales -->
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Producto/Servicio</th>
+                                                    <th id="almacen-origen-header">Almacén de Origen</th>
+                                                    <th id="almacen-destino-header">Almacén de Destino</th>
+                                                    <th>Cantidad</th>
+                                                    <th>Precio Unitario</th>
+                                                    <th>Costo Total</th>
+                                                    <th>Existencia Disponible</th>
+                                                    <th>Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="productos-tbody">
+                                                <!-- Los productos temporales se agregarán aquí -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    <!-- Resumen de Totales Temporales -->
+                                    <div class="row mt-4" id="resumen-temporales">
+                                        <div class="col-md-6">
+                                            <div class="card bg-light">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">Resumen del Movimiento</h6>
+                                                    <p class="mb-1"><strong>Total de productos:</strong> <span id="total-productos">0</span></p>
+                                                    <p class="mb-1"><strong>Total de cantidad:</strong> <span id="total-cantidad">0</span></p>
+                                                    <p class="mb-0"><strong>Costo total:</strong> $<span id="costo-total">0.00</span></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botones de acción -->
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'core:otros_movimientos_list' %}" class="btn btn-secondary">
+                                    <i class="bi bi-x-circle"></i> Cancelar
+                                </a>
+                                <button type="submit" class="btn btn-primary" id="guardar-movimiento-btn">
+                                    <i class="bi bi-check-circle"></i> Guardar Movimiento
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para agregar productos -->
+<div class="modal fade" id="productoModal" tabindex="-1" aria-labelledby="productoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="productoModalLabel">
+                    <i class="bi bi-plus-circle"></i> Agregar Producto
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="producto-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="producto-select" class="form-label">Producto/Servicio <span class="text-danger">*</span></label>
+                                <select class="form-select" id="producto-select" required>
+                                    <option value="">Seleccionar producto...</option>
+                                    {% for producto in productos %}
+                                        <option value="{{ producto.codigo }}" 
+                                                data-descripcion="{{ producto.descripcion }}"
+                                                data-sku="{{ producto.sku }}">
+                                            {{ producto.descripcion }} - {{ producto.sku }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="almacen-origen-select" class="form-label" id="almacen-origen-label">Almacén de Origen <span class="text-danger">*</span></label>
+                                <select class="form-select" id="almacen-origen-select" required>
+                                    <option value="">Seleccionar almacén...</option>
+                                    {% for almacen in almacenes %}
+                                        <option value="{{ almacen.codigo }}" 
+                                                data-descripcion="{{ almacen.descripcion }}">
+                                            {{ almacen.descripcion }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" id="almacen-destino-row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="almacen-destino-select" class="form-label" id="almacen-destino-label">Almacén de Destino <span class="text-danger">*</span></label>
+                                <select class="form-select" id="almacen-destino-select">
+                                    <option value="">Seleccionar almacén...</option>
+                                    {% for almacen in almacenes %}
+                                        <option value="{{ almacen.codigo }}" 
+                                                data-descripcion="{{ almacen.descripcion }}">
+                                            {{ almacen.descripcion }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" id="cantidad-row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cantidad-input-simple" class="form-label">Cantidad <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="cantidad-input-simple" step="0.01" min="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="precio-input" class="form-label">Precio Unitario <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="precio-input" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Existencia Disponible</label>
+                                <div class="form-control-plaintext" id="existencia-disponible">
+                                    Seleccione producto y almacén
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="observaciones-input" class="form-label">Observaciones</label>
+                                <textarea class="form-control" id="observaciones-input" rows="2"></textarea>
+                            </div>
+                        </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="agregar-producto-btn">Agregar Producto</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let productosTemporales = [];
+    let tipoMovimiento = '';
+    
+    // Función para actualizar labels según tipo de movimiento
+    function actualizarLabels() {
+        const tipoSelect = document.getElementById('id_tipo_movimiento');
+        const origenLabel = document.getElementById('almacen-origen-label');
+        const destinoLabel = document.getElementById('almacen-destino-label');
+        const origenHeader = document.getElementById('almacen-origen-header');
+        const destinoHeader = document.getElementById('almacen-destino-header');
+        const destinoRow = document.getElementById('almacen-destino-row');
+        const cantidadRow = document.getElementById('cantidad-row');
+        const origenSelect = document.getElementById('almacen-origen-select');
+        const destinoSelect = document.getElementById('almacen-destino-select');
+        
+        if (tipoSelect.value === 'entrada') {
+            origenLabel.textContent = 'Almacén de Destino';
+            destinoLabel.textContent = 'Almacén de Destino';
+            origenHeader.textContent = 'Almacén de Destino';
+            destinoHeader.textContent = 'Almacén de Destino';
+            destinoRow.style.display = 'none';
+            cantidadRow.style.display = 'flex';
+            origenSelect.required = true;
+            destinoSelect.required = false;
+        } else if (tipoSelect.value === 'salida') {
+            origenLabel.textContent = 'Almacén de Origen';
+            destinoLabel.textContent = 'Almacén de Origen';
+            origenHeader.textContent = 'Almacén de Origen';
+            destinoHeader.textContent = 'Almacén de Origen';
+            destinoRow.style.display = 'none';
+            cantidadRow.style.display = 'flex';
+            origenSelect.required = true;
+            destinoSelect.required = false;
+        } else if (tipoSelect.value === 'traspaso') {
+            origenLabel.textContent = 'Almacén de Salida';
+            destinoLabel.textContent = 'Almacén de Ingreso';
+            origenHeader.textContent = 'Almacén de Salida';
+            destinoHeader.textContent = 'Almacén de Ingreso';
+            destinoRow.style.display = 'block';
+            cantidadRow.style.display = 'flex';
+            origenSelect.required = true;
+            destinoSelect.required = true;
+        } else {
+            // Ocultar todos los campos si no hay tipo seleccionado
+            destinoRow.style.display = 'none';
+            cantidadRow.style.display = 'none';
+        }
+    }
+    
+    // Event listener para cambio de tipo de movimiento
+    document.getElementById('id_tipo_movimiento').addEventListener('change', function() {
+        tipoMovimiento = this.value;
+        actualizarLabels();
+    });
+    
+    // Inicializar labels al cargar la página
+    actualizarLabels();
+    
+    // Función para actualizar existencia
+    function actualizarExistencia() {
+        const productoSelect = document.getElementById('producto-select');
+        const almacenSelect = document.getElementById('almacen-origen-select');
+        const existenciaDiv = document.getElementById('existencia-disponible');
+        
+        if (productoSelect.value && almacenSelect.value) {
+            fetch('/ajax/existencia-producto-otro-movimiento/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: `producto_id=${productoSelect.value}&almacen_id=${almacenSelect.value}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    existenciaDiv.textContent = `${data.existencia} unidades`;
+                    existenciaDiv.className = 'form-control-plaintext text-success';
+                } else {
+                    existenciaDiv.textContent = 'Error al obtener existencia';
+                    existenciaDiv.className = 'form-control-plaintext text-danger';
+                }
+            })
+            .catch(error => {
+                existenciaDiv.textContent = 'Error al obtener existencia';
+                existenciaDiv.className = 'form-control-plaintext text-danger';
+            });
+        } else {
+            existenciaDiv.textContent = 'Seleccione producto y almacén';
+            existenciaDiv.className = 'form-control-plaintext';
+        }
+    }
+    
+    // Event listeners para actualizar existencia
+    document.getElementById('producto-select').addEventListener('change', actualizarExistencia);
+    document.getElementById('almacen-origen-select').addEventListener('change', actualizarExistencia);
+    
+    // Función para agregar producto
+    document.getElementById('agregar-producto-btn').addEventListener('click', function() {
+        const productoSelect = document.getElementById('producto-select');
+        const almacenOrigenSelect = document.getElementById('almacen-origen-select');
+        const almacenDestinoSelect = document.getElementById('almacen-destino-select');
+        // Obtener cantidad del campo correcto según el tipo de movimiento
+        let cantidad;
+        if (tipoMovimiento === 'traspaso') {
+            cantidad = parseFloat(document.getElementById('cantidad-input-simple').value);
+        } else {
+            cantidad = parseFloat(document.getElementById('cantidad-input-simple').value);
+        }
+        const precio = parseFloat(document.getElementById('precio-input').value);
+        const observaciones = document.getElementById('observaciones-input').value;
+        
+        // Validar campos
+        if (!productoSelect.value || !almacenOrigenSelect.value) {
+            alert('Por favor complete todos los campos requeridos.');
+            return;
+        }
+        
+        if (tipoMovimiento === 'traspaso' && !almacenDestinoSelect.value) {
+            alert('Para traspasos debe seleccionar almacén de destino.');
+            return;
+        }
+        
+        if (isNaN(cantidad) || cantidad <= 0) {
+            alert('Por favor ingrese una cantidad válida mayor a 0.');
+            return;
+        }
+        
+        if (isNaN(precio) || precio < 0) {
+            alert('Por favor ingrese un precio válido mayor o igual a 0.');
+            return;
+        }
+        
+        // Obtener datos
+        const productoOption = productoSelect.options[productoSelect.selectedIndex];
+        const almacenOrigenOption = almacenOrigenSelect.options[almacenOrigenSelect.selectedIndex];
+        const almacenDestinoOption = almacenDestinoSelect.options[almacenDestinoSelect.selectedIndex];
+        
+        const producto = {
+            codigo: productoSelect.value,
+            descripcion: productoOption.dataset.descripcion,
+            sku: productoOption.dataset.sku,
+            almacen_origen: {
+                codigo: almacenOrigenSelect.value,
+                descripcion: almacenOrigenOption.dataset.descripcion
+            },
+            almacen_destino: tipoMovimiento === 'traspaso' ? {
+                codigo: almacenDestinoSelect.value,
+                descripcion: almacenDestinoOption.dataset.descripcion
+            } : null,
+            cantidad: cantidad,
+            precio_unitario: precio,
+            costo_total: cantidad * precio,
+            observaciones: observaciones
+        };
+        
+        // Verificar si ya existe
+        const existe = productosTemporales.some(p => 
+            p.codigo === producto.codigo && 
+            p.almacen_origen.codigo === producto.almacen_origen.codigo &&
+            (tipoMovimiento !== 'traspaso' || p.almacen_destino?.codigo === producto.almacen_destino?.codigo)
+        );
+        
+        if (existe) {
+            alert('Este producto ya está agregado para esta combinación de almacenes.');
+            return;
+        }
+        
+        // Agregar a la lista
+        productosTemporales.push(producto);
+        actualizarTabla();
+        
+        // Limpiar formulario
+        document.getElementById('producto-form').reset();
+        document.getElementById('existencia-disponible').textContent = 'Seleccione producto y almacén';
+        document.getElementById('existencia-disponible').className = 'form-control-plaintext';
+        
+        // Cerrar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('productoModal'));
+        modal.hide();
+    });
+    
+    // Función para actualizar tabla
+    function actualizarTabla() {
+        const tbody = document.getElementById('productos-tbody');
+        tbody.innerHTML = '';
+        
+        productosTemporales.forEach((producto, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <strong>${producto.descripcion}</strong><br>
+                    <small class="text-muted">SKU: ${producto.sku}</small>
+                </td>
+                <td>${producto.almacen_origen.descripcion}</td>
+                <td>${producto.almacen_destino ? producto.almacen_destino.descripcion : '-'}</td>
+                <td class="text-end">${producto.cantidad}</td>
+                <td class="text-end">$${producto.precio_unitario.toFixed(2)}</td>
+                <td class="text-end">$${producto.costo_total.toFixed(2)}</td>
+                <td class="text-center">
+                    <span class="badge bg-info" id="existencia-${index}">Consultando...</span>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="eliminarProducto(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+            
+            // Obtener existencia
+            fetch('/ajax/existencia-producto-otro-movimiento/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: `producto_id=${producto.codigo}&almacen_id=${producto.almacen_origen.codigo}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.getElementById(`existencia-${index}`);
+                if (data.success) {
+                    badge.textContent = `${data.existencia} unidades`;
+                    badge.className = data.existencia >= producto.cantidad ? 'badge bg-success' : 'badge bg-warning';
+                } else {
+                    badge.textContent = 'Error';
+                    badge.className = 'badge bg-danger';
+                }
+            });
+        });
+        
+        // Actualizar resumen
+        document.getElementById('total-productos').textContent = productosTemporales.length;
+        document.getElementById('total-cantidad').textContent = productosTemporales.reduce((sum, p) => sum + p.cantidad, 0);
+        document.getElementById('costo-total').textContent = productosTemporales.reduce((sum, p) => sum + p.costo_total, 0).toFixed(2);
+        
+        // Actualizar datos ocultos
+        document.getElementById('detallesData').value = JSON.stringify(productosTemporales.map(p => ({
+            producto: p.codigo,
+            almacen_origen: p.almacen_origen.codigo,
+            almacen_destino: p.almacen_destino ? p.almacen_destino.codigo : null,
+            cantidad: p.cantidad,
+            precio_unitario: p.precio_unitario,
+            observaciones: p.observaciones
+        })));
+    }
+    
+    // Función para eliminar producto
+    window.eliminarProducto = function(index) {
+        productosTemporales.splice(index, 1);
+        actualizarTabla();
+    };
+    
+    // Establecer fecha actual por defecto
+    const fechaInput = document.getElementById('id_fecha');
+    if (fechaInput && !fechaInput.value) {
+        const hoy = new Date();
+        const fechaFormateada = hoy.toISOString().split('T')[0];
+        fechaInput.value = fechaFormateada;
+    }
+    
+    // Validación del formulario principal
+    document.getElementById('movimientoForm').addEventListener('submit', function(e) {
+        if (productosTemporales.length === 0) {
+            e.preventDefault();
+            alert('Debe agregar al menos un producto al movimiento.');
+            return;
+        }
+        
+        // Validar que todas las cantidades sean válidas
+        const cantidadesInvalidas = productosTemporales.some(p => p.cantidad <= 0);
+        if (cantidadesInvalidas) {
+            e.preventDefault();
+            alert('Todas las cantidades deben ser mayores a 0.');
+            return;
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Almacen, Compra, CompraDetalle, Kardex, TipoSalida, SalidaInventario, SalidaInventarioDetalle
+from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Almacen, Compra, CompraDetalle, Kardex, TipoSalida, SalidaInventario, SalidaInventarioDetalle, OtroMovimiento, OtroMovimientoDetalle
 import re
 
 class DecimalFieldWithRounding(forms.DecimalField):
