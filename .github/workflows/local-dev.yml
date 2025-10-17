@@ -1,0 +1,160 @@
+name: Local Development Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      setup_type:
+        description: 'Type of setup'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - quick
+        - database-only
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Create virtual environment
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+        
+    - name: Run Django checks
+      run: |
+        source venv/bin/activate
+        python manage.py check --settings=directiva_agricola.settings_simple
+        
+    - name: Create development database
+      if: github.event.inputs.setup_type == 'full' || github.event.inputs.setup_type == 'database-only'
+      run: |
+        source venv/bin/activate
+        python manage.py migrate --settings=directiva_agricola.settings_simple
+        python manage.py migrate --database=administracion --settings=directiva_agricola.settings_simple
+        
+    - name: Create superuser
+      if: github.event.inputs.setup_type == 'full'
+      run: |
+        source venv/bin/activate
+        python manage.py shell --settings=directiva_agricola.settings_simple -c "
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser('admin', 'admin@directiva.mx', 'admin123')
+            print('Superusuario creado')
+        else:
+            print('Superusuario ya existe')
+        "
+        
+    - name: Load sample data
+      if: github.event.inputs.setup_type == 'full'
+      run: |
+        source venv/bin/activate
+        python manage.py shell --settings=directiva_agricola.settings_simple -c "
+        from core.models import ConfiguracionSistema, Cliente, RegimenFiscal
+        from django.utils import timezone
+        from django.contrib.auth import get_user_model
+        
+        User = get_user_model()
+        admin_user = User.objects.get(username='admin')
+        
+        # Crear configuración del sistema
+        config, created = ConfiguracionSistema.objects.get_or_create(
+            defaults={
+                'ciclo_actual': '2025-2026',
+                'nombre_pac': 'Demo PAC',
+                'contrato': 'DEMO123',
+                'usuario_pac': 'demo_user',
+                'password_pac': 'demo_pass',
+                'password_llave': 'demo_key_pass',
+                'fecha_creacion': timezone.now(),
+                'fecha_modificacion': timezone.now(),
+                'direccion': 'Calle Demo 123, Ciudad Demo',
+                'razon_social': 'Directiva Agrícola Demo',
+                'rfc': 'DAG123456789',
+                'telefono': '5551234567',
+                'usuario_creacion_id': admin_user.id
+            }
+        )
+        
+        # Crear régimen fiscal
+        regimen, created = RegimenFiscal.objects.get_or_create(
+            codigo='601',
+            defaults={
+                'descripcion': 'General de Ley Personas Morales',
+                'activo': True,
+                'fecha_creacion': timezone.now()
+            }
+        )
+        
+        # Crear cliente demo
+        cliente, created = Cliente.objects.get_or_create(
+            rfc='CLI123456789',
+            defaults={
+                'razon_social': 'Cliente Demo S.A. de C.V.',
+                'codigo_postal': '12345',
+                'domicilio': 'Calle Cliente 123, Ciudad Demo',
+                'telefono': '5551234567',
+                'email_principal': 'cliente@demo.com',
+                'activo': True,
+                'fecha_creacion': timezone.now(),
+                'fecha_modificacion': timezone.now(),
+                'usuario_creacion_id': admin_user.id,
+                'regimen_fiscal_id': regimen.id,
+                'ciudad': 'Ciudad Demo',
+                'estado': 'Estado Demo'
+            }
+        )
+        
+        print('Datos de ejemplo creados exitosamente')
+        "
+        
+    - name: Generate setup instructions
+      run: |
+        echo "# Instrucciones para Desarrollo Local" > setup_instructions.md
+        echo "" >> setup_instructions.md
+        echo "## Configuración Completada" >> setup_instructions.md
+        echo "" >> setup_instructions.md
+        echo "### Para ejecutar la aplicación localmente:" >> setup_instructions.md
+        echo "1. Activar el entorno virtual:" >> setup_instructions.md
+        echo "   \`\`\`bash" >> setup_instructions.md
+        echo "   source venv/bin/activate" >> setup_instructions.md
+        echo "   \`\`\`" >> setup_instructions.md
+        echo "" >> setup_instructions.md
+        echo "2. Ejecutar el servidor de desarrollo:" >> setup_instructions.md
+        echo "   \`\`\`bash" >> setup_instructions.md
+        echo "   python manage.py runserver --settings=directiva_agricola.settings_simple" >> setup_instructions.md
+        echo "   \`\`\`" >> setup_instructions.md
+        echo "" >> setup_instructions.md
+        echo "3. Acceder a la aplicación:" >> setup_instructions.md
+        echo "   - URL: http://127.0.0.1:8000" >> setup_instructions.md
+        echo "   - Usuario: admin" >> setup_instructions.md
+        echo "   - Contraseña: admin123" >> setup_instructions.md
+        echo "" >> setup_instructions.md
+        echo "### Comandos útiles:" >> setup_instructions.md
+        echo "- \`python manage.py shell --settings=directiva_agricola.settings_simple\`" >> setup_instructions.md
+        echo "- \`python manage.py migrate --settings=directiva_agricola.settings_simple\`" >> setup_instructions.md
+        echo "- \`python manage.py collectstatic --settings=directiva_agricola.settings_simple\`" >> setup_instructions.md
+        
+    - name: Upload setup instructions
+      uses: actions/upload-artifact@v3
+      with:
+        name: setup-instructions
+        path: setup_instructions.md

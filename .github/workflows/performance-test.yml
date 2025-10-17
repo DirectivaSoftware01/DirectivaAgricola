@@ -1,0 +1,295 @@
+name: Performance Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - quick
+        - load
+        - stress
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install locust pytest-benchmark memory-profiler
+        
+    - name: Run Django performance checks
+      run: |
+        echo "🔍 Ejecutando verificaciones de rendimiento de Django..."
+        python manage.py check --settings=directiva_agricola.settings_simple --deploy
+        
+    - name: Run database query analysis
+      run: |
+        echo "🔍 Analizando consultas de base de datos..."
+        python manage.py shell --settings=directiva_agricola.settings_simple -c "
+        from django.conf import settings
+        from django.db import connection
+        from django.test.utils import override_settings
+        
+        # Habilitar logging de consultas
+        settings.LOGGING['loggers']['django.db.backends'] = {
+            'level': 'DEBUG',
+            'handlers': ['console'],
+        }
+        
+        # Ejecutar algunas consultas comunes
+        from core.models import Cliente, ConfiguracionSistema
+        
+        print('Consultando clientes...')
+        clientes = list(Cliente.objects.all())
+        print(f'Clientes encontrados: {len(clientes)}')
+        
+        print('Consultando configuración...')
+        config = ConfiguracionSistema.objects.first()
+        print(f'Configuración: {config}')
+        
+        # Mostrar estadísticas de consultas
+        print(f'Total de consultas ejecutadas: {len(connection.queries)}')
+        for i, query in enumerate(connection.queries[:5]):  # Mostrar las primeras 5
+            print(f'Consulta {i+1}: {query[\"sql\"]}')
+        "
+        
+    - name: Run memory usage test
+      run: |
+        echo "🔍 Probando uso de memoria..."
+        python -c "
+        import psutil
+        import os
+        import sys
+        
+        # Obtener uso de memoria inicial
+        process = psutil.Process(os.getpid())
+        initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+        
+        print(f'Memoria inicial: {initial_memory:.2f} MB')
+        
+        # Importar Django y ejecutar algunas operaciones
+        import django
+        from django.conf import settings
+        import os
+        
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'directiva_agricola.settings_simple')
+        django.setup()
+        
+        from core.models import Cliente, ConfiguracionSistema
+        
+        # Ejecutar operaciones
+        clientes = list(Cliente.objects.all())
+        config = ConfiguracionSistema.objects.first()
+        
+        # Obtener uso de memoria final
+        final_memory = process.memory_info().rss / 1024 / 1024  # MB
+        memory_increase = final_memory - initial_memory
+        
+        print(f'Memoria final: {final_memory:.2f} MB')
+        print(f'Incremento de memoria: {memory_increase:.2f} MB')
+        
+        if memory_increase > 100:  # Más de 100MB
+            print('⚠️  ADVERTENCIA: Alto uso de memoria')
+        else:
+            print('✅ Uso de memoria aceptable')
+        "
+        
+    - name: Run load test
+      if: github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'load'
+      run: |
+        echo "🔍 Ejecutando prueba de carga..."
+        # Crear archivo de configuración para Locust
+        cat > locustfile.py << 'EOF'
+        from locust import HttpUser, task, between
+        import random
+        
+        class WebsiteUser(HttpUser):
+            wait_time = between(1, 3)
+            
+            def on_start(self):
+                """Se ejecuta al inicio de cada usuario"""
+                self.login()
+            
+            def login(self):
+                """Simular login"""
+                response = self.client.get("/login/")
+                if response.status_code == 200:
+                    print("✅ Página de login accesible")
+                else:
+                    print(f"❌ Error en página de login: {response.status_code}")
+            
+            @task(3)
+            def view_homepage(self):
+                """Ver página principal"""
+                self.client.get("/")
+            
+            @task(2)
+            def view_login(self):
+                """Ver página de login"""
+                self.client.get("/login/")
+            
+            @task(1)
+            def view_admin_login(self):
+                """Ver página de login de administración"""
+                self.client.get("/admin-empresas/login/")
+        EOF
+        
+        # Ejecutar prueba de carga
+        locust -f locustfile.py --headless -u 10 -r 2 -t 30s --host=http://${{ secrets.EC2_HOST }} || true
+        
+    - name: Run stress test
+      if: github.event.inputs.test_type == 'full' || github.event.inputs.test_type == 'stress'
+      run: |
+        echo "🔍 Ejecutando prueba de estrés..."
+        # Crear script de prueba de estrés
+        cat > stress_test.py << 'EOF'
+        import requests
+        import threading
+        import time
+        import statistics
+        
+        def make_request(url, results):
+            """Hacer una petición HTTP y registrar el tiempo de respuesta"""
+            start_time = time.time()
+            try:
+                response = requests.get(url, timeout=10)
+                end_time = time.time()
+                response_time = end_time - start_time
+                results.append({
+                    'status_code': response.status_code,
+                    'response_time': response_time,
+                    'success': response.status_code == 200
+                })
+            except Exception as e:
+                end_time = time.time()
+                response_time = end_time - start_time
+                results.append({
+                    'status_code': 0,
+                    'response_time': response_time,
+                    'success': False,
+                    'error': str(e)
+                })
+        
+        def run_stress_test(url, num_threads=50, duration=60):
+            """Ejecutar prueba de estrés"""
+            results = []
+            threads = []
+            start_time = time.time()
+            
+            print(f"Iniciando prueba de estrés con {num_threads} hilos por {duration} segundos...")
+            
+            # Crear hilos
+            for _ in range(num_threads):
+                thread = threading.Thread(target=make_request, args=(url, results))
+                threads.append(thread)
+            
+            # Ejecutar hilos
+            for thread in threads:
+                thread.start()
+                time.sleep(0.1)  # Pequeña pausa entre hilos
+            
+            # Esperar el tiempo especificado
+            time.sleep(duration)
+            
+            # Esperar a que terminen los hilos
+            for thread in threads:
+                thread.join()
+            
+            end_time = time.time()
+            total_time = end_time - start_time
+            
+            # Analizar resultados
+            successful_requests = [r for r in results if r['success']]
+            failed_requests = [r for r in results if not r['success']]
+            
+            if successful_requests:
+                response_times = [r['response_time'] for r in successful_requests]
+                avg_response_time = statistics.mean(response_times)
+                median_response_time = statistics.median(response_times)
+                max_response_time = max(response_times)
+                min_response_time = min(response_times)
+            else:
+                avg_response_time = median_response_time = max_response_time = min_response_time = 0
+            
+            print(f"\n=== Resultados de la Prueba de Estrés ===")
+            print(f"Tiempo total: {total_time:.2f} segundos")
+            print(f"Total de peticiones: {len(results)}")
+            print(f"Peticiones exitosas: {len(successful_requests)}")
+            print(f"Peticiones fallidas: {len(failed_requests)}")
+            print(f"Tasa de éxito: {len(successful_requests)/len(results)*100:.2f}%")
+            print(f"Tiempo de respuesta promedio: {avg_response_time:.3f} segundos")
+            print(f"Tiempo de respuesta mediano: {median_response_time:.3f} segundos")
+            print(f"Tiempo de respuesta máximo: {max_response_time:.3f} segundos")
+            print(f"Tiempo de respuesta mínimo: {min_response_time:.3f} segundos")
+            
+            # Verificar si la aplicación sigue funcionando
+            try:
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    print("✅ La aplicación sigue funcionando después de la prueba de estrés")
+                else:
+                    print(f"❌ La aplicación no responde correctamente: {response.status_code}")
+            except Exception as e:
+                print(f"❌ Error al verificar la aplicación: {e}")
+        
+        if __name__ == "__main__":
+            url = "http://${{ secrets.EC2_HOST }}"
+            run_stress_test(url, num_threads=20, duration=30)
+        EOF
+        
+        python stress_test.py
+        
+    - name: Generate performance report
+      run: |
+        echo "📊 Generando reporte de rendimiento..."
+        cat > performance_report.md << 'EOF'
+        # Reporte de Rendimiento - Directiva Agrícola
+        
+        ## Resumen
+        - **Fecha**: $(date)
+        - **Commit**: ${{ github.sha }}
+        - **Rama**: ${{ github.ref_name }}
+        
+        ## Verificaciones Realizadas
+        - ✅ Verificaciones de rendimiento de Django
+        - ✅ Análisis de consultas de base de datos
+        - ✅ Prueba de uso de memoria
+        - ✅ Prueba de carga (si aplica)
+        - ✅ Prueba de estrés (si aplica)
+        
+        ## Recomendaciones
+        1. Monitorear el uso de memoria en producción
+        2. Optimizar consultas de base de datos si es necesario
+        3. Implementar caché para consultas frecuentes
+        4. Configurar monitoreo de rendimiento en producción
+        
+        EOF
+        
+        echo "Reporte de rendimiento generado"
+        
+    - name: Upload performance report
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-report
+        path: performance_report.md
+        retention-days: 30

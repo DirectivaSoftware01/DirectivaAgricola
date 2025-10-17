@@ -226,7 +226,8 @@ urlpatterns = [
     path('ajax/emisores/listar/', listar_emisores_ajax, name='listar_emisores_ajax'),
     path('ajax/emisores/agregar/', agregar_emisor_ajax, name='agregar_emisor_ajax'),
     path('ajax/emisores/<int:codigo>/', obtener_emisor_ajax, name='obtener_emisor_ajax'),
-    path('ajax/emisores/<int:codigo>/validar/', validar_emisor_ajax, name='validar_emisor_ajax'),
+    # Nota: para evitar colisión con la validación usada en facturación, se renombra la ruta int
+    path('ajax/emisores/<int:codigo>/validar-certificado/', validar_emisor_ajax, name='validar_emisor_certificado_ajax'),
     path('ajax/emisores/eliminar/<int:codigo>/', eliminar_emisor_ajax, name='eliminar_emisor_ajax'),
     path('ajax/emisores/reactivar/<int:codigo>/', reactivar_emisor_ajax, name='reactivar_emisor_ajax'),
     
@@ -244,6 +245,7 @@ urlpatterns = [
     path('ajax/facturas/<int:folio>/cancelar/', cancelar_factura_ajax, name='cancelar_factura_ajax'),
     
     # URLs AJAX para validación y timbrado
+    # Esta es la validación que usa facturación (devuelve {valido, errores, advertencias})
     path('ajax/emisores/<str:codigo>/validar/', validar_emisor_ajax, name='validar_emisor_ajax'),
     path('ajax/facturas/validar/', validar_cfdi_ajax, name='validar_cfdi_ajax'),
     path('ajax/facturas/timbrar/<int:folio>/', timbrar_factura_ajax, name='timbrar_factura_ajax'),

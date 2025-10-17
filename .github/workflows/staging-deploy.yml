@@ -1,0 +1,91 @@
+name: Staging Deploy
+
+on:
+  push:
+    branches: [ develop, staging ]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: true
+        default: 'develop'
+        type: choice
+        options:
+        - develop
+        - staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.branch || github.ref }}
+        
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run staging checks
+      run: |
+        python manage.py check --settings=directiva_agricola.settings_simple
+        python manage.py test --settings=directiva_agricola.settings_simple --verbosity=2
+        
+    - name: Deploy to Staging EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.STAGING_EC2_HOST }}
+        username: ec2-user
+        key: ${{ secrets.STAGING_EC2_SSH_KEY }}
+        script: |
+          # Configurar variables de entorno para staging
+          export RDS_HOSTNAME="${{ secrets.STAGING_RDS_HOSTNAME }}"
+          export RDS_DB_NAME="${{ secrets.STAGING_RDS_DB_NAME }}"
+          export RDS_ADMIN_DB_NAME="${{ secrets.STAGING_RDS_ADMIN_DB_NAME }}"
+          export RDS_USERNAME="${{ secrets.STAGING_RDS_USERNAME }}"
+          export RDS_PASSWORD="${{ secrets.STAGING_RDS_PASSWORD }}"
+          export RDS_PORT="${{ secrets.STAGING_RDS_PORT }}"
+          export GITHUB_REPOSITORY="${{ github.repository }}"
+          export DEPLOY_BRANCH="${{ github.event.inputs.branch || github.ref_name }}"
+          
+          # Ejecutar script de despliegue
+          cd /tmp
+          curl -o deploy_script.sh https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.inputs.branch || github.ref_name }}/deploy_script.sh
+          chmod +x deploy_script.sh
+          ./deploy_script.sh
+          
+          # Verificar que la aplicación responde
+          sleep 10
+          if curl -f -s http://localhost:8000 > /dev/null; then
+            echo "✅ Aplicación desplegada correctamente en staging"
+          else
+            echo "❌ ERROR: La aplicación no responde después del despliegue"
+            exit 1
+          fi
+          
+    - name: Run smoke tests
+      run: |
+        # Aquí podrías agregar tests de humo específicos para staging
+        echo "Ejecutando smoke tests para staging..."
+        
+    - name: Notify staging deployment
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Despliegue a staging exitoso"
+          echo "Rama: ${{ github.event.inputs.branch || github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+        else
+          echo "❌ Despliegue a staging falló"
+          echo "Rama: ${{ github.event.inputs.branch || github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+        fi

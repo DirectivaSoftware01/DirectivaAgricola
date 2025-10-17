@@ -22,8 +22,12 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('core.urls')),
+    path('admin-empresas/', include('administracion.urls')),
 ]
 
 # Servir archivos de medios en desarrollo
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Manejador global para 403 (Permisos insuficientes)
+handler403 = 'core.views.main_views.permission_denied_view'

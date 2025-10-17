@@ -9,6 +9,41 @@ import re
 
 # Create your models here.
 
+class Impuesto(models.Model):
+    """Catálogo de impuestos (ej. IVA 16%, IVA 0%)"""
+    codigo = models.CharField(
+        max_length=3,
+        verbose_name="Código SAT",
+        help_text="Código del SAT (ej. 002 para IVA)"
+    )
+    nombre = models.CharField(
+        max_length=100,
+        verbose_name="Nombre",
+        help_text="Nombre del impuesto (ej. IVA Tasa 16%)"
+    )
+    tasa = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        verbose_name="Tasa",
+        help_text="Tasa decimal (ej. 0.1600 para 16%)"
+    )
+    activo = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'tipo_impuesto'
+        verbose_name = 'Impuesto'
+        verbose_name_plural = 'Impuestos'
+        ordering = ['codigo', 'tasa']
+        indexes = [
+            models.Index(fields=['codigo']),
+            models.Index(fields=['activo']),
+        ]
+
+    def __str__(self):
+        return f"{self.codigo} - {self.nombre} ({self.tasa})"
+
 class Usuario(AbstractUser):
     """Modelo de usuario personalizado"""
     nombre = models.CharField(max_length=100, verbose_name="Nombre completo")
@@ -699,6 +734,7 @@ class ProductoServicio(models.Model):
         help_text="Clave del catálogo ClaveProdServ del SAT"
     )
     
+    # Referencia futura a catálogo de impuestos (se añadirá FK en migración posterior)
     impuesto = models.CharField(
         max_length=20,
         choices=[
@@ -707,7 +743,15 @@ class ProductoServicio(models.Model):
             ('IVA_EXENTO', 'IVA exento')
         ],
         verbose_name="Impuesto",
-        help_text="Tipo de impuesto aplicable"
+        help_text="Tipo de impuesto aplicable (legado). Se usará el catálogo si está asignado."
+    )
+    impuesto_catalogo = models.ForeignKey(
+        'Impuesto',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        verbose_name="Impuesto (catálogo)",
+        help_text="Impuesto desde catálogo"
     )
     
     clasificacion_gasto = models.ForeignKey(

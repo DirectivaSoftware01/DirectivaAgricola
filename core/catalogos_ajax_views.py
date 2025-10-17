@@ -14,8 +14,7 @@ from .models import AutorizoGasto
 @login_required
 def obtener_usos_cfdi_ajax(request):
     """Vista AJAX para obtener el catálogo completo de usos CFDI"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir a usuarios autenticados consultar catálogos
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)

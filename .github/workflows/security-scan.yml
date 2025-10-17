@@ -1,0 +1,166 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Ejecutar escaneo de seguridad semanalmente
+    - cron: '0 2 * * 1'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install safety bandit semgrep
+        
+    - name: Run safety check
+      run: |
+        echo "🔍 Ejecutando verificación de vulnerabilidades de seguridad..."
+        safety check --json --output safety-report.json || true
+        safety check --short-report
+        
+    - name: Run bandit security linter
+      run: |
+        echo "🔍 Ejecutando análisis de seguridad con Bandit..."
+        bandit -r . -f json -o bandit-report.json || true
+        bandit -r . -f txt
+        
+    - name: Run Semgrep security scan
+      run: |
+        echo "🔍 Ejecutando escaneo de seguridad con Semgrep..."
+        semgrep --config=auto --json --output=semgrep-report.json . || true
+        semgrep --config=auto .
+        
+    - name: Check for hardcoded secrets
+      run: |
+        echo "🔍 Verificando secretos hardcodeados..."
+        # Buscar patrones comunes de secretos
+        if grep -r -i "password.*=" . --include="*.py" --include="*.js" --include="*.html" | grep -v "password.*=.*input\|password.*=.*getenv\|password.*=.*os.environ"; then
+          echo "⚠️  ADVERTENCIA: Posibles contraseñas hardcodeadas encontradas"
+        else
+          echo "✅ No se encontraron contraseñas hardcodeadas obvias"
+        fi
+        
+        if grep -r -i "secret.*=" . --include="*.py" --include="*.js" --include="*.html" | grep -v "secret.*=.*input\|secret.*=.*getenv\|secret.*=.*os.environ"; then
+          echo "⚠️  ADVERTENCIA: Posibles secretos hardcodeados encontrados"
+        else
+          echo "✅ No se encontraron secretos hardcodeados obvios"
+        fi
+        
+    - name: Check for SQL injection vulnerabilities
+      run: |
+        echo "🔍 Verificando vulnerabilidades de inyección SQL..."
+        if grep -r -i "raw.*sql\|execute.*%" . --include="*.py" | grep -v "cursor.execute.*%s\|cursor.execute.*%d"; then
+          echo "⚠️  ADVERTENCIA: Posibles vulnerabilidades de inyección SQL encontradas"
+        else
+          echo "✅ No se encontraron vulnerabilidades de inyección SQL obvias"
+        fi
+        
+    - name: Check for XSS vulnerabilities
+      run: |
+        echo "🔍 Verificando vulnerabilidades XSS..."
+        if grep -r -i "innerHTML\|dangerouslySetInnerHTML" . --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx"; then
+          echo "⚠️  ADVERTENCIA: Posibles vulnerabilidades XSS encontradas"
+        else
+          echo "✅ No se encontraron vulnerabilidades XSS obvias"
+        fi
+        
+    - name: Check for CSRF protection
+      run: |
+        echo "🔍 Verificando protección CSRF..."
+        if grep -r -i "csrf_exempt\|@csrf_exempt" . --include="*.py"; then
+          echo "⚠️  ADVERTENCIA: Vistas con CSRF deshabilitado encontradas"
+        else
+          echo "✅ No se encontraron vistas con CSRF deshabilitado"
+        fi
+        
+    - name: Check for insecure HTTP
+      run: |
+        echo "🔍 Verificando configuraciones de seguridad HTTP..."
+        if grep -r -i "SECURE_SSL_REDIRECT.*False\|SESSION_COOKIE_SECURE.*False\|CSRF_COOKIE_SECURE.*False" . --include="*.py"; then
+          echo "⚠️  ADVERTENCIA: Configuraciones de seguridad HTTP inseguras encontradas"
+        else
+          echo "✅ No se encontraron configuraciones de seguridad HTTP inseguras"
+        fi
+        
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          safety-report.json
+          bandit-report.json
+          semgrep-report.json
+        retention-days: 30
+        
+    - name: Comment security findings on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          let comment = '## 🔒 Security Scan Results\n\n';
+          
+          // Leer reportes si existen
+          try {
+            if (fs.existsSync('safety-report.json')) {
+              const safetyReport = JSON.parse(fs.readFileSync('safety-report.json', 'utf8'));
+              if (safetyReport.length > 0) {
+                comment += '### ⚠️ Security Vulnerabilities Found\n';
+                safetyReport.forEach(vuln => {
+                  comment += `- **${vuln.package}**: ${vuln.advisory}\n`;
+                });
+                comment += '\n';
+              } else {
+                comment += '### ✅ No security vulnerabilities found\n\n';
+              }
+            }
+          } catch (error) {
+            comment += '### ❌ Error reading safety report\n\n';
+          }
+          
+          // Agregar comentario al PR
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+          
+    - name: Fail on critical security issues
+      run: |
+        echo "🔍 Verificando si hay problemas críticos de seguridad..."
+        if [ -f "safety-report.json" ]; then
+          CRITICAL_COUNT=$(jq '[.[] | select(.severity == "critical")] | length' safety-report.json)
+          if [ "$CRITICAL_COUNT" -gt 0 ]; then
+            echo "❌ ERROR: Se encontraron $CRITICAL_COUNT vulnerabilidades críticas"
+            exit 1
+          fi
+        fi
+        
+        if [ -f "bandit-report.json" ]; then
+          HIGH_SEVERITY_COUNT=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-report.json)
+          if [ "$HIGH_SEVERITY_COUNT" -gt 0 ]; then
+            echo "❌ ERROR: Se encontraron $HIGH_SEVERITY_COUNT problemas de alta severidad"
+            exit 1
+          fi
+        fi
+        
+        echo "✅ No se encontraron problemas críticos de seguridad"

@@ -54,10 +54,6 @@
         </div>
         <div class="card-body">
             <form method="get" class="row g-3">
-                <div class="col-md-3">
-                    {{ search_form.busqueda.label_tag }}
-                    {{ search_form.busqueda }}
-                </div>
                 <div class="col-md-2">
                     {{ search_form.cliente.label_tag }}
                     {{ search_form.cliente }}
@@ -70,11 +66,15 @@
                     {{ search_form.transportista.label_tag }}
                     {{ search_form.transportista }}
                 </div>
-                <div class="col-md-1">
+                <div class="col-md-2">
+                    {{ search_form.estado.label_tag }}
+                    {{ search_form.estado }}
+                </div>
+                <div class="col-md-2">
                     {{ search_form.fecha_desde.label_tag }}
                     {{ search_form.fecha_desde }}
                 </div>
-                <div class="col-md-1">
+                <div class="col-md-2">
                     {{ search_form.fecha_hasta.label_tag }}
                     {{ search_form.fecha_hasta }}
                 </div>
@@ -301,7 +301,7 @@
                     <div class="mb-3">
                         <label for="folio_sustituto" class="form-label">Folio que sustituye</label>
                         <input type="text" class="form-control" id="folio_sustituto" name="folio_sustituto" 
-                               placeholder="Ej: 2024-2025-000123 (opcional)">
+                               placeholder="Ej: {{ ciclo_actual|default:'2024-2025' }}-000123 (opcional)">
                         <div class="form-text">Campo opcional. Si esta remisión es sustituida por otra, indique el folio de la nueva remisión.</div>
                         <div class="invalid-feedback" id="error_folio_sustituto"></div>
                     </div>

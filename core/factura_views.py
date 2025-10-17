@@ -182,8 +182,7 @@ def descargar_xml_factura(request, folio):
 @login_required
 def validar_emisor_ajax(request, codigo):
     """Vista AJAX para validar configuración de emisor"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir a usuarios autenticados validar configuración (solo lectura)
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -220,8 +219,7 @@ def validar_emisor_ajax(request, codigo):
 @login_required
 def validar_cfdi_ajax(request):
     """Vista AJAX para validar CFDI"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir validación a usuarios autenticados
     
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -309,8 +307,7 @@ def validar_cfdi_ajax(request):
 @login_required
 def timbrar_factura_ajax(request, factura_id):
     """Vista AJAX para timbrar factura"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir timbrado a usuarios autenticados
     
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -364,8 +361,7 @@ def cancelar_factura_ajax(request, factura_id):
 @login_required
 def consultar_estatus_factura_ajax(request, factura_id):
     """Vista AJAX para consultar estatus de factura"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir consulta a usuarios autenticados
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -389,8 +385,7 @@ def consultar_estatus_factura_ajax(request, factura_id):
 @login_required
 def probar_conexion_pac_ajax(request, emisor_id):
     """Vista AJAX para probar conexión con PAC"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'No tienes permisos para acceder a esta sección'}, status=403)
+    # Permitir prueba a usuarios autenticados (solo lectura)
     
     if request.method != 'GET':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
