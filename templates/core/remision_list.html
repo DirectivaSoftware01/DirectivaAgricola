@@ -509,16 +509,42 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
     <script>
     // Script para el dropdown múltiple de Lote-Origen
     document.addEventListener('DOMContentLoaded', function() {
-        const loteSelect = document.querySelector('select[name="lote_origen"]');
-        const loteBtn = document.getElementById('lote-origen-btn');
-        const loteText = document.getElementById('lote-origen-text');
-        const loteCheckboxes = document.querySelectorAll('.lote-checkbox');
-        const loteMenu = document.getElementById('lote-origen-menu');
-        
-        if (!loteSelect || !loteBtn || !loteText || !loteCheckboxes.length) {
-            console.warn('Elementos del dropdown de lotes no encontrados');
-            return;
-        }
+        // Esperar un poco más para asegurar que el DOM esté completamente cargado
+        setTimeout(function() {
+            const loteSelect = document.querySelector('select[name="lote_origen"]');
+            const loteBtn = document.getElementById('lote-origen-btn');
+            const loteText = document.getElementById('lote-origen-text');
+            const loteCheckboxes = document.querySelectorAll('.lote-checkbox');
+            const loteMenu = document.getElementById('lote-origen-menu');
+            
+            console.log('Buscando elementos del dropdown:', {
+                loteSelect: !!loteSelect,
+                loteBtn: !!loteBtn,
+                loteText: !!loteText,
+                loteCheckboxes: loteCheckboxes.length,
+                loteMenu: !!loteMenu
+            });
+            
+            if (!loteSelect) {
+                console.warn('Campo select oculto no encontrado');
+            }
+            if (!loteBtn) {
+                console.warn('Botón del dropdown no encontrado');
+            }
+            if (!loteText) {
+                console.warn('Texto del botón no encontrado');
+            }
+            if (!loteCheckboxes.length) {
+                console.warn('Checkboxes de lotes no encontrados. Verificar que lotes_disponibles esté en el contexto.');
+            }
+            if (!loteMenu) {
+                console.warn('Menú del dropdown no encontrado');
+            }
+            
+            if (!loteSelect || !loteBtn || !loteText || !loteCheckboxes.length || !loteMenu) {
+                console.warn('Algunos elementos del dropdown de lotes no encontrados. Verificar el template.');
+                return;
+            }
         
         // Función para actualizar el texto del botón y el campo select oculto
         function updateLoteSelection() {
@@ -598,6 +624,7 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                 updateLoteSelection();
             });
         }
+        }, 100); // Esperar 100ms para asegurar que el DOM esté listo
     });
     </script>
 {% endblock %}
