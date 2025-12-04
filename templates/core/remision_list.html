@@ -518,13 +518,26 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         
         // Función para actualizar el campo select múltiple y la UI
         function updateLoteSelection() {
+            if (!loteSelect) {
+                console.error('Campo select de lotes no encontrado');
+                return;
+            }
+            
             const selected = Array.from(loteCheckboxes)
                 .filter(cb => cb.checked)
                 .map(cb => cb.value);
             
-            // Actualizar el campo select múltiple
+            // Actualizar el campo select múltiple - primero deseleccionar todos
             Array.from(loteSelect.options).forEach(option => {
-                option.selected = selected.includes(option.value);
+                option.selected = false;
+            });
+            
+            // Luego seleccionar solo los que están marcados
+            selected.forEach(value => {
+                const option = Array.from(loteSelect.options).find(opt => opt.value === value);
+                if (option) {
+                    option.selected = true;
+                }
             });
             
             // Actualizar el texto del botón
