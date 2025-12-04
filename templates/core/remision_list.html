@@ -567,13 +567,34 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         }
         
         // Inicializar estado basado en los valores del formulario
+        // Obtener valores del campo select múltiple (puede tener múltiples opciones seleccionadas)
         const initialValues = Array.from(loteSelect.selectedOptions).map(opt => opt.value);
+        console.log('Valores iniciales del select:', initialValues);
+        
+        // Marcar los checkboxes correspondientes
         initialValues.forEach(value => {
             const checkbox = document.getElementById(`lote_${value}`);
             if (checkbox) {
                 checkbox.checked = true;
+                console.log('Checkbox marcado:', value);
+            } else {
+                console.warn('Checkbox no encontrado para valor:', value);
             }
         });
+        
+        // También verificar los parámetros GET directamente por si el select no tiene los valores
+        const urlParams = new URLSearchParams(window.location.search);
+        const loteParams = urlParams.getAll('lote_origen');
+        if (loteParams.length > 0) {
+            console.log('Valores de URL params:', loteParams);
+            loteParams.forEach(value => {
+                const checkbox = document.getElementById(`lote_${value}`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+        }
+        
         updateLoteSelection();
         
         // Actualizar el campo oculto antes de enviar el formulario
