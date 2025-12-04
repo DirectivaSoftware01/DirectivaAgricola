@@ -41,10 +41,7 @@
     #lote-origen-menu {
         max-height: 300px;
         overflow-y: auto;
-        z-index: 999999 !important;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-        background-color: #fff !important;
-        position: fixed !important;
+        z-index: 1050 !important;
     }
     
     /* Asegurar que los contenedores padres no corten el dropdown */
@@ -58,12 +55,6 @@
     /* Asegurar que el dropdown se posicione correctamente */
     .dropdown {
         position: static !important;
-    }
-    
-    /* Posicionar el menú de forma fija cuando está abierto */
-    #lote-origen-menu.show {
-        position: fixed !important;
-        z-index: 999999 !important;
     }
     
     #lote-origen-menu .dropdown-item {
