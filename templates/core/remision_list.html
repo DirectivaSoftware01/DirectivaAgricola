@@ -33,15 +33,6 @@
     #lote-origen-menu .dropdown-item input[type="checkbox"]:checked + span {
         font-weight: bold;
     }
-    
-    /* Asegurar que el dropdown se muestre */
-    .dropdown-menu {
-        display: none;
-    }
-    
-    .dropdown-menu.show {
-        display: block;
-    }
 </style>
 {% endblock %}
 
@@ -584,13 +575,18 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             });
         }
         
-        // Asegurar que el dropdown se muestre cuando se abre
-        if (loteBtn) {
-            loteBtn.addEventListener('shown.bs.dropdown', function() {
-                if (loteMenu) {
-                    loteMenu.style.display = 'block';
-                }
-            });
+        // Debug: verificar que los elementos existan
+        console.log('Elementos del dropdown:', {
+            loteSelect: !!loteSelect,
+            loteBtn: !!loteBtn,
+            loteText: !!loteText,
+            loteCheckboxes: loteCheckboxes.length,
+            loteMenu: !!loteMenu
+        });
+        
+        // Verificar que hay lotes disponibles
+        if (loteCheckboxes.length === 0) {
+            console.warn('No se encontraron checkboxes de lotes. Verificar que lotes_disponibles esté en el contexto.');
         }
         
         // Actualizar antes de enviar el formulario
