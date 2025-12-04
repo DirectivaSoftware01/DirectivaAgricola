@@ -10039,7 +10039,13 @@ class RemisionListView(LoginRequiredMixin, ListView):
         context['title'] = 'Gestión de Remisiones'
         
         # Agregar lotes disponibles para el dropdown
-        context['lotes_disponibles'] = LoteOrigen.objects.filter(activo=True).order_by('nombre')
+        lotes_disponibles = LoteOrigen.objects.filter(activo=True).order_by('nombre')
+        context['lotes_disponibles'] = lotes_disponibles
+        
+        # Debug: verificar que los lotes se están obteniendo correctamente
+        print(f"DEBUG RemisionListView: Lotes disponibles encontrados: {lotes_disponibles.count()}")
+        for lote in lotes_disponibles[:5]:  # Mostrar solo los primeros 5
+            print(f"DEBUG RemisionListView: - {lote.nombre} (ID: {lote.pk}, activo: {lote.activo})")
         
         # Agregar ciclo actual al contexto
         try:

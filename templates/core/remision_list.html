@@ -114,9 +114,17 @@
                                 </li>
                                 {% endfor %}
                             {% else %}
-                                <li><span class="dropdown-item text-muted">No hay lotes disponibles</span></li>
+                                <li><span class="dropdown-item text-muted">No hay lotes disponibles (lotes_disponibles está vacío o no está en el contexto)</span></li>
                             {% endif %}
                         </ul>
+                        <script>
+                            console.log('DEBUG Template: lotes_disponibles existe:', typeof lotes_disponibles !== 'undefined');
+                            {% if lotes_disponibles %}
+                            console.log('DEBUG Template: lotes_disponibles tiene elementos:', {{ lotes_disponibles|length }});
+                            {% else %}
+                            console.log('DEBUG Template: lotes_disponibles NO está en el contexto o está vacío');
+                            {% endif %}
+                        </script>
                     </div>
                 </div>
                 <div class="col-md-2">
