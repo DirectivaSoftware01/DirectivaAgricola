@@ -41,6 +41,26 @@
     #lote-origen-menu {
         max-height: 300px;
         overflow-y: auto;
+        z-index: 9999 !important;
+    }
+    
+    /* Asegurar que los contenedores padres no corten el dropdown */
+    .card,
+    .card-body,
+    .row.g-3,
+    .col-md-2 {
+        overflow: visible !important;
+    }
+    
+    /* Asegurar que el dropdown se posicione correctamente */
+    .dropdown {
+        position: static !important;
+    }
+    
+    /* Posicionar el menú de forma fija cuando está abierto */
+    #lote-origen-menu.show {
+        position: fixed !important;
+        z-index: 9999 !important;
     }
     
     #lote-origen-menu .dropdown-item {
@@ -646,11 +666,34 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             }
         });
         
-        // Asegurar que el dropdown se muestre cuando se abre
+        // Asegurar que el dropdown se muestre cuando se abre y posicionarlo correctamente
         if (loteBtn) {
             loteBtn.addEventListener('shown.bs.dropdown', function() {
                 if (loteMenu) {
                     loteMenu.style.display = 'block';
+                    
+                    // Obtener la posición del botón
+                    const btnRect = loteBtn.getBoundingClientRect();
+                    const menuRect = loteMenu.getBoundingClientRect();
+                    
+                    // Posicionar el menú de forma fija para que no sea cortado
+                    loteMenu.style.position = 'fixed';
+                    loteMenu.style.top = (btnRect.bottom + window.scrollY) + 'px';
+                    loteMenu.style.left = btnRect.left + 'px';
+                    loteMenu.style.width = btnRect.width + 'px';
+                    loteMenu.style.maxWidth = '300px';
+                    loteMenu.style.zIndex = '9999';
+                }
+            });
+            
+            // Restaurar posición cuando se cierra
+            loteBtn.addEventListener('hidden.bs.dropdown', function() {
+                if (loteMenu) {
+                    loteMenu.style.position = '';
+                    loteMenu.style.top = '';
+                    loteMenu.style.left = '';
+                    loteMenu.style.width = '';
+                    loteMenu.style.maxWidth = '';
                 }
             });
         }
