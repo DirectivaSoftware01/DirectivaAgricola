@@ -41,6 +41,7 @@
     #lote-origen-menu {
         max-height: 300px;
         overflow-y: auto;
+        z-index: 1050 !important; /* Bootstrap dropdown default z-index */
     }
     
     /* Asegurar que los contenedores padres no corten el dropdown */
@@ -54,6 +55,11 @@
     /* Asegurar que el dropdown se posicione correctamente - igual que el de Cliente */
     .dropdown {
         position: relative !important;
+    }
+    
+    /* Asegurar que el dropdown aparezca por encima de las tarjetas */
+    #lote-origen-menu.show {
+        z-index: 1050 !important;
     }
     
     #lote-origen-menu .dropdown-item {
@@ -120,7 +126,7 @@
     {% endif %}
 
     <!-- Filtros de búsqueda -->
-    <div class="card mb-4">
+    <div class="card mb-4" style="position: relative; z-index: 1;">
         <div class="card-header">
             <h5 class="card-title mb-0">
                 <i class="bi bi-search"></i> Buscar y Filtrar Remisiones
@@ -188,7 +194,7 @@
     </div>
 
     <!-- Lista de remisiones -->
-    <div class="card">
+    <div class="card" style="position: relative; z-index: 0;">
         <div class="card-header">
             <h5 class="card-title mb-0">
                 <i class="bi bi-list-ul"></i> Lista de Remisiones
