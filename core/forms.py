@@ -3,7 +3,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
-from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Almacen, Compra, CompraDetalle, Kardex, TipoSalida, SalidaInventario, SalidaInventarioDetalle, OtroMovimiento, OtroMovimientoDetalle
+from .models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Almacen, Compra, CompraDetalle, Kardex, TipoSalida, SalidaInventario, SalidaInventarioDetalle, OtroMovimiento, OtroMovimientoDetalle, AutorizoGasto
 import re
 
 class DecimalFieldWithRounding(forms.DecimalField):
@@ -282,6 +282,31 @@ class ClienteForm(forms.ModelForm):
             if field_name in ['razon_social', 'rfc', 'email_principal']:
                 field.required = True
     
+    def clean_razon_social(self):
+        razon_social = self.cleaned_data.get('razon_social')
+        if razon_social:
+            from .models import remover_acentos_y_apostrofes
+            
+            # Normalizar a mayúsculas
+            razon_social = razon_social.strip().upper()
+            
+            # Validar que no contenga acentos ni apostrofes
+            razon_social_normalizada = remover_acentos_y_apostrofes(razon_social)
+            if razon_social != razon_social_normalizada:
+                caracteres_prohibidos = []
+                for char in razon_social:
+                    if char in "áéíóúÁÉÍÓÚñÑüÜ'\"´`":
+                        if char not in caracteres_prohibidos:
+                            caracteres_prohibidos.append(char)
+                
+                raise forms.ValidationError(
+                    f'La razón social no puede contener acentos ni apostrofes. Caracteres encontrados: {", ".join(caracteres_prohibidos)}. Use solo letras sin acentuar.'
+                )
+            
+            razon_social = razon_social_normalizada
+        
+        return razon_social
+    
     def clean_rfc(self):
         rfc = self.cleaned_data.get('rfc')
         if rfc:
@@ -295,13 +320,15 @@ class ClienteForm(forms.ModelForm):
             except forms.ValidationError as e:
                 raise forms.ValidationError(str(e))
             
-            # Verificar si el RFC ya existe (excluyendo el cliente actual si estamos editando)
-            queryset = Cliente.objects.filter(rfc=rfc)
-            if self.instance.pk:
-                queryset = queryset.exclude(pk=self.instance.pk)
-            
-            if queryset.exists():
-                raise forms.ValidationError("Ya existe un cliente registrado con este RFC.")
+            # Si el RFC no es el genérico "XAXX010101000", verificar duplicados
+            if rfc != 'XAXX010101000':
+                # Verificar si el RFC ya existe (excluyendo el cliente actual si estamos editando)
+                queryset = Cliente.objects.filter(rfc=rfc)
+                if self.instance.pk:
+                    queryset = queryset.exclude(pk=self.instance.pk)
+                
+                if queryset.exists():
+                    raise forms.ValidationError("Ya existe un cliente registrado con este RFC.")
         
         return rfc
     
@@ -445,12 +472,14 @@ class ProveedorForm(forms.ModelForm):
             except forms.ValidationError as e:
                 raise forms.ValidationError(str(e))
             
-            # Verificar que el RFC no esté duplicado
-            queryset = Proveedor.objects.filter(rfc=rfc)
-            if self.instance.pk:
-                queryset = queryset.exclude(pk=self.instance.pk)
-            if queryset.exists():
-                raise forms.ValidationError("Ya existe un proveedor registrado con este RFC.")
+            # Si el RFC no es el genérico "XAXX010101000", verificar duplicados
+            if rfc != 'XAXX010101000':
+                # Verificar que el RFC no esté duplicado
+                queryset = Proveedor.objects.filter(rfc=rfc)
+                if self.instance.pk:
+                    queryset = queryset.exclude(pk=self.instance.pk)
+                if queryset.exists():
+                    raise forms.ValidationError("Ya existe un proveedor registrado con este RFC.")
         return rfc
 
 
@@ -747,14 +776,102 @@ class CentroCostoSearchForm(forms.Form):
         }),
         label='Estado'
     )
+# Catálogo resumido de unidades SAT (c_ClaveUnidad)
+SAT_UNIDADES_CHOICES = [
+    ('', 'Seleccione unidad...'),
+    # Medidas de masa
+    ('KGM', 'KGM - Kilogramo'),
+    ('GRM', 'GRM - Gramo'),
+    ('MGM', 'MGM - Miligramo'),
+    ('TNE', 'TNE - Tonelada (métrica)'),
+    # Medidas de volumen
+    ('LTR', 'LTR - Litro'),
+    ('MLT', 'MLT - Mililitro'),
+    ('MTQ', 'MTQ - Metro cúbico'),
+    ('LTR/HR', 'LTR/HR - Litros por hora'),
+    # Medidas de longitud/superficie
+    ('MTR', 'MTR - Metro'),
+    ('CMT', 'CMT - Centímetro'),
+    ('MMT', 'MMT - Milímetro'),
+    ('KMT', 'KMT - Kilómetro'),
+    ('MTK', 'MTK - Metro cuadrado'),
+    ('CMK', 'CMK - Centímetro cuadrado'),
+    # Tiempo
+    ('HUR', 'HUR - Hora'),
+    ('MIN', 'MIN - Minuto'),
+    ('SEC', 'SEC - Segundo'),
+    ('DAY', 'DAY - Día'),
+    ('WEE', 'WEE - Semana'),
+    ('MON', 'MON - Mes'),
+    ('ANN', 'ANN - Año'),
+    # Unidades pieza/conteo
+    ('H87', 'H87 - Pieza'),
+    ('E48', 'E48 - Unidad de servicio'),
+    ('EA',  'EA - Cada (Each)'),
+    ('SET', 'SET - Juego/Set'),
+    ('PR',  'PR  - Par'),
+    ('DZN', 'DZN - Docena'),
+    ('UNT', 'UNT - Unidad'),
+    # Energía/potencia comunes (por si aplica en servicios)
+    ('KWH', 'KWH - Kilowatt hora'),
+    ('KWT', 'KWT - Kilowatt'),
+    # Presión / otros (frecuentes en agro)
+    ('BAR', 'BAR - Bar (presión)'),
+    ('BBL', 'BBL - Barril'),
+]
+
+
+# Catálogo resumido de ClaveProdServ SAT (c_ClaveProdServ)
+# Nota: Se muestran claves frecuentes a modo de lista; se guarda solo la clave
+SAT_CLAVEPRODSERV_CHOICES = [
+    ('', 'Seleccione clave...'),
+    # Agrícolas y alimentos (ejemplos comunes)
+    ('10101500', '10101500 - Cereales (granos)'),
+    ('10101501', '10101501 - Maíz'),
+    ('10101502', '10101502 - Trigo'),
+    ('10101700', '10101700 - Tubérculos'),
+    ('10101701', '10101701 - Papa'),
+    ('10101702', '10101702 - Camote'),
+    ('10101800', '10101800 - Hortalizas'),
+    ('10101808', '10101808 - Tomate'),
+    ('10101809', '10101809 - Chile'),
+    ('10101900', '10101900 - Frutas'),
+    ('10101901', '10101901 - Aguacate'),
+    ('10101902', '10101902 - Limón'),
+    ('10101903', '10101903 - Naranja'),
+    ('10102000', '10102000 - Legumbres (leguminosas)'),
+    ('10102001', '10102001 - Frijol'),
+    ('10152000', '10152000 - Forrajes y henos'),
+    # Servicios (ejemplos)
+    ('78101500', '78101500 - Servicios de transporte de carga por carretera'),
+    ('72101500', '72101500 - Servicios de reparación y mantenimiento (equipos)'),
+    ('72121500', '72121500 - Servicios de construcción (obras)'),
+    ('81101500', '81101500 - Servicios de software/soporte'),
+    # Genéricos
+    ('01010101', '01010101 - No existe en catálogo (genérico)'),
+]
+
+
 class ProductoServicioForm(forms.ModelForm):
     """Formulario para crear/editar productos y servicios"""
     
+    # Forzar campo como lista de opciones SAT (se guarda solo la clave)
+    unidad_medida = forms.ChoiceField(
+        choices=SAT_UNIDADES_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Unidad de Medida'
+    )
 
+    # Lista SAT para ClaveProdServ (se guarda solo la clave)
+    clave_sat = forms.ChoiceField(
+        choices=SAT_CLAVEPRODSERV_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Clave SAT (ClaveProdServ)'
+    )
     
     class Meta:
         model = ProductoServicio
-        fields = ['sku', 'descripcion', 'producto_servicio', 'unidad_medida', 'clave_sat', 'impuesto', 'clasificacion_gasto', 'activo']
+        fields = ['sku', 'descripcion', 'producto_servicio', 'unidad_medida', 'clave_sat', 'impuesto', 'clasificacion_gasto', 'activo', 'ingrediente_activo', 'tipo_producto']
         widgets = {
             'sku': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -770,16 +887,10 @@ class ProductoServicioForm(forms.ModelForm):
             'producto_servicio': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
             }),
-            'unidad_medida': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Unidad de medida (ej: H87, E48, KGM, LTR, MTR)',
-                'maxlength': '50'
-            }),
-            'clave_sat': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Clave del catálogo SAT',
-                'maxlength': '20'
-            }),
+            # Widget definido en el campo personalizado
+            # 'unidad_medida': forms.Select(...)
+            # Widget definido arriba como ChoiceField
+            # 'clave_sat': forms.Select(...),
             'impuesto': forms.Select(attrs={
                 'class': 'form-select'
             }),
@@ -788,6 +899,14 @@ class ProductoServicioForm(forms.ModelForm):
             }),
             'activo': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
+            }),
+            'ingrediente_activo': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ingrediente activo del producto',
+                'maxlength': '200'
+            }),
+            'tipo_producto': forms.Select(attrs={
+                'class': 'form-select'
             })
         }
     
@@ -800,6 +919,9 @@ class ProductoServicioForm(forms.ModelForm):
         
         # Cargar clasificaciones de gastos activas
         self.fields['clasificacion_gasto'].queryset = ClasificacionGasto.objects.filter(activo=True).order_by('descripcion')
+        
+        # Asignar catálogo de unidades SAT a la lista desplegable
+        self.fields['unidad_medida'].choices = SAT_UNIDADES_CHOICES
     
     def clean_sku(self):
         sku = self.cleaned_data.get('sku')
@@ -1104,6 +1226,31 @@ class CultivoSearchForm(forms.Form):
 class RemisionForm(forms.ModelForm):
     """Formulario para crear/editar remisiones"""
     
+    # Definir campos explícitamente como DecimalField para asegurar decimales
+    peso_bruto_embarque = DecimalFieldWithRounding(
+        label='Peso Bruto de Embarque',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.00',
+            'step': '0.01',
+            'min': '0',
+            'id': 'peso-bruto',
+            'inputmode': 'decimal'
+        })
+    )
+    
+    merma_arps_global = DecimalFieldWithRounding(
+        label='Merma/Arps Global',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.00',
+            'step': '0.01',
+            'min': '0',
+            'id': 'merma-arps-global',
+            'inputmode': 'decimal'
+        })
+    )
+    
     class Meta:
         model = Remision
         fields = ['ciclo', 'folio', 'fecha', 'cliente', 'lote_origen', 'transportista', 'costo_flete', 'peso_bruto_embarque', 'merma_arps_global', 'observaciones']
@@ -1136,17 +1283,6 @@ class RemisionForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': '0.00',
                 'step': '0.01',
-                'min': '0'
-            }),
-            'peso_bruto_embarque': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'placeholder': '0.00',
-                'step': '0.01',
-                'min': '0'
-            }),
-            'merma_arps_global': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'placeholder': '0',
                 'min': '0'
             }),
             'observaciones': forms.Textarea(attrs={
@@ -1213,6 +1349,12 @@ class RemisionForm(forms.ModelForm):
             raise forms.ValidationError("El costo de flete no puede ser negativo.")
         return costo_flete
     
+    def clean_merma_arps_global(self):
+        merma_arps_global = self.cleaned_data.get('merma_arps_global')
+        if merma_arps_global is not None and merma_arps_global < 0:
+            raise forms.ValidationError("La merma/arps global no puede ser negativa.")
+        return merma_arps_global
+    
     def clean(self):
         cleaned_data = super().clean()
         ciclo = cleaned_data.get('ciclo')
@@ -1265,6 +1407,17 @@ class RemisionDetalleForm(forms.ModelForm):
     kgs_merma = DecimalFieldWithRounding(
         label='Kgs Merma',
         help_text='Kilogramos de merma',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': '0.00',
+            'step': '0.01',
+            'min': '0'
+        })
+    )
+    
+    merma_arps = DecimalFieldWithRounding(
+        label='Merma/Arps',
+        help_text='Merma por arps',
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'placeholder': '0.00',
@@ -1360,7 +1513,8 @@ class RemisionDetalleForm(forms.ModelForm):
             }),
             'merma_arps': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'placeholder': '0',
+                'placeholder': '0.00',
+                'step': '0.01',
                 'min': '0'
             })
         }
@@ -1492,12 +1646,12 @@ class RemisionSearchForm(forms.Form):
         label='Cliente'
     )
     
-    lote_origen = forms.ModelChoiceField(
+    lote_origen = forms.ModelMultipleChoiceField(
         queryset=LoteOrigen.objects.filter(activo=True),
         required=False,
-        empty_label="Todos los lotes",
-        widget=forms.Select(attrs={
-            'class': 'form-select'
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-select d-none',
+            'id': 'id_lote_origen_multiple'
         }),
         label='Lote - Origen'
     )
@@ -2087,13 +2241,19 @@ class CompraForm(forms.ModelForm):
     
     class Meta:
         model = Compra
-        fields = ['fecha', 'proveedor', 'factura', 'serie', 'subtotal', 'impuestos', 'total', 'estado']
+        fields = ['fecha', 'proveedor', 'tipo', 'autorizo', 'factura', 'serie', 'subtotal', 'impuestos', 'total', 'estado']
         widgets = {
             'fecha': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date'
             }),
             'proveedor': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'tipo': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'autorizo': forms.Select(attrs={
                 'class': 'form-select'
             }),
             'factura': forms.TextInput(attrs={
@@ -2130,6 +2290,8 @@ class CompraForm(forms.ModelForm):
         labels = {
             'fecha': 'Fecha de Compra',
             'proveedor': 'Proveedor',
+            'tipo': 'Tipo de Compra',
+            'autorizo': 'Autorizó',
             'factura': 'Factura',
             'serie': 'Serie',
             'subtotal': 'Subtotal',
@@ -2154,6 +2316,9 @@ class CompraForm(forms.ModelForm):
         self.fields['fecha'].required = True
         self.fields['proveedor'].required = True
         self.fields['impuestos'].required = True
+        # Campo autorizo opcional
+        self.fields['autorizo'].required = False
+        self.fields['autorizo'].queryset = AutorizoGasto.objects.filter(activo=True).order_by('nombre')
         
         # Configurar fecha actual por defecto si es una nueva compra
         if not self.instance.pk:
@@ -2261,6 +2426,19 @@ class CompraSearchForm(forms.Form):
         label='Proveedor'
     )
     
+    tipo = forms.ChoiceField(
+        choices=[
+            ('', 'Todos los tipos'),
+            ('contado', 'Contado'),
+            ('credito', 'Crédito')
+        ],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Tipo'
+    )
+    
     estado = forms.ChoiceField(
         choices=[
             ('', 'Todos'),
@@ -2272,6 +2450,16 @@ class CompraSearchForm(forms.Form):
             'class': 'form-select'
         }),
         label='Estado'
+    )
+    
+    autorizo = forms.ModelChoiceField(
+        queryset=AutorizoGasto.objects.filter(activo=True).order_by('nombre'),
+        required=False,
+        empty_label="Todos los autorizos",
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Autorizó'
     )
     
     fecha_desde = forms.DateField(

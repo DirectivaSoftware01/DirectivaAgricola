@@ -15,8 +15,10 @@ import json
 from django.db.models import Sum, Count
 from django.db import models
 from django.contrib import messages
+from django.utils import timezone
 from datetime import datetime
-from ..models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Emisor, Factura, FacturaDetalle, AutorizoGasto, Almacen, Compra, CompraDetalle, Kardex
+from decimal import Decimal
+from ..models import Usuario, Cliente, RegimenFiscal, Proveedor, Transportista, LoteOrigen, ClasificacionGasto, CentroCosto, ProductoServicio, ConfiguracionSistema, Cultivo, Remision, RemisionDetalle, CuentaBancaria, PagoRemision, PresupuestoGasto, Presupuesto, PresupuestoDetalle, Gasto, GastoDetalle, Emisor, Factura, FacturaDetalle, AutorizoGasto, Almacen, Compra, CompraDetalle, Kardex, PagoCompra
 from ..forms import LoginForm, UsuarioForm, ClienteForm, ClienteSearchForm, RegimenFiscalForm, ProveedorForm, ProveedorSearchForm, TransportistaForm, TransportistaSearchForm, LoteOrigenForm, LoteOrigenSearchForm, ClasificacionGastoForm, ClasificacionGastoSearchForm, CentroCostoForm, CentroCostoSearchForm, ProductoServicioForm, ProductoServicioSearchForm, ConfiguracionSistemaForm, CultivoForm, CultivoSearchForm, RemisionForm, RemisionDetalleForm, RemisionSearchForm, RemisionLiquidacionForm, RemisionCancelacionForm, CobranzaSearchForm, PresupuestoGastoForm, PresupuestoGastoSearchForm, PresupuestoForm, PresupuestoDetalleForm, PresupuestoSearchForm, GastoForm, GastoDetalleForm, AlmacenForm, AlmacenSearchForm, CompraForm, CompraDetalleForm, CompraSearchForm, KardexSearchForm
 
 # Create your views here.
@@ -32,6 +34,20 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['clientes_activos'] = Cliente.objects.filter(activo=True).count()
         context['total_clientes'] = Cliente.objects.count()
         context['usuarios_activos'] = Usuario.objects.filter(is_active=True).count()
+        
+        # Obtener lista de clientes para el filtro del primer gráfico
+        clientes = Cliente.objects.filter(activo=True).order_by('razon_social')
+        print(f"DEBUG: Clientes encontrados: {clientes.count()}")
+        for cliente in clientes:
+            print(f"DEBUG: Cliente Código: {cliente.codigo}, Razón Social: {cliente.razon_social}")
+        context['clientes'] = clientes
+        
+        # Obtener lista de lotes de origen para el filtro del primer gráfico
+        lotes_origen = LoteOrigen.objects.filter(activo=True).order_by('nombre')
+        print(f"DEBUG: Lotes de origen encontrados: {lotes_origen.count()}")
+        for lote in lotes_origen:
+            print(f"DEBUG: Lote Código: {lote.codigo}, Nombre: {lote.nombre}")
+        context['lotes_origen'] = lotes_origen
         
         # Estadísticas de remisiones del ciclo actual
         # Obtener el ciclo actual de la configuración
@@ -154,6 +170,214 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         context['saldo_facturas'] = saldo_facturas
         
+        # Datos para gráfica de calidad de productos (remisiones no canceladas del ciclo actual)
+        from django.db.models import Sum
+        from collections import defaultdict
+        
+        # Filtrar solo las remisiones no canceladas del ciclo actual (incluye preliquidadas y no preliquidadas)
+        remisiones_no_canceladas = [r for r in remisiones_qs if not r.cancelada]
+        remisiones_no_canceladas_ids = [r.pk for r in remisiones_no_canceladas]
+        
+        # Obtener detalles de remisiones no canceladas del ciclo actual
+        detalles_qs = RemisionDetalle.objects.filter(remision__in=remisiones_no_canceladas_ids)
+        
+        # Agrupar por calidad y calcular totales
+        calidad_data = defaultdict(lambda: {'kgs_netos_enviados': 0, 'kgs_liquidados': 0})
+        
+        for detalle in detalles_qs:
+            calidad = detalle.calidad
+            calidad_data[calidad]['kgs_netos_enviados'] += float(detalle.kgs_neto_envio or 0)
+            calidad_data[calidad]['kgs_liquidados'] += float(detalle.kgs_liquidados or 0)
+        
+        # Convertir a lista para el template
+        grafica_calidad_data = []
+        for calidad, datos in calidad_data.items():
+            diferencia = round(datos['kgs_netos_enviados'] - datos['kgs_liquidados'], 2)
+            grafica_calidad_data.append({
+                'calidad': calidad,
+                'kgs_netos_enviados': round(datos['kgs_netos_enviados'], 2),
+                'kgs_liquidados': round(datos['kgs_liquidados'], 2),
+                'diferencia': diferencia
+            })
+        
+        # Ordenar por calidad
+        grafica_calidad_data.sort(key=lambda x: x['calidad'])
+        
+        context['grafica_calidad_data'] = grafica_calidad_data
+        
+        # Datos para gráfica de kgs enviados vs liquidados (remisiones no canceladas del ciclo actual)
+        # Usar los mismos detalles_qs ya filtrados
+        kgs_enviados_data = defaultdict(lambda: {'kgs_enviados': 0, 'kgs_liquidados': 0})
+        
+        for detalle in detalles_qs:
+            calidad = detalle.calidad
+            kgs_enviados_data[calidad]['kgs_enviados'] += float(detalle.kgs_enviados or 0)
+            kgs_enviados_data[calidad]['kgs_liquidados'] += float(detalle.kgs_liquidados or 0)
+        
+        # Convertir a lista para el template
+        grafica_kgs_enviados_data = []
+        for calidad, datos in kgs_enviados_data.items():
+            diferencia = round(datos['kgs_enviados'] - datos['kgs_liquidados'], 2)
+            grafica_kgs_enviados_data.append({
+                'calidad': calidad,
+                'kgs_enviados': round(datos['kgs_enviados'], 2),
+                'kgs_liquidados': round(datos['kgs_liquidados'], 2),
+                'diferencia': diferencia
+            })
+        
+        # Ordenar por calidad
+        grafica_kgs_enviados_data.sort(key=lambda x: x['calidad'])
+        
+        context['grafica_kgs_enviados_data'] = grafica_kgs_enviados_data
+        
+        # Datos para gráfica de merma (remisiones no canceladas del ciclo actual)
+        merma_data = defaultdict(lambda: {
+            'kgs_merma_enviada': 0, 
+            'kgs_merma_liquidada': 0,
+            'total_no_arps': 0,
+            'total_no_arps_liquidados': 0,
+            'sum_merma_arps': 0,
+            'count_detalles': 0
+        })
+        
+        for detalle in detalles_qs:
+            calidad = detalle.calidad
+            merma_data[calidad]['kgs_merma_enviada'] += float(detalle.kgs_merma or 0)
+            merma_data[calidad]['kgs_merma_liquidada'] += float(detalle.kgs_merma_liquidados or 0)
+            merma_data[calidad]['total_no_arps'] += float(detalle.no_arps or 0)
+            merma_data[calidad]['total_no_arps_liquidados'] += float(detalle.no_arps_liquidados or 0)
+            merma_data[calidad]['sum_merma_arps'] += float(detalle.merma_arps or 0)
+            merma_data[calidad]['count_detalles'] += 1
+        
+        # Convertir a lista para el template
+        grafica_merma_data = []
+        for calidad, datos in merma_data.items():
+            diferencia_merma = round(datos['kgs_merma_enviada'] - datos['kgs_merma_liquidada'], 2)
+            # Calcular promedio de merma por arp enviado
+            promedio_merma_arp_enviado = round(datos['sum_merma_arps'] / datos['count_detalles'], 2) if datos['count_detalles'] > 0 else 0
+            # Calcular promedio de merma por arp liquidado
+            promedio_merma_arp_liquidado = round(datos['kgs_merma_liquidada'] / datos['total_no_arps_liquidados'], 2) if datos['total_no_arps_liquidados'] > 0 else 0
+            
+            grafica_merma_data.append({
+                'calidad': calidad,
+                'kgs_merma_enviada': round(datos['kgs_merma_enviada'], 2),
+                'kgs_merma_liquidada': round(datos['kgs_merma_liquidada'], 2),
+                'diferencia_merma': diferencia_merma,
+                'promedio_merma_arp_enviado': promedio_merma_arp_enviado,
+                'promedio_merma_arp_liquidado': promedio_merma_arp_liquidado
+            })
+        
+        # Ordenar por calidad
+        grafica_merma_data.sort(key=lambda x: x['calidad'])
+        
+        context['grafica_merma_data'] = grafica_merma_data
+        
+        # Datos para gráfica de importes neto enviado vs preliquidado (remisiones no canceladas del ciclo actual)
+        importes_data = defaultdict(lambda: {'importe_neto_enviado': 0, 'importe_preliquidado': 0})
+        
+        for detalle in detalles_qs:
+            calidad = detalle.calidad
+            importes_data[calidad]['importe_neto_enviado'] += float(detalle.importe_envio or 0)
+            importes_data[calidad]['importe_preliquidado'] += float(detalle.importe_liquidado or 0)
+        
+        # Convertir a lista para el template
+        grafica_importes_data = []
+        for calidad, datos in importes_data.items():
+            diferencia_importes = round(datos['importe_neto_enviado'] - datos['importe_preliquidado'], 2)
+            grafica_importes_data.append({
+                'calidad': calidad,
+                'importe_neto_enviado': round(datos['importe_neto_enviado'], 2),
+                'importe_preliquidado': round(datos['importe_preliquidado'], 2),
+                'diferencia_importes': diferencia_importes
+            })
+        
+        # Ordenar por calidad con "Mixtas" al final
+        def sort_key(item):
+            calidad = item['calidad']
+            if calidad == 'Mixtas':
+                return (1, calidad)  # 1 para que vaya al final
+            else:
+                return (0, calidad)  # 0 para que vaya al principio
+        
+        grafica_importes_data.sort(key=sort_key)
+        
+        context['grafica_importes_data'] = grafica_importes_data
+        
+        # Datos para ranking de clientes (solo remisiones preliquidadas del ciclo actual)
+        from django.db.models import Sum, Count
+        
+        # Agrupar remisiones preliquidadas por cliente y calcular totales
+        clientes_data = defaultdict(lambda: {'importe_preliquidado': 0, 'importe_liquidado': 0, 'total_pagos': 0, 'total_remisiones': 0})
+        
+        for remision in remisiones_qs:
+            if remision.esta_liquidada():  # Solo remisiones preliquidadas
+                cliente_nombre = remision.cliente.razon_social
+                # Sumar importes preliquidados y liquidados de todos los detalles de la remisión
+                importe_preliquidado_remision = sum(float(detalle.importe_envio or 0) for detalle in remision.detalles.all())
+                importe_liquidado_remision = sum(float(detalle.importe_liquidado or 0) for detalle in remision.detalles.all())
+                # Sumar pagos realizados de la remisión
+                total_pagos_remision = sum(float(pago.monto or 0) for pago in remision.pagos.filter(activo=True))
+                
+                clientes_data[cliente_nombre]['importe_preliquidado'] += importe_preliquidado_remision
+                clientes_data[cliente_nombre]['importe_liquidado'] += importe_liquidado_remision
+                clientes_data[cliente_nombre]['total_pagos'] += total_pagos_remision
+                clientes_data[cliente_nombre]['total_remisiones'] += 1
+        
+        # Convertir a lista y ordenar por importe liquidado (descendente)
+        ranking_clientes_data = []
+        for cliente_nombre, datos in clientes_data.items():
+            # Saldo pendiente = Importe liquidado - Pagos realizados
+            saldo_pendiente = datos['importe_liquidado'] - datos['total_pagos']
+            ranking_clientes_data.append({
+                'cliente_nombre': cliente_nombre,
+                'importe_preliquidado': round(datos['importe_preliquidado'], 2),
+                'importe_liquidado': round(datos['importe_liquidado'], 2),
+                'total_pagos': round(datos['total_pagos'], 2),
+                'saldo_pendiente': round(saldo_pendiente, 2),
+                'total_remisiones': datos['total_remisiones']
+            })
+        
+        # Ordenar por importe liquidado descendente (ranking)
+        ranking_clientes_data.sort(key=lambda x: x['importe_liquidado'], reverse=True)
+        
+        # Limitar a top 10 clientes
+        ranking_clientes_data = ranking_clientes_data[:10]
+        
+        context['ranking_clientes_data'] = ranking_clientes_data
+        
+        # Datos para gráfica de gastos autorizados (Compras de productos del inventario)
+        from core.models import Compra, AutorizoGasto
+        
+        # Obtener todas las compras activas
+        compras_qs = Compra.objects.filter(estado='activa').select_related('autorizo')
+        
+        # Agrupar por autorizo y calcular totales
+        gastos_data = defaultdict(lambda: {'total': 0, 'cantidad': 0})
+        
+        for compra in compras_qs:
+            if compra.autorizo:
+                autorizo_nombre = compra.autorizo.nombre
+                gastos_data[autorizo_nombre]['total'] += float(compra.total or 0)
+                gastos_data[autorizo_nombre]['cantidad'] += 1
+        
+        # Convertir a lista y ordenar por total (descendente)
+        grafica_gastos_data = []
+        for autorizo_nombre, datos in gastos_data.items():
+            grafica_gastos_data.append({
+                'autorizo_nombre': autorizo_nombre,
+                'total': round(datos['total'], 2),
+                'cantidad': datos['cantidad']
+            })
+        
+        # Ordenar por total descendente
+        grafica_gastos_data.sort(key=lambda x: x['total'], reverse=True)
+        
+        context['grafica_gastos_data'] = grafica_gastos_data
+        
+        # Obtener lista de autorizos para el filtro del gráfico de gastos
+        autorizos = AutorizoGasto.objects.filter(activo=True).order_by('nombre')
+        context['autorizos'] = autorizos
+        
         return context
 
 
@@ -208,6 +432,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -305,6 +533,10 @@ def eliminar_emisor_ajax(request, codigo):
     """Vista AJAX para eliminar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener el emisor
@@ -561,6 +793,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -762,6 +998,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -965,6 +1205,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -1145,6 +1389,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -1339,6 +1587,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -1527,6 +1779,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -1726,6 +1982,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -1923,6 +2183,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -2133,6 +2397,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -2339,6 +2607,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -2534,6 +2806,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -2731,6 +3007,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -2910,6 +3190,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -3101,6 +3385,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -3310,6 +3598,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -3505,6 +3797,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -3702,6 +3998,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -3881,6 +4181,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -4072,6 +4376,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -4279,6 +4587,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -4474,6 +4786,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -4671,6 +4987,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -4850,6 +5170,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -5042,6 +5366,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -5169,6 +5497,15 @@ class ClasificacionGastoListView(LoginRequiredMixin, ListView):
     context_object_name = 'clasificaciones_gasto'
     paginate_by = 20
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def get_queryset(self):
         queryset = ClasificacionGasto.objects.select_related('usuario_creacion').all()
         form = ClasificacionGastoSearchForm(self.request.GET)
@@ -5247,6 +5584,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -5371,6 +5712,15 @@ class ClasificacionGastoCreateView(LoginRequiredMixin, CreateView):
     template_name = 'core/clasificacion_gasto_form.html'
     success_url = reverse_lazy('core:clasificacion_gasto_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def form_valid(self, form):
         try:
             form.instance.usuario_creacion = self.request.user
@@ -5443,6 +5793,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -5567,6 +5921,15 @@ class ClasificacionGastoUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'core/clasificacion_gasto_form.html'
     success_url = reverse_lazy('core:clasificacion_gasto_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def form_valid(self, form):
         try:
             form.instance.usuario_modificacion = self.request.user
@@ -5639,6 +6002,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -5820,6 +6187,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -5942,6 +6313,15 @@ class ClasificacionGastoDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'core/clasificacion_gasto_confirm_delete.html'
     success_url = reverse_lazy('core:clasificacion_gasto_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def delete(self, request, *args, **kwargs):
         try:
             clasificacion_gasto = self.get_object()
@@ -6010,6 +6390,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -6138,6 +6522,15 @@ class CentroCostoListView(LoginRequiredMixin, ListView):
     context_object_name = 'centros_costo'
     paginate_by = 20
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def get_queryset(self):
         queryset = CentroCosto.objects.select_related('usuario_creacion').all()
         form = CentroCostoSearchForm(self.request.GET)
@@ -6216,6 +6609,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -6340,6 +6737,15 @@ class CentroCostoCreateView(LoginRequiredMixin, CreateView):
     template_name = 'core/centro_costo_form.html'
     success_url = reverse_lazy('core:centro_costo_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def form_valid(self, form):
         try:
             form.instance.usuario_creacion = self.request.user
@@ -6412,6 +6818,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -6536,6 +6946,15 @@ class CentroCostoUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'core/centro_costo_form.html'
     success_url = reverse_lazy('core:centro_costo_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def form_valid(self, form):
         try:
             form.instance.usuario_modificacion = self.request.user
@@ -6608,6 +7027,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -6789,6 +7212,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -6911,6 +7338,15 @@ class CentroCostoDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'core/centro_costo_confirm_delete.html'
     success_url = reverse_lazy('core:centro_costo_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def delete(self, request, *args, **kwargs):
         try:
             centro_costo = self.get_object()
@@ -6979,6 +7415,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -7191,6 +7631,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -7387,6 +7831,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -7586,6 +8034,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -7766,6 +8218,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -7960,6 +8416,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -8142,6 +8602,13 @@ class ConfiguracionSistemaView(LoginRequiredMixin, TemplateView):
                             return JsonResponse({'success': True, 'message': 'Ciclo de producción guardado correctamente'})
                 
                 elif seccion == 'empresa':
+                    # Validar permisos de administrador
+                    if not request.user.is_admin:
+                        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                            return JsonResponse({'success': False, 'error': 'No tienes permisos para modificar esta sección.'}, status=403)
+                        messages.error(request, 'No tienes permisos para modificar esta sección.')
+                        return redirect('core:configuracion_sistema')
+                    
                     if not configuracion:
                         configuracion = ConfiguracionSistema()
                     
@@ -8328,6 +8795,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -8453,6 +8924,15 @@ class CultivoListView(LoginRequiredMixin, ListView):
     context_object_name = 'cultivos'
     paginate_by = 10
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def get_queryset(self):
         """Filtrar cultivos según los parámetros de búsqueda"""
         queryset = Cultivo.objects.all()
@@ -8528,6 +9008,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -8653,6 +9137,15 @@ class CultivoCreateView(LoginRequiredMixin, CreateView):
     template_name = 'core/cultivo_form.html'
     success_url = reverse_lazy('core:cultivo_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def form_valid(self, form):
         """Asignar usuario de creación"""
         form.instance.usuario_creacion = self.request.user
@@ -8717,6 +9210,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -8842,6 +9339,15 @@ class CultivoUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'core/cultivo_form.html'
     success_url = reverse_lazy('core:cultivo_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def form_valid(self, form):
         """Asignar usuario de modificación"""
         form.instance.usuario_modificacion = self.request.user
@@ -8906,6 +9412,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -9091,6 +9601,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -9214,6 +9728,15 @@ class CultivoDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'core/cultivo_confirm_delete.html'
     success_url = reverse_lazy('core:cultivo_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        """Verificar que el usuario sea administrador"""
+        if not request.user.is_authenticated:
+            return redirect('core:login')
+        if not request.user.is_admin:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+        return super().dispatch(request, *args, **kwargs)
+    
     def delete(self, request, *args, **kwargs):
         """Eliminar con mensaje de confirmación"""
         try:
@@ -9282,6 +9805,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -9453,9 +9980,9 @@ class RemisionListView(LoginRequiredMixin, ListView):
             if cliente:
                 queryset = queryset.filter(cliente=cliente)
             
-            # Filtrar por lote origen
+            # Filtrar por lote origen (múltiple)
             if lote_origen:
-                queryset = queryset.filter(lote_origen=lote_origen)
+                queryset = queryset.filter(lote_origen__in=lote_origen)
             
             # Filtrar por transportista
             if transportista:
@@ -9467,6 +9994,24 @@ class RemisionListView(LoginRequiredMixin, ListView):
             
             if fecha_hasta:
                 queryset = queryset.filter(fecha__lte=fecha_hasta)
+            
+            # Filtrar por estado (usar agregados para evitar duplicados por joins)
+            estado = form.cleaned_data.get('estado')
+            if estado:
+                from django.db.models import Sum
+                queryset = queryset.annotate(
+                    total_kgs_liq=Sum('detalles__kgs_liquidados'),
+                    total_imp_liq=Sum('detalles__importe_liquidado'),
+                )
+                if estado == 'pendiente':
+                    queryset = queryset.filter(
+                        (Q(total_kgs_liq__isnull=True) | Q(total_kgs_liq=0)) &
+                        (Q(total_imp_liq__isnull=True) | Q(total_imp_liq=0))
+                    )
+                elif estado == 'preliquidada':
+                    queryset = queryset.filter(
+                        Q(total_kgs_liq__gt=0) | Q(total_imp_liq__gt=0)
+                    )
         
         return queryset.order_by('-fecha_creacion')
     
@@ -9536,6 +10081,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -9677,6 +10226,11 @@ class RemisionCreateView(LoginRequiredMixin, CreateView):
             # Asignar el usuario que crea el registro
             form.instance.usuario_creacion = self.request.user
             
+            # Inicializar campos de preliquidación con valores por defecto
+            from decimal import Decimal
+            form.instance.importe_cliente = Decimal('0.00')
+            form.instance.diferencia_importe = Decimal('0.00')
+            
             # Obtener el ciclo actual de la configuración
             from ..models import ConfiguracionSistema
             configuracion = ConfiguracionSistema.objects.first()
@@ -9721,7 +10275,7 @@ class RemisionCreateView(LoginRequiredMixin, CreateView):
                     calidad=detalle_data['calidad'],
                     no_arps=detalle_data['no_arps'],
                     kgs_enviados=round(detalle_data['kgs_enviados'], 2),
-                    merma_arps=detalle_data['merma_arps'],
+                    merma_arps=round(detalle_data['merma_arps'], 2),  # Convertir a Decimal con 2 decimales
                     kgs_liquidados=round(detalle_data['kgs_liquidados'], 2),
                     kgs_merma=round(detalle_data['kgs_merma'], 2),
                     precio=round(detalle_data['precio'], 2),
@@ -9753,106 +10307,6 @@ def get_cultivos_ajax(request):
             })
         return JsonResponse(cultivos_data, safe=False)
     return JsonResponse({'error': 'Método no permitido'}, status=405)
-
-
-class RemisionLiquidacionView(LoginRequiredMixin, TemplateView):
-    """Vista para preliquidar una remisión"""
-    template_name = 'core/remision_liquidacion.html'
-    
-    def get_object(self):
-        """Obtener la remisión a preliquidar"""
-        return get_object_or_404(Remision, pk=self.kwargs['pk'])
-    
-    def get(self, request, *args, **kwargs):
-        """Verificar que la remisión no esté cancelada antes de permitir la preliquidación"""
-        self.object = self.get_object()
-        
-        if self.object.cancelada:
-            messages.error(request, 'No se puede preliquidar una remisión cancelada.')
-            return redirect('core:remision_list')
-        
-        return super().get(request, *args, **kwargs)
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        self.object = self.get_object()
-        context['title'] = f'Liquidar Remisión {self.object.ciclo} - {self.object.folio:06d}'
-        context['remision'] = self.object
-        context['detalles'] = self.object.detalles.all()
-        
-        return context
-
-    def post(self, request, *args, **kwargs):
-        """Procesar la liquidación"""
-        self.object = self.get_object()
-        
-        # Verificar que la remisión no esté ya preliquidada
-        if self.esta_liquidada(self.object):
-            messages.error(request, 'Esta remisión ya ha sido preliquidada.')
-            return redirect('core:remision_list')
-        
-        # Verificar que la remisión no esté cancelada
-        if self.object.cancelada:
-            messages.error(request, 'No se puede preliquidar una remisión cancelada.')
-            return redirect('core:remision_list')
-        
-        # Obtener todos los detalles de la remisión
-        detalles = self.object.detalles.all()
-        
-        # Procesar los datos de la remisión
-        peso_bruto_liquidado = request.POST.get('peso_bruto_liquidado', 0)
-        merma_arps_liquidados = request.POST.get('merma_arps_liquidados', 0)
-        
-        try:
-            self.object.peso_bruto_liquidado = round(float(peso_bruto_liquidado or 0), 2)
-            self.object.merma_arps_liquidados = int(merma_arps_liquidados or 0)
-            self.object.save()
-        except (ValueError, TypeError):
-            messages.error(request, 'Error en los datos de liquidación de la remisión.')
-            return self.form_invalid(None)
-        
-        # Procesar cada detalle
-        from django.utils import timezone
-        
-        for detalle in detalles:
-            # Obtener los datos del formulario para este detalle
-            no_arps_liquidados = request.POST.get(f'no_arps_liquidados_{detalle.pk}', 0)
-            kgs_liquidados = request.POST.get(f'kgs_liquidados_{detalle.pk}', 0)
-            kgs_merma_liquidados = request.POST.get(f'kgs_merma_liquidados_{detalle.pk}', 0)
-            peso_promedio_liquidado = request.POST.get(f'peso_promedio_liquidado_{detalle.pk}', 0)
-            kgs_merma = request.POST.get(f'kgs_merma_{detalle.pk}', 0)
-            precio = request.POST.get(f'precio_{detalle.pk}', 0)
-            importe_liquidado = request.POST.get(f'importe_liquidado_{detalle.pk}', 0)
-            
-            # Convertir a decimal y actualizar
-            try:
-                detalle.no_arps_liquidados = int(no_arps_liquidados or 0)
-                detalle.kgs_liquidados = round(float(kgs_liquidados or 0), 2)
-                detalle.kgs_merma_liquidados = round(float(kgs_merma_liquidados or 0), 2)
-                detalle.peso_promedio_liquidado = round(float(peso_promedio_liquidado or 0), 2)
-                detalle.kgs_merma = round(float(kgs_merma or 0), 2)
-                detalle.precio = round(float(precio or 0), 2)
-                detalle.importe_liquidado = round(float(importe_liquidado or 0), 2)
-                
-                # Calcular diferencias automáticamente
-                detalle.dif_peso_promedio = round(detalle.peso_promedio - detalle.peso_promedio_liquidado, 2)
-                detalle.dif_no_arps = detalle.no_arps - detalle.no_arps_liquidados
-                detalle.dif_kgs_merma = round(detalle.kgs_merma - detalle.kgs_merma_liquidados, 2)
-                detalle.dif_kgs_liquidados = round(detalle.kgs_enviados - detalle.kgs_liquidados, 2)
-                detalle.dif_precio = round(detalle.precio_envio - detalle.precio, 2)
-                detalle.dif_importes = round(detalle.importe_neto_envio - detalle.importe_liquidado, 2)
-                
-                # Guardar información de auditoría de liquidación
-                detalle.usuario_liquidacion = request.user
-                detalle.fecha_liquidacion = timezone.now()
-                
-                detalle.save()
-            except (ValueError, TypeError):
-                messages.error(request, f'Error en los datos del detalle {detalle.cultivo.nombre}.')
-                return self.form_invalid(None)
-        
-        messages.success(request, f'Remisión "{self.object.ciclo} - {self.object.folio:06d}" preliquidada exitosamente.')
-        return redirect('core:remision_list')
 
 
 # Vistas AJAX para Emisores
@@ -9906,6 +10360,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -10031,6 +10489,7 @@ class RemisionLiquidacionView(LoginRequiredMixin, TemplateView):
         return get_object_or_404(Remision, pk=self.kwargs['pk'])
 
     def get(self, request, *args, **kwargs):
+        print(f"[DEBUG GET] GET recibido - Remisión ID: {kwargs.get('pk')}", flush=True)
         self.object = self.get_object()
         if self.object.cancelada:
             messages.error(request, 'No se puede preliquidar una remisión cancelada.')
@@ -10043,34 +10502,178 @@ class RemisionLiquidacionView(LoginRequiredMixin, TemplateView):
         context['title'] = f'Liquidar Remisión {self.object.ciclo} - {self.object.folio:06d}'
         context['remision'] = self.object
         context['detalles'] = self.object.detalles.all()
+        # Catálogo de cultivos activos para permitir agregar nuevos renglones
+        from core.models import Cultivo
+        context['cultivos'] = Cultivo.objects.filter(activo=True).order_by('nombre', 'variedad')
         return context
 
     def post(self, request, *args, **kwargs):
+        print(f"[DEBUG POST] POST recibido - Remisión ID: {kwargs.get('pk')}", flush=True)
+        print(f"[DEBUG POST] POST data keys: {list(request.POST.keys())}", flush=True)
         self.object = self.get_object()
         if self.esta_liquidada(self.object):
+            print("[DEBUG POST] Remisión ya está preliquidada", flush=True)
             messages.error(request, 'Esta remisión ya ha sido preliquidada.')
             return redirect('core:remision_list')
         if self.object.cancelada:
             messages.error(request, 'No se puede preliquidar una remisión cancelada.')
             return redirect('core:remision_list')
+        
+        # Procesar los datos de la remisión
+        peso_bruto_liquidado = request.POST.get('peso_bruto_liquidado', 0)
+        merma_arps_liquidados = request.POST.get('merma_arps_liquidados', 0)
+        importe_cliente = request.POST.get('importe_cliente', 0)
+        
+        print(f"[DEBUG] merma_arps_liquidados recibido: '{merma_arps_liquidados}' (tipo: {type(merma_arps_liquidados)})", flush=True)
+        
+        try:
+            from decimal import Decimal
+            peso_value = Decimal(str(round(float(peso_bruto_liquidado or 0), 2)))
+            merma_value = Decimal(str(round(float(merma_arps_liquidados or 0), 2)))
+            importe_cliente_value = Decimal(str(round(float(importe_cliente or 0), 2)))
+            print(f"[DEBUG] Valores Decimal creados - peso: {peso_value}, merma: {merma_value}, importe_cliente: {importe_cliente_value}", flush=True)
+            
+            self.object.peso_bruto_liquidado = peso_value
+            self.object.merma_arps_liquidados = merma_value
+            self.object.importe_cliente = importe_cliente_value
+            
+            # Calcular diferencia_importe después de procesar todos los detalles
+            # (se calculará más adelante cuando tengamos el total_importe_liquidado)
+            
+            print(f"[DEBUG] Remisión guardada - ID: {self.object.pk}, merma_arps_liquidados: {self.object.merma_arps_liquidados}", flush=True)
+            
+        except (ValueError, TypeError) as e:
+            print(f"[ERROR] Error al guardar liquidación: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            messages.error(request, 'Error en los datos de liquidación de la remisión.')
+            return self.form_invalid(None)
+        
         detalles = self.object.detalles.all()
         from django.utils import timezone
+        from core.models import Cultivo, RemisionDetalle
+        total_importe_liquidado = Decimal('0.00')
         for detalle in detalles:
+            # Obtener todos los campos de liquidación
+            no_arps_liquidados = request.POST.get(f'no_arps_liquidados_{detalle.pk}', 0)
             kgs_liquidados = request.POST.get(f'kgs_liquidados_{detalle.pk}', 0)
+            kgs_merma_liquidados = request.POST.get(f'kgs_merma_liquidados_{detalle.pk}', 0)
+            peso_promedio_liquidado = request.POST.get(f'peso_promedio_liquidado_{detalle.pk}', 0)
             kgs_merma = request.POST.get(f'kgs_merma_{detalle.pk}', 0)
             precio = request.POST.get(f'precio_{detalle.pk}', 0)
             importe_liquidado = request.POST.get(f'importe_liquidado_{detalle.pk}', 0)
+            
             try:
-                detalle.kgs_liquidados = round(float(kgs_liquidados or 0), 2)
-                detalle.kgs_merma = round(float(kgs_merma or 0), 2)
-                detalle.precio = round(float(precio or 0), 2)
-                detalle.importe_liquidado = round(float(importe_liquidado or 0), 2)
+                from decimal import Decimal
+                # Guardar todos los campos de liquidación
+                detalle.no_arps_liquidados = int(no_arps_liquidados or 0)
+                detalle.kgs_liquidados = Decimal(str(round(float(kgs_liquidados or 0), 2)))
+                detalle.kgs_merma_liquidados = Decimal(str(round(float(kgs_merma_liquidados or 0), 2)))
+                detalle.peso_promedio_liquidado = Decimal(str(round(float(peso_promedio_liquidado or 0), 2)))
+                detalle.kgs_merma = Decimal(str(round(float(kgs_merma or 0), 2)))
+                detalle.precio = Decimal(str(round(float(precio or 0), 4)))
+                detalle.importe_liquidado = Decimal(str(round(float(importe_liquidado or 0), 2)))
+                
+                # Calcular diferencias automáticamente
+                detalle.dif_peso_promedio = Decimal(str(round(float(detalle.peso_promedio - detalle.peso_promedio_liquidado), 2)))
+                detalle.dif_no_arps = detalle.no_arps - detalle.no_arps_liquidados
+                detalle.dif_kgs_merma = Decimal(str(round(float(detalle.kgs_merma - detalle.kgs_merma_liquidados), 2)))
+                detalle.dif_kgs_liquidados = Decimal(str(round(float(detalle.kgs_neto_envio - detalle.kgs_liquidados), 2)))
+                detalle.dif_precio = Decimal(str(round(float(detalle.precio_envio - detalle.precio), 4)))
+                detalle.dif_importes = Decimal(str(round(float(detalle.importe_neto_envio - detalle.importe_liquidado), 2)))
+                
+                # Guardar información de auditoría de liquidación
                 detalle.usuario_liquidacion = request.user
                 detalle.fecha_liquidacion = timezone.now()
                 detalle.save()
+                
+                # Acumular importe liquidado para calcular diferencia
+                total_importe_liquidado += detalle.importe_liquidado
+                
             except (ValueError, TypeError):
                 messages.error(request, f'Error en los datos del detalle {detalle.cultivo.nombre}.')
                 return self.form_invalid(None)
+        
+        # Procesar nuevos detalles adicionales agregados durante la preliquidación
+        nuevos_detalles_ids = {
+            key.replace('es_nuevo_', '')
+            for key in request.POST.keys()
+            if key.startswith('es_nuevo_')
+        }
+        
+        for nuevo_id in nuevos_detalles_ids:
+            cultivo_id = request.POST.get(f'cultivo_id_{nuevo_id}')
+            calidad = request.POST.get(f'calidad_{nuevo_id}')
+            no_arps_liquidados = request.POST.get(f'no_arps_liquidados_{nuevo_id}', 0)
+            kgs_liquidados = request.POST.get(f'kgs_liquidados_{nuevo_id}', 0)
+            kgs_merma_liquidados = request.POST.get(f'kgs_merma_liquidados_{nuevo_id}', 0)
+            peso_promedio_liquidado = request.POST.get(f'peso_promedio_liquidado_{nuevo_id}', 0)
+            precio = request.POST.get(f'precio_{nuevo_id}', 0)
+            importe_liquidado = request.POST.get(f'importe_liquidado_{nuevo_id}', 0)
+            
+            if not cultivo_id or not calidad:
+                continue
+            
+            try:
+                cultivo = Cultivo.objects.get(pk=cultivo_id)
+                
+                no_arps_liq_value = Decimal(str(round(float(no_arps_liquidados or 0), 2)))
+                kgs_liq_value = Decimal(str(round(float(kgs_liquidados or 0), 2)))
+                kgs_merma_liq_value = Decimal(str(round(float(kgs_merma_liquidados or 0), 2)))
+                peso_prom_liq_value = Decimal(str(round(float(peso_promedio_liquidado or 0), 2)))
+                precio_value = Decimal(str(round(float(precio or 0), 4)))
+                importe_liq_value = Decimal(str(round(float(importe_liquidado or 0), 2)))
+                
+                nuevo_detalle = RemisionDetalle(
+                    remision=self.object,
+                    cultivo=cultivo,
+                    calidad=calidad,
+                    # Campos de envío: todos en cero porque este cultivo no estaba en el envío original
+                    no_arps=0,
+                    kgs_enviados=Decimal('0.00'),
+                    merma_arps=Decimal('0.00'),
+                    peso_promedio=Decimal('0.00'),
+                    # Campos de liquidación: valores ingresados durante la preliquidación
+                    no_arps_liquidados=no_arps_liq_value,
+                    kgs_liquidados=kgs_liq_value,
+                    kgs_merma_liquidados=kgs_merma_liq_value,
+                    peso_promedio_liquidado=peso_prom_liq_value,
+                    kgs_merma=Decimal('0.00'),  # Kgs merma de envío (no hay envío, es 0)
+                    precio=precio_value,
+                    importe_liquidado=importe_liq_value,
+                    # Campos de envío (precio, importe, etc.): todos en cero
+                    precio_envio=Decimal('0.00'),
+                    importe_envio=Decimal('0.00'),
+                    kgs_neto_envio=Decimal('0.00'),
+                    importe_neto_envio=Decimal('0.00'),
+                    # Diferencias: todas en cero porque no hay valores de envío original
+                    dif_peso_promedio=Decimal('0.00'),
+                    dif_no_arps=0,
+                    dif_kgs_merma=Decimal('0.00'),
+                    dif_kgs_liquidados=Decimal('0.00'),
+                    dif_precio=Decimal('0.00'),
+                    dif_importes=Decimal('0.00'),
+                    # Auditoría
+                    usuario_creacion=request.user,
+                    usuario_liquidacion=request.user,
+                    fecha_liquidacion=timezone.now()
+                )
+                nuevo_detalle.save()
+                total_importe_liquidado += nuevo_detalle.importe_liquidado
+            except Cultivo.DoesNotExist:
+                messages.error(request, 'El cultivo seleccionado ya no está disponible.')
+                continue
+            except (ValueError, TypeError):
+                messages.error(request, 'Error en los datos del cultivo adicional.')
+                continue
+        
+        # Calcular diferencia_importe = Total Importe Liquidado - Importe Cliente
+        diferencia_importe = total_importe_liquidado - self.object.importe_cliente
+        self.object.diferencia_importe = diferencia_importe
+        self.object.save()
+        
+        print(f"[DEBUG] Total Importe Liquidado: {total_importe_liquidado}, Importe Cliente: {self.object.importe_cliente}, Diferencia: {diferencia_importe}", flush=True)
+        
         messages.success(request, f'Remisión "{self.object.ciclo} - {self.object.folio:06d}" preliquidada exitosamente.')
         return redirect('core:remision_list')
 
@@ -10151,6 +10754,20 @@ class RemisionUpdateView(LoginRequiredMixin, UpdateView):
         context['title'] = f'Editar Remisión: {self.object.ciclo} - {self.object.folio:06d}'
         return context
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        # Forzar iniciales desde la instancia para evitar que se muestren vacíos
+        if self.object:
+            try:
+                form.fields['peso_bruto_embarque'].initial = self.object.peso_bruto_embarque
+            except Exception:
+                pass
+            try:
+                form.fields['merma_arps_global'].initial = self.object.merma_arps_global
+            except Exception:
+                pass
+        return form
+
 
 # Vistas AJAX para Emisores
 
@@ -10203,6 +10820,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -10330,21 +10951,38 @@ class RemisionDetailView(LoginRequiredMixin, TemplateView):
         remision = get_object_or_404(Remision, pk=kwargs['pk'])
         detalles = remision.detalles.all()
         
-        # Calcular totales
+        print(f"[DEBUG DETAIL VIEW] Remisión {remision.codigo} - merma_arps_liquidados: {remision.merma_arps_liquidados}", flush=True)
+        
+        # Calcular totales enviados
         total_arps = sum(detalle.no_arps for detalle in detalles)
         total_kgs_enviados = sum(detalle.kgs_enviados for detalle in detalles)
         total_kgs_merma = sum(detalle.kgs_merma for detalle in detalles)
         total_kgs_netos = sum(detalle.kgs_neto_envio for detalle in detalles)
         total_importe_neto_envio = sum(detalle.importe_neto_envio for detalle in detalles)
         
+        # Calcular totales preliquidados
+        total_arps_liquidados = sum(detalle.no_arps_liquidados for detalle in detalles)
+        total_kgs_liquidados = sum(detalle.kgs_liquidados for detalle in detalles)
+        total_kgs_merma_liquidados = sum(detalle.kgs_merma_liquidados for detalle in detalles)
+        total_importe_liquidado = sum(detalle.importe_liquidado for detalle in detalles)
+        
         context['remision'] = remision
         context['detalles'] = detalles
         context['title'] = f'Remisión: {remision.ciclo} - {remision.folio:06d}'
+        
+        # Totales enviados
         context['total_arps'] = total_arps
         context['total_kgs_enviados'] = total_kgs_enviados
         context['total_kgs_merma'] = total_kgs_merma
         context['total_kgs_netos'] = total_kgs_netos
         context['total_importe_neto_envio'] = total_importe_neto_envio
+        
+        # Totales preliquidados
+        context['total_arps_liquidados'] = total_arps_liquidados
+        context['total_kgs_liquidados'] = total_kgs_liquidados
+        context['total_kgs_merma_liquidados'] = total_kgs_merma_liquidados
+        context['total_importe_liquidado'] = total_importe_liquidado
+        
         return context
 
 
@@ -10399,6 +11037,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -10524,8 +11166,56 @@ class RemisionImprimirView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         remision = get_object_or_404(Remision, pk=kwargs['pk'])
+        detalles = remision.detalles.all()
+        
+        # Agregar campo calculado kg_merma_total a cada detalle
+        detalles_procesados = []
+        for detalle in detalles:
+            # Agregar atributo calculado para merma enviados
+            detalle.kg_merma_total = float(detalle.no_arps or 0) * float(detalle.merma_arps or 0)
+            # Agregar atributo calculado para merma recibido por arp
+            if detalle.no_arps_liquidados and detalle.no_arps_liquidados > 0:
+                detalle.merma_por_arp_recibido = float(detalle.kgs_merma or 0) / float(detalle.no_arps_liquidados)
+            else:
+                detalle.merma_por_arp_recibido = 0
+            detalles_procesados.append(detalle)
+        
+        # Calcular totales enviados
+        total_arps = sum(detalle.no_arps for detalle in detalles_procesados)
+        total_kgs_enviados = sum(detalle.kgs_enviados for detalle in detalles_procesados)
+        total_kgs_merma = sum(detalle.kgs_merma for detalle in detalles_procesados)
+        total_importe_neto_envio = sum(detalle.importe_neto_envio for detalle in detalles_procesados)
+        total_kgs_netos = total_kgs_enviados - total_kgs_merma
+        
+        # Calcular totales preliquidados
+        total_arps_liquidados = sum(detalle.no_arps_liquidados for detalle in detalles_procesados)
+        total_kgs_liquidados = sum(detalle.kgs_liquidados for detalle in detalles_procesados)
+        total_kgs_merma_liquidados = sum(detalle.kgs_merma_liquidados for detalle in detalles_procesados)
+        total_importe_liquidado = sum(detalle.importe_liquidado for detalle in detalles_procesados)
+        
+        # Obtener el primer cultivo de los detalles (para mostrar en la información del producto)
+        primer_cultivo = None
+        for detalle in detalles_procesados:
+            if detalle.cultivo:
+                primer_cultivo = detalle.cultivo
+                break
+        
         context['remision'] = remision
-        context['detalles'] = remision.detalles.all()
+        context['detalles'] = detalles_procesados
+        context['primer_cultivo'] = primer_cultivo
+        
+        # Totales enviados
+        context['total_arps'] = total_arps
+        context['total_kgs_enviados'] = total_kgs_enviados
+        context['total_kgs_merma'] = total_kgs_merma
+        context['total_importe_neto_envio'] = total_importe_neto_envio
+        context['total_kgs_netos'] = total_kgs_netos
+        
+        # Totales preliquidados
+        context['total_arps_liquidados'] = total_arps_liquidados
+        context['total_kgs_liquidados'] = total_kgs_liquidados
+        context['total_kgs_merma_liquidados'] = total_kgs_merma_liquidados
+        context['total_importe_liquidado'] = total_importe_liquidado
         
         # Obtener datos de configuración de la empresa
         configuracion = ConfiguracionSistema.objects.first()
@@ -10585,6 +11275,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -10795,6 +11489,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -10955,6 +11653,150 @@ class RemisionDetalleCreateView(LoginRequiredMixin, CreateView):
         return context
 
 
+@login_required
+def remision_detalle_create_ajax(request, remision_id):
+    """Crear detalle de remisión vía AJAX desde el modal en edición."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    try:
+        remision = get_object_or_404(Remision, pk=remision_id)
+
+        cultivo_id = request.POST.get('cultivo_id')
+        calidad = request.POST.get('calidad')
+        no_arps = request.POST.get('no_arps')
+        precio_envio = request.POST.get('precio_envio', '0')
+        kgs_enviados = request.POST.get('kgs_enviados', '0')
+        kgs_merma = request.POST.get('kgs_merma', '0')
+        kgs_neto_envio = request.POST.get('kgs_neto_envio', '0')
+        importe_envio = request.POST.get('importe_envio', '0')
+        importe_neto_envio = request.POST.get('importe_neto_envio', '0')
+        peso_promedio = request.POST.get('peso_promedio', '0')
+
+        if not cultivo_id or not calidad or not no_arps:
+            return JsonResponse({'error': 'Datos incompletos'}, status=400)
+
+        cultivo = get_object_or_404(Cultivo, pk=int(cultivo_id))
+
+        detalle = RemisionDetalle.objects.create(
+            remision=remision,
+            cultivo=cultivo,
+            calidad=calidad,
+            no_arps=int(no_arps),
+            kgs_enviados=Decimal(str(kgs_enviados or 0)),
+            merma_arps=Decimal(str(remision.merma_arps_global or 0)),
+            kgs_merma=Decimal(str(kgs_merma or 0)),
+            kgs_neto_envio=Decimal(str(kgs_neto_envio or 0)),
+            precio_envio=Decimal(str(precio_envio or 0)),
+            importe_envio=Decimal(str(importe_envio or 0)),
+            importe_neto_envio=Decimal(str(importe_neto_envio or 0)),
+            peso_promedio=Decimal(str(peso_promedio or 0)),
+            kgs_liquidados=Decimal('0'),
+            precio=Decimal('0'),
+            importe_liquidado=Decimal('0'),
+            usuario_creacion=request.user
+        )
+
+        # Recalcular TODOS los detalles con el nuevo peso promedio global
+        try:
+            total_arps = remision.detalles.aggregate(total=models.Sum('no_arps'))['total'] or 0
+            peso_bruto = remision.peso_bruto_embarque or Decimal('0')
+            merma_arps_global = remision.merma_arps_global or Decimal('0')
+
+            if total_arps and peso_bruto and total_arps > 0 and peso_bruto > 0:
+                peso_promedio_global = Decimal(peso_bruto) / Decimal(total_arps)
+                for det in remision.detalles.all():
+                    det.peso_promedio = peso_promedio_global
+                    det.kgs_enviados = (peso_promedio_global * Decimal(det.no_arps)).quantize(Decimal('0.01'))
+                    det.merma_arps = merma_arps_global
+                    det.kgs_merma = (merma_arps_global * Decimal(det.no_arps)).quantize(Decimal('0.01'))
+                    det.kgs_neto_envio = (det.kgs_enviados - det.kgs_merma).quantize(Decimal('0.01'))
+                    det.importe_envio = (Decimal(det.precio_envio or 0) * det.kgs_enviados).quantize(Decimal('0.01'))
+                    det.importe_neto_envio = (Decimal(det.precio_envio or 0) * det.kgs_neto_envio).quantize(Decimal('0.01'))
+                    det.save(update_fields=['peso_promedio','kgs_enviados','merma_arps','kgs_merma','kgs_neto_envio','importe_envio','importe_neto_envio'])
+        except Exception as _:
+            # No interrumpir la creación si el recálculo falla; el front recargará de todas formas
+            pass
+
+        return JsonResponse({
+            'success': True,
+            'detalle': {
+                'id': detalle.pk,
+                'cultivo': f"{detalle.cultivo.nombre} - {detalle.cultivo.variedad}",
+                'calidad': detalle.calidad,
+                'no_arps': detalle.no_arps,
+                'kgs_enviados': float(detalle.kgs_enviados),
+                'kgs_merma': float(detalle.kgs_merma),
+                'kgs_neto_envio': float(detalle.kgs_neto_envio),
+                'precio_envio': float(detalle.precio_envio),
+                'importe_envio': float(detalle.importe_envio),
+                'importe_neto_envio': float(detalle.importe_neto_envio),
+                'peso_promedio': float(detalle.peso_promedio),
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'error': f'Error interno del servidor: {str(e)}'}, status=500)
+
+
+@login_required
+def remision_recalcular_detalles_ajax(request, remision_id):
+    """Recalcula todos los detalles de una remisión usando el peso bruto y merma/arps actuales."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    try:
+        remision = get_object_or_404(Remision, pk=remision_id)
+
+        # Permitir opcionalmente recibir nuevos valores desde el front
+        peso_bruto_str = request.POST.get('peso_bruto_embarque')
+        merma_arps_str = request.POST.get('merma_arps_global')
+
+        if peso_bruto_str is not None:
+            try:
+                remision.peso_bruto_embarque = Decimal(peso_bruto_str)
+            except Exception:
+                pass
+        if merma_arps_str is not None:
+            try:
+                remision.merma_arps_global = Decimal(merma_arps_str)
+            except Exception:
+                pass
+
+        remision.save(update_fields=['peso_bruto_embarque', 'merma_arps_global'])
+
+        total_arps = remision.detalles.aggregate(total=models.Sum('no_arps'))['total'] or 0
+        peso_bruto = remision.peso_bruto_embarque or Decimal('0')
+        merma_arps_global = remision.merma_arps_global or Decimal('0')
+
+        detalles_response = []
+        if total_arps and peso_bruto and total_arps > 0 and peso_bruto > 0:
+            peso_promedio_global = Decimal(peso_bruto) / Decimal(total_arps)
+            for det in remision.detalles.all():
+                det.peso_promedio = peso_promedio_global
+                det.kgs_enviados = (peso_promedio_global * Decimal(det.no_arps)).quantize(Decimal('0.01'))
+                det.merma_arps = merma_arps_global
+                det.kgs_merma = (merma_arps_global * Decimal(det.no_arps)).quantize(Decimal('0.01'))
+                det.kgs_neto_envio = (det.kgs_enviados - det.kgs_merma).quantize(Decimal('0.01'))
+                det.importe_envio = (Decimal(det.precio_envio or 0) * det.kgs_enviados).quantize(Decimal('0.01'))
+                det.importe_neto_envio = (Decimal(det.precio_envio or 0) * det.kgs_neto_envio).quantize(Decimal('0.01'))
+                det.save(update_fields=['peso_promedio','kgs_enviados','merma_arps','kgs_merma','kgs_neto_envio','importe_envio','importe_neto_envio'])
+
+                detalles_response.append({
+                    'id': det.pk,
+                    'no_arps': det.no_arps,
+                    'kgs_enviados': float(det.kgs_enviados),
+                    'kgs_merma': float(det.kgs_merma),
+                    'kgs_neto_envio': float(det.kgs_neto_envio),
+                    'precio_envio': float(det.precio_envio or 0),
+                    'importe_envio': float(det.importe_envio),
+                    'importe_neto_envio': float(det.importe_neto_envio),
+                    'peso_promedio': float(det.peso_promedio),
+                })
+
+        return JsonResponse({'success': True, 'detalles': detalles_response})
+    except Exception as e:
+        return JsonResponse({'error': f'Error interno del servidor: {str(e)}'}, status=500)
+
 # Vistas AJAX para Emisores
 
 @login_required
@@ -11006,6 +11848,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -11212,6 +12058,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -11408,6 +12258,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -11582,6 +12436,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -11826,6 +12684,15 @@ class CobranzaListView(LoginRequiredMixin, ListView):
         context['remisiones_agrupadas'] = remisiones_agrupadas_con_totales
         context['total_general'] = total_general
         context['saldo_general'] = saldo_general
+        # Datos para modal de filtros de Reporte de Pagos
+        context['clientes'] = Cliente.objects.all().order_by('razon_social')
+        context['cuentas_bancarias'] = CuentaBancaria.objects.filter(activo=True).order_by('nombre_corto')
+        # Ciclo actual desde configuración (para prefijar en el modal)
+        try:
+            configuracion = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = configuracion.ciclo_actual if configuracion else ''
+        except Exception:
+            context['ciclo_actual'] = ''
         
         return context
 
@@ -11881,6 +12748,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -12042,8 +12913,31 @@ def actualizar_estado_cobranza_ajax(request, pk):
                     'error': 'La remisión debe estar facturada antes de marcarla como pagada'
                 }, status=400)
             
+            # Calcular el total de la remisión
+            total_remision = remision.detalles.aggregate(
+                total=models.Sum('importe_liquidado')
+            )['total'] or 0
+            
+            # Verificar si ya existe un pago registrado
+            pago_existente = PagoRemision.objects.filter(remision=remision, activo=True).first()
+            
+            if not pago_existente and total_remision > 0:
+                # Crear un registro de pago automáticamente
+                PagoRemision.objects.create(
+                    remision=remision,
+                    cuenta_bancaria=None,  # Sin cuenta bancaria específica
+                    metodo_pago='efectivo',  # Método por defecto
+                    monto=total_remision,
+                    fecha_pago=timezone.now().date(),
+                    referencia='Marcado como pagado en cobranza',
+                    observaciones='Pago registrado automáticamente al marcar la remisión como pagada',
+                    activo=True,
+                    usuario_creacion=request.user
+                )
+            
             # Marcar como pagado
             remision.pagado = True
+            remision.fecha_pago = timezone.now().date()
             remision.save()
             
             return JsonResponse({
@@ -12070,6 +12964,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -12274,6 +13172,10 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Estado de Cuenta - Cobranza'
         
+        # Obtener datos de configuración de la empresa
+        configuracion = ConfiguracionSistema.objects.first()
+        context['configuracion'] = configuracion
+        
         # Obtener datos con filtros aplicados
         remisiones_agrupadas = self.get_queryset()
         
@@ -12281,8 +13183,11 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         remisiones_agrupadas_con_totales = []
         total_general = 0
         saldo_general = 0
+        total_remisiones = 0
         
         for cliente, remisiones in remisiones_agrupadas:
+            # Contar las remisiones de este cliente
+            total_remisiones += len(remisiones)
             total_importe = 0
             saldo_cliente = 0
             remisiones_con_importe = []
@@ -12311,6 +13216,7 @@ class CobranzaImprimirView(LoginRequiredMixin, TemplateView):
         context['remisiones_agrupadas'] = remisiones_agrupadas_con_totales
         context['total_general'] = total_general
         context['saldo_general'] = saldo_general
+        context['total_remisiones'] = total_remisiones
         
         # Información de filtros aplicados
         context['filtros_aplicados'] = {
@@ -12376,6 +13282,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -12504,6 +13414,10 @@ def agregar_cuenta_bancaria_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         from ..models import CuentaBancaria
         
@@ -12554,6 +13468,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -12712,6 +13630,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -12835,6 +13757,10 @@ def eliminar_cuenta_bancaria_ajax(request, codigo):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         from ..models import CuentaBancaria
         
@@ -12863,6 +13789,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -12995,6 +13925,7 @@ def capturar_pago_ajax(request, remision_id):
         fecha_pago = request.POST.get('fecha_pago')
         referencia = request.POST.get('referencia', '')
         observaciones = request.POST.get('observaciones', '')
+        facturar_pago = request.POST.get('facturar_pago', 'false') == 'true'
         
         # Validaciones
         if monto <= 0:
@@ -13047,11 +13978,19 @@ def capturar_pago_ajax(request, remision_id):
             remision.pagado = True
             remision.fecha_pago = fecha_pago_obj
             remision.save()
-        return JsonResponse({
+        
+        response_data = {
             'success': True,
             'message': f'Pago de ${monto:,.2f} capturado correctamente',
             'pago_id': pago.codigo
-        })
+        }
+        
+        # Si se debe facturar, agregar información para redirigir
+        if facturar_pago:
+            response_data['facturar'] = True
+            response_data['pago_id'] = pago.codigo
+        
+        return JsonResponse(response_data)
         
     except Remision.DoesNotExist:
         return JsonResponse({'error': 'Remisión no encontrada'}, status=404)
@@ -13067,6 +14006,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -13278,6 +14221,9 @@ def reporte_pagos_view(request):
     clientes = Cliente.objects.all().order_by('razon_social')
     cuentas_bancarias = CuentaBancaria.objects.filter(activo=True).order_by('nombre_corto')
     
+    # Obtener datos de configuración de la empresa
+    configuracion = ConfiguracionSistema.objects.first()
+    
     context = {
         'titulo': titulo,
         'cliente': cliente,
@@ -13288,6 +14234,7 @@ def reporte_pagos_view(request):
         'cuentas_bancarias': cuentas_bancarias,
         'ciclo': ciclo,
         'ciclo_actual': ciclo_actual,
+        'configuracion': configuracion,
     }
     
     return render(request, 'core/reporte_pagos.html', context)
@@ -13402,6 +14349,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -13592,6 +14543,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -13789,6 +14744,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -13967,11 +14926,11 @@ class PresupuestoListView(LoginRequiredMixin, ListView):
         except:
             ciclo_actual = ''
         
-        # Filtrar por ciclo actual si está configurado
+        # Filtrar por ciclo actual si está configurado (mostrar todos, activos e inactivos)
         if ciclo_actual:
-            queryset = Presupuesto.objects.filter(activo=True, ciclo=ciclo_actual).select_related('centro_costo', 'usuario_creacion')
+            queryset = Presupuesto.objects.filter(ciclo=ciclo_actual).select_related('centro_costo', 'usuario_creacion')
         else:
-            queryset = Presupuesto.objects.filter(activo=True).select_related('centro_costo', 'usuario_creacion')
+            queryset = Presupuesto.objects.all().select_related('centro_costo', 'usuario_creacion')
         
         # Aplicar filtros de búsqueda
         busqueda = self.request.GET.get('busqueda', '')
@@ -14081,6 +15040,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -14241,7 +15204,58 @@ class PresupuestoCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         # Asignar usuario de creación para evitar ValidationError
         form.instance.usuario_creacion = self.request.user
-        return super().form_valid(form)
+        
+        # Guardar el presupuesto primero
+        response = super().form_valid(form)
+        
+        # Crear los detalles temporales si existen
+        detalles_temporales = self.request.POST.get('detalles_temporales')
+        
+        # Debug: verificar que el campo llegó
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f'Detalles temporales recibidos: {detalles_temporales}')
+        
+        if detalles_temporales:
+            try:
+                import json
+                detalles_data = json.loads(detalles_temporales)
+                logger.info(f'Detalles parseados: {detalles_data}')
+                
+                detalles_creados = 0
+                for detalle_data in detalles_data:
+                    try:
+                        clasificacion_gasto = ClasificacionGasto.objects.get(
+                            codigo=detalle_data['clasificacion_gasto']['codigo']
+                        )
+                        
+                        PresupuestoDetalle.objects.create(
+                            presupuesto=form.instance,
+                            clasificacion_gasto=clasificacion_gasto,
+                            importe=detalle_data['importe'],
+                            usuario_creacion=self.request.user
+                        )
+                        detalles_creados += 1
+                    except ClasificacionGasto.DoesNotExist:
+                        logger.error(f'Clasificación de gasto no encontrada: {detalle_data.get("clasificacion_gasto", {}).get("codigo")}')
+                        messages.error(self.request, f'Clasificación de gasto no encontrada: {detalle_data.get("clasificacion_gasto", {}).get("descripcion", "Desconocida")}')
+                    except Exception as e:
+                        logger.error(f'Error al crear detalle: {str(e)}')
+                        messages.error(self.request, f'Error al crear detalle: {str(e)}')
+                
+                if detalles_creados > 0:
+                    messages.success(self.request, f'Presupuesto creado con {detalles_creados} clasificación(es) de gasto.')
+            except json.JSONDecodeError as e:
+                logger.error(f'Error al parsear JSON de detalles: {str(e)}')
+                messages.error(self.request, f'Error al procesar los detalles: Formato JSON inválido')
+            except Exception as e:
+                # Si hay error al crear detalles, agregar mensaje de error
+                logger.error(f'Error general al crear detalles: {str(e)}')
+                messages.error(self.request, f'Error al crear algunos detalles: {str(e)}')
+        else:
+            logger.info('No se recibieron detalles temporales')
+        
+        return response
 
 
 # Vistas AJAX para Emisores
@@ -14295,6 +15309,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -14411,101 +15429,8 @@ def eliminar_emisor_ajax(request, codigo):
         return JsonResponse({
             'error': f'Error interno del servidor: {str(e)}'
         }, status=500)
-    
-    def form_valid(self, form):
-        # Establecer el ciclo actual
-        try:
-            config = ConfiguracionSistema.objects.first()
-            form.instance.ciclo = config.ciclo_actual if config else '2025-2026'
-        except:
-            form.instance.ciclo = '2025-2026'
-        
-        # Establecer el usuario de creación
-        form.instance.usuario_creacion = self.request.user
-        
-        # Guardar el presupuesto primero
-        response = super().form_valid(form)
-        
-        # Crear los detalles temporales si existen
-        detalles_temporales = self.request.POST.get('detalles_temporales')
-        if detalles_temporales:
-            try:
-                import json
-                detalles_data = json.loads(detalles_temporales)
-                
-                for detalle_data in detalles_data:
-                    clasificacion_gasto = ClasificacionGasto.objects.get(
-                        codigo=detalle_data['clasificacion_gasto']['codigo']
-                    )
-                    
-                    PresupuestoDetalle.objects.create(
-                        presupuesto=form.instance,
-                        clasificacion_gasto=clasificacion_gasto,
-                        importe=detalle_data['importe'],
-                        usuario_creacion=self.request.user
-                    )
-            except Exception as e:
-                # Si hay error al crear detalles, agregar mensaje de error
-                messages.error(self.request, f'Error al crear algunos detalles: {str(e)}')
-        
-        return response
-    
-    def post(self, request, *args, **kwargs):
-        # Manejar AJAX para agregar/eliminar detalles
-        if request.headers.get('Content-Type') == 'application/json' or 'action' in request.POST:
-            action = request.POST.get('action')
-            
-            if action == 'add_detalle':
-                return self.add_detalle(request)
-            elif action == 'delete_detalle':
-                return self.delete_detalle(request)
-        
-        return super().post(request, *args, **kwargs)
-    
-    def add_detalle(self, request):
-        """Agregar un detalle al presupuesto"""
-        try:
-            presupuesto_id = request.POST.get('presupuesto_id')
-            clasificacion_gasto_id = request.POST.get('clasificacion_gasto')
-            importe = request.POST.get('importe')
-            
-            if not all([presupuesto_id, clasificacion_gasto_id, importe]):
-                return JsonResponse({'success': False, 'message': 'Faltan datos requeridos'})
-            
-            presupuesto = Presupuesto.objects.get(pk=presupuesto_id)
-            clasificacion_gasto = ClasificacionGasto.objects.get(pk=clasificacion_gasto_id)
-            
-            detalle = PresupuestoDetalle.objects.create(
-                presupuesto=presupuesto,
-                clasificacion_gasto=clasificacion_gasto,
-                importe=importe,
-                usuario_creacion=request.user
-            )
-            
-            return JsonResponse({
-                'success': True,
-                'message': 'Detalle agregado correctamente',
-                'detalle': {
-                    'id': detalle.codigo,
-                    'clasificacion': detalle.clasificacion_gasto.descripcion,
-                    'importe': float(detalle.importe)
-                }
-            })
-            
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)})
-    
-    def delete_detalle(self, request):
-        """Eliminar un detalle del presupuesto"""
-        try:
-            detalle_id = request.POST.get('detalle_id')
-            detalle = PresupuestoDetalle.objects.get(pk=detalle_id)
-            detalle.delete()
-            
-            return JsonResponse({'success': True, 'message': 'Detalle eliminado correctamente'})
-            
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': str(e)})
+
+
 
 
 class PresupuestoUpdateView(LoginRequiredMixin, UpdateView):
@@ -14599,6 +15524,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -14855,9 +15784,8 @@ class PresupuestoDetailView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         presupuesto = get_object_or_404(Presupuesto, codigo=kwargs['pk'], activo=True)
         context['presupuesto'] = presupuesto
-        context['detalles'] = presupuesto.detalles.filter(activo=True).order_by('clasificacion_gasto__descripcion')
         
-        # Calcular gastos por clasificación
+        # Calcular gastos por clasificación primero (necesario para calcular gastos/hectárea)
         gastos_por_clasificacion = {}
         total_gastado = 0
         
@@ -14874,6 +15802,42 @@ class PresupuestoDetailView(LoginRequiredMixin, TemplateView):
         
         context['gastos_por_clasificacion'] = gastos_por_clasificacion
         context['total_gastado'] = total_gastado
+        
+        # Obtener detalles y calcular costo por hectárea y gastos por hectárea para cada uno
+        detalles_queryset = presupuesto.detalles.filter(activo=True).order_by('clasificacion_gasto__descripcion')
+        detalles_con_costo_hect = []
+        from decimal import Decimal
+        
+        for detalle in detalles_queryset:
+            detalle_dict = {
+                'detalle': detalle,
+                'costo_hectarea': None,
+                'gastos_hectarea': None
+            }
+            if presupuesto.centro_costo.hectareas and presupuesto.centro_costo.hectareas > 0:
+                # Calcular costo por hectárea
+                costo_hect = detalle.importe / presupuesto.centro_costo.hectareas
+                detalle_dict['costo_hectarea'] = costo_hect
+                
+                # Calcular gastos por hectárea
+                gastos_clasificacion = gastos_por_clasificacion.get(detalle.clasificacion_gasto.codigo, 0)
+                gastos_hect = Decimal(str(gastos_clasificacion)) / presupuesto.centro_costo.hectareas
+                detalle_dict['gastos_hectarea'] = gastos_hect
+            detalles_con_costo_hect.append(detalle_dict)
+        
+        context['detalles'] = detalles_con_costo_hect
+        
+        # Calcular costo por hectárea total
+        if presupuesto.centro_costo.hectareas and presupuesto.centro_costo.hectareas > 0:
+            costo_hectarea = presupuesto.total_presupuestado / presupuesto.centro_costo.hectareas
+            context['costo_hectarea'] = costo_hectarea
+            
+            # Calcular gastos por hectárea
+            gastos_hectarea = Decimal(str(total_gastado)) / presupuesto.centro_costo.hectareas
+            context['gastos_hectarea'] = gastos_hectarea
+        else:
+            context['costo_hectarea'] = None
+            context['gastos_hectarea'] = None
         
         # Obtener el ciclo actual
         try:
@@ -14936,6 +15900,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -15126,6 +16094,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -15282,8 +16254,14 @@ class GastoCreateView(LoginRequiredMixin, CreateView):
             fecha_gasto = request.POST.get('fecha_gasto')
             observaciones = request.POST.get('observaciones', '')
             
-            # Validar que el presupuesto existe
+            # Validar que el presupuesto existe y está activo
             presupuesto = Presupuesto.objects.get(codigo=presupuesto_codigo)
+            
+            # Validar que el presupuesto esté activo
+            if not presupuesto.activo:
+                return JsonResponse({
+                    'error': 'No se puede crear un gasto para un presupuesto inactivo'
+                }, status=400)
             
             # Crear el gasto principal
             gasto = Gasto.objects.create(
@@ -15413,6 +16391,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -15536,6 +16518,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -15763,6 +16749,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -15950,6 +16940,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -16104,11 +17098,19 @@ def clasificaciones_gastos_presupuesto_ajax(request, presupuesto_id):
     """Vista AJAX para obtener clasificaciones de gastos de un presupuesto específico"""
     try:
         presupuesto = get_object_or_404(Presupuesto, codigo=presupuesto_id, activo=True)
+        
+        # Obtener las clasificaciones de gastos configuradas en el presupuesto
         clasificaciones_ids = presupuesto.detalles.filter(activo=True).values_list('clasificacion_gasto_id', flat=True)
-        clasificaciones = ClasificacionGasto.objects.filter(
-            codigo__in=clasificaciones_ids,
-            activo=True
-        ).values('codigo', 'descripcion')
+        
+        if clasificaciones_ids:
+            # Si hay clasificaciones configuradas en el presupuesto, mostrarlas
+            clasificaciones = ClasificacionGasto.objects.filter(
+                codigo__in=clasificaciones_ids,
+                activo=True
+            ).values('codigo', 'descripcion').order_by('descripcion')
+        else:
+            # Si no hay clasificaciones configuradas, mostrar todas las disponibles
+            clasificaciones = ClasificacionGasto.objects.filter(activo=True).values('codigo', 'descripcion').order_by('descripcion')
         
         data = {
             'success': True,
@@ -16207,6 +17209,10 @@ def agregar_emisor_ajax(request):
     """Vista AJAX para agregar un emisor"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
     
     try:
         # Obtener datos del formulario
@@ -16483,6 +17489,10 @@ def agregar_emisor_ajax(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
+    # Validar permisos de administrador
+    if not request.user.is_authenticated or not request.user.is_admin:
+        return JsonResponse({'success': False, 'error': 'No tienes permisos para realizar esta acción.'}, status=403)
+    
     try:
         # Obtener datos del formulario
         razon_social = request.POST.get('razon_social', '').strip()
@@ -16634,6 +17644,11 @@ def cancelar_gasto_ajax(request, gasto_id):
 def almacenes_list(request):
     """Vista para listar almacenes"""
     
+    # Validar permisos de administrador
+    if not request.user.is_admin:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+    
     # Formulario de búsqueda
     search_form = AlmacenSearchForm(request.GET)
     
@@ -16677,6 +17692,11 @@ def almacenes_list(request):
 def almacen_create(request):
     """Vista para crear almacén"""
     
+    # Validar permisos de administrador
+    if not request.user.is_admin:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
+    
     if request.method == 'POST':
         form = AlmacenForm(request.POST)
         if form.is_valid():
@@ -16698,6 +17718,11 @@ def almacen_create(request):
 @login_required
 def almacen_edit(request, codigo):
     """Vista para editar almacén"""
+    
+    # Validar permisos de administrador
+    if not request.user.is_admin:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
     
     try:
         almacen = Almacen.objects.get(codigo=codigo)
@@ -16727,6 +17752,11 @@ def almacen_edit(request, codigo):
 @login_required
 def almacen_delete(request, codigo):
     """Vista para eliminar almacén"""
+    
+    # Validar permisos de administrador
+    if not request.user.is_admin:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("No tienes permisos para acceder a esta sección.")
     
     try:
         almacen = Almacen.objects.get(codigo=codigo)
@@ -16760,15 +17790,17 @@ def compras_list(request):
     search_form = CompraSearchForm(request.GET)
 
     # Query base
-    compras = Compra.objects.select_related('proveedor').all()
+    compras = Compra.objects.select_related('proveedor').prefetch_related('pagos')
 
     # Aplicar filtros
     if search_form.is_valid():
         busqueda = search_form.cleaned_data.get('busqueda')
         proveedor = search_form.cleaned_data.get('proveedor')
+        tipo = search_form.cleaned_data.get('tipo')
         estado = search_form.cleaned_data.get('estado')
         fecha_desde = search_form.cleaned_data.get('fecha_desde')
         fecha_hasta = search_form.cleaned_data.get('fecha_hasta')
+        autorizo = search_form.cleaned_data.get('autorizo')
 
         if busqueda:
             compras = compras.filter(
@@ -16781,6 +17813,9 @@ def compras_list(request):
         if proveedor:
             compras = compras.filter(proveedor=proveedor)
 
+        if tipo:
+            compras = compras.filter(tipo=tipo)
+
         if estado:
             compras = compras.filter(estado=estado)
 
@@ -16789,6 +17824,9 @@ def compras_list(request):
 
         if fecha_hasta:
             compras = compras.filter(fecha__lte=fecha_hasta)
+        
+        if autorizo:
+            compras = compras.filter(autorizo=autorizo)
 
     # Ordenar por fecha y folio
     compras = compras.order_by('-fecha', '-folio')
@@ -16798,9 +17836,21 @@ def compras_list(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
+    # Obtener opciones para el modal de pago
+    from core.models import AutorizoGasto
+    autorizos_options = AutorizoGasto.objects.filter(activo=True).order_by('nombre')
+    
+    # Obtener proveedores únicos para el modal de imprimir pagos
+    proveedores_unicos = Proveedor.objects.filter(
+        activo=True,
+        compra__isnull=False
+    ).distinct().order_by('nombre')
+    
     context = {
         'page_obj': page_obj,
         'search_form': search_form,
+        'autorizos_options': autorizos_options,
+        'proveedores_unicos': proveedores_unicos,
         'title': 'Compras de Productos'
     }
 
@@ -16866,6 +17916,11 @@ def compra_create(request):
 @login_required
 def compra_edit(request, folio):
     """Vista para editar compra"""
+    
+    # Validar permisos de administrador
+    if not request.user.is_admin:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("No tienes permisos para realizar esta acción.")
 
     try:
         compra = Compra.objects.get(folio=folio)
@@ -16953,12 +18008,7 @@ def procesar_detalles_compra(request, compra):
                     
                     print(f"Detalle creado exitosamente: {detalle}")
                     
-                    # Crear movimiento en kardex (temporalmente deshabilitado para evitar errores)
-                    try:
-                        crear_movimiento_kardex(compra, detalle)
-                    except Exception as kardex_error:
-                        print(f"Error en kardex (no crítico): {kardex_error}")
-                        # Continuar sin interrumpir el proceso de compra
+                    # El movimiento de kardex se crea automáticamente en el método save() del modelo CompraDetalle
                     
                 except (ProductoServicio.DoesNotExist, Almacen.DoesNotExist, ValueError, TypeError) as e:
                     print(f"Error procesando detalle: {e}")
@@ -17034,6 +18084,11 @@ def crear_movimiento_kardex(compra, detalle):
 @login_required
 def compra_delete(request, folio):
     """Vista para eliminar compra"""
+    
+    # Validar permisos de administrador
+    if not request.user.is_admin:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("No tienes permisos para realizar esta acción.")
 
     try:
         compra = Compra.objects.get(folio=folio)
@@ -17135,17 +18190,37 @@ def kardex_list(request):
 def existencias_list(request):
     """Vista para mostrar existencias actuales agrupadas por almacén con botón de Kardex"""
 
+    # Obtener parámetros de filtro
+    producto_filtro = request.GET.get('producto', '')
+    almacen_filtro = request.GET.get('almacen', '')
+    mostrar_vacios = request.GET.get('mostrar_vacios', False)
+    
+    
     # Obtener las existencias actuales agrupadas por almacén
     existencias_por_almacen = {}
     
     # Obtener todos los almacenes activos
     almacenes = Almacen.objects.filter(activo=True).order_by('descripcion')
     
+    # Aplicar filtro de almacén si se especifica
+    if almacen_filtro:
+        almacenes = almacenes.filter(codigo=almacen_filtro)
+    
     for almacen in almacenes:
-        # Obtener todos los productos únicos que tienen movimientos en este almacén
-        productos_con_movimientos = Kardex.objects.filter(
-            almacen=almacen
-        ).values_list('producto', flat=True).distinct()
+        # Si hay filtro de producto, buscar en todos los productos, sino solo en los que tienen movimientos
+        if producto_filtro:
+            # Buscar productos que coincidan con el filtro
+            productos_filtrados = ProductoServicio.objects.filter(
+                activo=True
+            ).filter(
+                Q(descripcion__icontains=producto_filtro) | Q(sku__icontains=producto_filtro)
+            )
+            productos_con_movimientos = productos_filtrados.values_list('codigo', flat=True)
+        else:
+            # Obtener todos los productos únicos que tienen movimientos en este almacén
+            productos_con_movimientos = Kardex.objects.filter(
+                almacen=almacen
+            ).values_list('producto', flat=True).distinct()
         
         # Obtener información de existencias para cada producto en este almacén
         productos_existencias = []
@@ -17154,14 +18229,16 @@ def existencias_list(request):
             try:
                 producto = ProductoServicio.objects.get(codigo=producto_id)
                 
+                # El filtro de producto ya se aplicó a nivel de base de datos
+                
                 # Obtener el último movimiento para este producto/almacén
                 ultimo_movimiento = Kardex.objects.filter(
                     producto=producto,
                     almacen=almacen
                 ).order_by('-fecha', '-id').first()
                 
-                # Solo mostrar productos que tienen existencia > 0
-                if ultimo_movimiento and ultimo_movimiento.existencia_actual > 0:
+                # Mostrar productos según el filtro de mostrar_vacios
+                if mostrar_vacios or (ultimo_movimiento and ultimo_movimiento.existencia_actual > 0):
                     # Verificar si el producto ya está en la lista
                     producto_ya_existe = any(
                         p['producto'].codigo == producto.codigo 
@@ -17169,12 +18246,24 @@ def existencias_list(request):
                     )
                     
                     if not producto_ya_existe:
+                        # Manejar productos sin movimientos o con existencia 0
+                        if ultimo_movimiento:
+                            existencia_actual = ultimo_movimiento.existencia_actual
+                            costo_promedio = ultimo_movimiento.costo_promedio_actual
+                            valor_inventario = existencia_actual * costo_promedio
+                            ultimo_movimiento_fecha = ultimo_movimiento.fecha
+                        else:
+                            existencia_actual = 0
+                            costo_promedio = 0
+                            valor_inventario = 0
+                            ultimo_movimiento_fecha = None
+                        
                         productos_existencias.append({
                             'producto': producto,
-                            'existencia_actual': ultimo_movimiento.existencia_actual,
-                            'costo_promedio': ultimo_movimiento.costo_promedio_actual,
-                            'valor_inventario': ultimo_movimiento.existencia_actual * ultimo_movimiento.costo_promedio_actual,
-                            'ultimo_movimiento': ultimo_movimiento.fecha
+                            'existencia_actual': existencia_actual,
+                            'costo_promedio': costo_promedio,
+                            'valor_inventario': valor_inventario,
+                            'ultimo_movimiento': ultimo_movimiento_fecha
                         })
             except ProductoServicio.DoesNotExist:
                 continue
@@ -17182,8 +18271,8 @@ def existencias_list(request):
         # Ordenar productos por descripción
         productos_existencias.sort(key=lambda x: x['producto'].descripcion)
         
-        # Solo agregar almacenes que tienen productos con existencia
-        if productos_existencias:
+        # Agregar almacenes según el filtro de mostrar_vacios
+        if productos_existencias or mostrar_vacios:
             # Calcular valor total del almacén
             valor_total_almacen = sum(p['valor_inventario'] for p in productos_existencias)
             existencias_por_almacen[almacen] = {
@@ -17202,15 +18291,403 @@ def existencias_list(request):
     total_almacenes = len(existencias_por_almacen)
     valor_total_inventario = sum(almacen_data['valor_total'] for almacen_data in existencias_por_almacen.values())
     
+    # Obtener opciones para los filtros
+    productos_options = ProductoServicio.objects.filter(activo=True).order_by('descripcion')
+    almacenes_options = Almacen.objects.filter(activo=True).order_by('descripcion')
+    
     context = {
         'existencias_por_almacen': existencias_por_almacen,
         'total_productos': total_productos,
         'total_almacenes': total_almacenes,
         'valor_total_inventario': valor_total_inventario,
+        'productos_options': productos_options,
+        'almacenes_options': almacenes_options,
+        'producto_filtro': producto_filtro,
+        'almacen_filtro': almacen_filtro,
+        'mostrar_vacios': mostrar_vacios,
         'title': 'Control de Existencias y Costos'
     }
 
     return render(request, 'core/existencias_list.html', context)
+
+
+@login_required
+def existencias_imprimir(request):
+    """Vista para imprimir reporte de existencias con formato profesional"""
+    
+    # Obtener parámetros de filtro
+    producto_filtro = request.GET.get('producto', '')
+    almacen_filtro = request.GET.get('almacen', '')
+    mostrar_vacios = request.GET.get('mostrar_vacios', False)
+    
+    # Obtener las existencias actuales agrupadas por almacén
+    existencias_por_almacen = {}
+    
+    # Obtener todos los almacenes activos
+    almacenes = Almacen.objects.filter(activo=True).order_by('descripcion')
+    
+    # Aplicar filtro de almacén si se especifica
+    if almacen_filtro:
+        almacenes = almacenes.filter(codigo=almacen_filtro)
+    
+    for almacen in almacenes:
+        # Si hay filtro de producto, buscar en todos los productos, sino solo en los que tienen movimientos
+        if producto_filtro:
+            # Buscar productos que coincidan con el filtro
+            productos_filtrados = ProductoServicio.objects.filter(
+                activo=True
+            ).filter(
+                Q(descripcion__icontains=producto_filtro) | Q(sku__icontains=producto_filtro)
+            )
+            productos_con_movimientos = productos_filtrados.values_list('codigo', flat=True)
+        else:
+            # Obtener todos los productos únicos que tienen movimientos en este almacén
+            productos_con_movimientos = Kardex.objects.filter(
+                almacen=almacen
+            ).values_list('producto', flat=True).distinct()
+        
+        # Obtener información de existencias para cada producto en este almacén
+        productos_existencias = []
+        
+        for producto_id in productos_con_movimientos:
+            try:
+                producto = ProductoServicio.objects.get(codigo=producto_id)
+                
+                # El filtro de producto ya se aplicó a nivel de base de datos
+                
+                # Obtener el último movimiento para este producto/almacén
+                ultimo_movimiento = Kardex.objects.filter(
+                    producto=producto,
+                    almacen=almacen
+                ).order_by('-fecha', '-id').first()
+                
+                # Mostrar productos según el filtro de mostrar_vacios
+                if mostrar_vacios or (ultimo_movimiento and ultimo_movimiento.existencia_actual > 0):
+                    # Verificar si el producto ya está en la lista
+                    producto_ya_existe = any(
+                        p['producto'].codigo == producto.codigo 
+                        for p in productos_existencias
+                    )
+                    
+                    if not producto_ya_existe:
+                        # Manejar productos sin movimientos o con existencia 0
+                        if ultimo_movimiento:
+                            existencia_actual = ultimo_movimiento.existencia_actual
+                            costo_promedio = ultimo_movimiento.costo_promedio_actual
+                            valor_inventario = existencia_actual * costo_promedio
+                            ultimo_movimiento_fecha = ultimo_movimiento.fecha
+                        else:
+                            existencia_actual = 0
+                            costo_promedio = 0
+                            valor_inventario = 0
+                            ultimo_movimiento_fecha = None
+                        
+                        productos_existencias.append({
+                            'producto': producto,
+                            'existencia_actual': existencia_actual,
+                            'costo_promedio': costo_promedio,
+                            'valor_inventario': valor_inventario,
+                            'ultimo_movimiento': ultimo_movimiento_fecha
+                        })
+            except ProductoServicio.DoesNotExist:
+                continue
+        
+        # Ordenar productos por descripción
+        productos_existencias.sort(key=lambda x: x['producto'].descripcion)
+        
+        # Agregar almacenes según el filtro de mostrar_vacios
+        if productos_existencias or mostrar_vacios:
+            # Calcular valor total del almacén
+            valor_total_almacen = sum(p['valor_inventario'] for p in productos_existencias)
+            existencias_por_almacen[almacen] = {
+                'productos': productos_existencias,
+                'valor_total': valor_total_almacen
+            }
+
+    # Calcular estadísticas generales
+    # Contar productos únicos (no duplicados entre almacenes)
+    productos_unicos = set()
+    for almacen_data in existencias_por_almacen.values():
+        for producto_info in almacen_data['productos']:
+            productos_unicos.add(producto_info['producto'].codigo)
+    
+    total_productos = len(productos_unicos)
+    total_almacenes = len(existencias_por_almacen)
+    valor_total_inventario = sum(almacen_data['valor_total'] for almacen_data in existencias_por_almacen.values())
+    
+    # Obtener datos de configuración de la empresa
+    configuracion = ConfiguracionSistema.objects.first()
+    
+    context = {
+        'existencias_por_almacen': existencias_por_almacen,
+        'total_productos': total_productos,
+        'total_almacenes': total_almacenes,
+        'valor_total_inventario': valor_total_inventario,
+        'producto_filtro': producto_filtro,
+        'almacen_filtro': almacen_filtro,
+        'mostrar_vacios': mostrar_vacios,
+        'configuracion': configuracion,
+        'title': 'Reporte de Existencias y Costos'
+    }
+
+    return render(request, 'core/existencias_imprimir.html', context)
+
+
+@login_required
+def cuentas_por_pagar_list(request):
+    """Vista para listar compras a crédito pendientes de pago"""
+    from django.db.models import Sum, Q
+    
+    # Obtener compras a crédito con saldo pendiente
+    compras_credito = Compra.objects.filter(
+        tipo='credito',
+        estado='activa'
+    ).select_related('proveedor').prefetch_related('pagos')
+    
+    # Filtrar por proveedor si se especifica
+    proveedor_filtro = request.GET.get('proveedor', '')
+    if proveedor_filtro:
+        compras_credito = compras_credito.filter(
+            Q(proveedor__nombre__icontains=proveedor_filtro) |
+            Q(proveedor__rfc__icontains=proveedor_filtro)
+        )
+    
+    # Filtrar por estado de pago
+    estado_pago = request.GET.get('estado_pago', '')
+    if estado_pago == 'pendientes':
+        compras_credito = compras_credito.filter(
+            ~Q(pagos__isnull=False) | Q(pagos__monto__lt=models.F('total'))
+        )
+    elif estado_pago == 'parciales':
+        compras_credito = compras_credito.annotate(
+            total_pagado=Sum('pagos__monto')
+        ).filter(
+            total_pagado__gt=0,
+            total_pagado__lt=models.F('total')
+        )
+    elif estado_pago == 'pagadas':
+        compras_credito = compras_credito.annotate(
+            total_pagado=Sum('pagos__monto')
+        ).filter(total_pagado__gte=models.F('total'))
+    
+    # Ordenar por fecha de compra
+    compras_credito = compras_credito.order_by('fecha', 'folio')
+    
+    # Calcular estadísticas
+    total_compras = compras_credito.count()
+    total_deuda = sum(compra.saldo_pendiente for compra in compras_credito)
+    
+    # Obtener proveedores para el filtro
+    proveedores_options = Proveedor.objects.filter(activo=True).order_by('nombre')
+    
+    # Obtener opciones para el modal de pago
+    from core.models import AutorizoGasto
+    autorizos_options = AutorizoGasto.objects.filter(activo=True).order_by('nombre')
+    
+    # Formas de pago del SAT
+    formas_pago = [
+        ('01', 'Efectivo'),
+        ('02', 'Cheque nominativo'),
+        ('03', 'Transferencia electrónica de fondos'),
+        ('04', 'Tarjeta de crédito'),
+        ('05', 'Monedero electrónico'),
+        ('06', 'Dinero electrónico'),
+        ('08', 'Vales de despensa'),
+        ('12', 'Dación en pago'),
+        ('13', 'Pago por subrogación'),
+        ('14', 'Pago por consignación'),
+        ('15', 'Condonación'),
+        ('17', 'Compensación'),
+        ('23', 'Novación'),
+        ('24', 'Confusión'),
+        ('25', 'Remisión de deuda'),
+        ('26', 'Prescripción o caducidad'),
+        ('27', 'A satisfacción del acreedor'),
+        ('28', 'Tarjeta de débito'),
+        ('29', 'Tarjeta de servicios'),
+        ('30', 'Aplicación de anticipos'),
+        ('31', 'Intermediario pagos'),
+        ('99', 'Por definir'),
+    ]
+    
+    context = {
+        'compras_credito': compras_credito,
+        'total_compras': total_compras,
+        'total_deuda': total_deuda,
+        'proveedores_options': proveedores_options,
+        'autorizos_options': autorizos_options,
+        'formas_pago': formas_pago,
+        'proveedor_filtro': proveedor_filtro,
+        'estado_pago': estado_pago,
+        'title': 'Cuentas por Pagar'
+    }
+    
+    return render(request, 'core/cuentas_por_pagar_list.html', context)
+
+
+@login_required
+def pagos_imprimir(request):
+    """Vista para imprimir reporte de pagos realizados por factura"""
+    from django.db.models import Sum
+    
+    # Obtener parámetros de filtro
+    compra_id = request.GET.get('compra_id', '')
+    proveedor_filtro = request.GET.get('proveedor', '')
+    autorizo_filtro = request.GET.get('autorizo', '')
+    fecha_desde = request.GET.get('fecha_desde', '')
+    fecha_hasta = request.GET.get('fecha_hasta', '')
+    
+    # Query base - obtener todos los pagos
+    pagos = PagoCompra.objects.select_related('compra', 'compra__proveedor', 'autorizo').order_by('-fecha_pago')
+    
+    # Aplicar filtros
+    if compra_id:
+        pagos = pagos.filter(compra__folio=compra_id)
+    
+    if proveedor_filtro:
+        pagos = pagos.filter(compra__proveedor__nombre__icontains=proveedor_filtro)
+    
+    if autorizo_filtro:
+        pagos = pagos.filter(autorizo__nombre__icontains=autorizo_filtro)
+    
+    if fecha_desde:
+        pagos = pagos.filter(fecha_pago__gte=fecha_desde)
+    
+    if fecha_hasta:
+        pagos = pagos.filter(fecha_pago__lte=fecha_hasta)
+    
+    # Agrupar pagos por compra
+    compras_con_pagos = {}
+    for pago in pagos:
+        compra = pago.compra
+        if compra.folio not in compras_con_pagos:
+            compras_con_pagos[compra.folio] = {
+                'compra': compra,
+                'pagos': [],
+                'total_pagado': 0
+            }
+        compras_con_pagos[compra.folio]['pagos'].append(pago)
+        compras_con_pagos[compra.folio]['total_pagado'] += pago.monto
+    
+    # Calcular totales generales
+    total_pagos = sum(pago.monto for pago in pagos)
+    total_compras = len(compras_con_pagos)
+    
+    # Obtener configuración del sistema
+    try:
+        configuracion = ConfiguracionSistema.objects.first()
+    except:
+        configuracion = None
+    
+    # Obtener proveedores para filtros
+    proveedores_options = Proveedor.objects.filter(activo=True).order_by('nombre')
+    
+    context = {
+        'compras_con_pagos': compras_con_pagos,
+        'total_pagos': total_pagos,
+        'total_compras': total_compras,
+        'configuracion': configuracion,
+        'proveedores_options': proveedores_options,
+        'filtros_aplicados': {
+            'compra_id': compra_id,
+            'proveedor': proveedor_filtro,
+            'autorizo': autorizo_filtro,
+            'fecha_desde': fecha_desde,
+            'fecha_hasta': fecha_hasta,
+        }
+    }
+    
+    return render(request, 'core/pagos_imprimir.html', context)
+
+
+@login_required
+def registrar_pago_ajax(request):
+    """Vista AJAX para registrar pagos de compras a crédito"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        compra_id = request.POST.get('compra_id')
+        fecha_pago = request.POST.get('fecha_pago')
+        monto = request.POST.get('monto')
+        forma_pago = request.POST.get('forma_pago', '01')
+        autorizo_id = request.POST.get('autorizo')
+        observaciones = request.POST.get('observaciones', '')
+        
+        # Validar datos requeridos
+        if not all([compra_id, fecha_pago, monto]):
+            return JsonResponse({
+                'success': False,
+                'error': 'Faltan datos requeridos'
+            })
+        
+        # Obtener la compra
+        compra = Compra.objects.get(pk=compra_id)
+        
+        # Validar que sea compra a crédito
+        if compra.tipo != 'credito':
+            return JsonResponse({
+                'success': False,
+                'error': 'Solo se pueden registrar pagos para compras a crédito'
+            })
+        
+        # Validar monto
+        monto_decimal = Decimal(monto)
+        if monto_decimal <= 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'El monto debe ser mayor a 0'
+            })
+        
+        if monto_decimal > compra.saldo_pendiente:
+            return JsonResponse({
+                'success': False,
+                'error': f'El monto no puede ser mayor al saldo pendiente (${compra.saldo_pendiente})'
+            })
+        
+        # Obtener el autorizó si se proporcionó
+        autorizo = None
+        if autorizo_id:
+            try:
+                from core.models import AutorizoGasto
+                autorizo = AutorizoGasto.objects.get(pk=autorizo_id)
+            except AutorizoGasto.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Autorizó no encontrado'
+                })
+        
+        # Crear el pago
+        pago = PagoCompra.objects.create(
+            compra=compra,
+            fecha_pago=fecha_pago,
+            monto=monto_decimal,
+            forma_pago=forma_pago,
+            autorizo=autorizo,
+            observaciones=observaciones
+        )
+        
+        # Calcular nuevo saldo
+        nuevo_saldo = compra.saldo_pendiente
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Pago registrado exitosamente',
+            'pago_id': pago.id,
+            'nuevo_saldo': float(nuevo_saldo),
+            'esta_pagada': compra.esta_pagada
+        })
+        
+    except Compra.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Compra no encontrada'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al registrar pago: {str(e)}'
+        })
 
 
 @login_required
@@ -17261,3 +18738,1456 @@ def kardex_producto(request, producto_codigo, almacen_codigo):
     }
 
     return render(request, 'core/kardex_producto.html', context)
+
+
+class EstadisticasPreliquidacionView(LoginRequiredMixin, ListView):
+    """Vista para mostrar estadísticas de preliquidación"""
+    model = Remision
+    template_name = 'core/estadisticas_preliquidacion.html'
+    context_object_name = 'remisiones'
+    paginate_by = 20
+    
+    def get_queryset(self):
+        # Obtener el ciclo actual de la configuración
+        try:
+            config = ConfiguracionSistema.objects.first()
+            ciclo_actual = config.ciclo_actual if config else ''
+        except:
+            ciclo_actual = ''
+        
+        # Filtrar por ciclo actual si está configurado
+        if ciclo_actual:
+            queryset = Remision.objects.select_related(
+                'cliente', 'lote_origen', 'transportista', 'usuario_creacion'
+            ).filter(ciclo=ciclo_actual)
+        else:
+            queryset = Remision.objects.select_related(
+                'cliente', 'lote_origen', 'transportista', 'usuario_creacion'
+            ).all()
+        
+        # Obtener parámetros de búsqueda
+        form = RemisionSearchForm(self.request.GET)
+        
+        if form.is_valid():
+            busqueda = form.cleaned_data.get('busqueda')
+            cliente = form.cleaned_data.get('cliente')
+            lote_origen = form.cleaned_data.get('lote_origen')
+            transportista = form.cleaned_data.get('transportista')
+            fecha_desde = form.cleaned_data.get('fecha_desde')
+            fecha_hasta = form.cleaned_data.get('fecha_hasta')
+            
+            # Filtrar por búsqueda
+            if busqueda:
+                queryset = queryset.filter(
+                    Q(ciclo__icontains=busqueda) |
+                    Q(folio__icontains=busqueda) |
+                    Q(cliente__razon_social__icontains=busqueda) |
+                    Q(observaciones__icontains=busqueda)
+                )
+            
+            # Filtrar por cliente
+            if cliente:
+                queryset = queryset.filter(cliente=cliente)
+            
+            # Filtrar por lote origen
+            if lote_origen:
+                queryset = queryset.filter(lote_origen=lote_origen)
+            
+            # Filtrar por transportista
+            if transportista:
+                queryset = queryset.filter(transportista=transportista)
+            
+            # Filtrar por rango de fechas
+            if fecha_desde:
+                queryset = queryset.filter(fecha__gte=fecha_desde)
+            
+            if fecha_hasta:
+                queryset = queryset.filter(fecha__lte=fecha_hasta)
+        
+        return queryset.order_by('-fecha_creacion')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['search_form'] = RemisionSearchForm(self.request.GET)
+        context['title'] = 'Estadísticas de Preliquidación'
+        
+        # Agregar ciclo actual al contexto
+        try:
+            config = ConfiguracionSistema.objects.first()
+            context['ciclo_actual'] = config.ciclo_actual if config else ''
+        except:
+            context['ciclo_actual'] = ''
+        
+        return context
+
+
+class AnalisisKgsImprimirView(LoginRequiredMixin, TemplateView):
+    """Vista para imprimir reporte de análisis de kgs enviados vs liquidados"""
+    template_name = 'core/analisis_kgs_imprimir.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Obtener datos de configuración de la empresa
+        configuracion = ConfiguracionSistema.objects.first()
+        context['configuracion'] = configuracion
+        
+        # Obtener ciclo actual
+        ciclo_actual = configuracion.ciclo_actual if configuracion else ''
+        context['ciclo_actual'] = ciclo_actual
+        
+        # Obtener parámetros de filtro si existen
+        cliente_codigo = self.request.GET.get('cliente_codigo')
+        lote_origen_codigo = self.request.GET.get('lote_origen_codigo')
+        calidad = self.request.GET.get('calidad')
+        fecha_desde = self.request.GET.get('fecha_desde')
+        fecha_hasta = self.request.GET.get('fecha_hasta')
+        cliente_filtrado = None
+        lote_origen_filtrado = None
+        
+        if cliente_codigo:
+            try:
+                cliente_filtrado = Cliente.objects.get(codigo=cliente_codigo)
+                context['cliente_filtrado'] = cliente_filtrado
+            except Cliente.DoesNotExist:
+                pass
+        
+        if lote_origen_codigo:
+            try:
+                lote_origen_filtrado = LoteOrigen.objects.get(codigo=lote_origen_codigo)
+                context['lote_origen_filtrado'] = lote_origen_filtrado
+            except LoteOrigen.DoesNotExist:
+                pass
+        
+        if calidad:
+            context['calidad_filtrada'] = calidad
+        
+        if fecha_desde:
+            context['fecha_desde'] = fecha_desde
+        
+        if fecha_hasta:
+            context['fecha_hasta'] = fecha_hasta
+        
+        # Obtener datos del mismo modo que en el dashboard
+        from collections import defaultdict
+        
+        # Filtrar detalles de remisiones no canceladas del ciclo actual
+        # Primero obtener las remisiones del ciclo actual que no estén canceladas
+        remisiones_qs = Remision.objects.filter(
+            cancelada=False,
+            ciclo=ciclo_actual
+        ).select_related('cliente').prefetch_related('detalles')
+        
+        # Aplicar filtro de fechas si se proporcionan
+        if fecha_desde:
+            remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+        
+        if fecha_hasta:
+            remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+        
+        # Si se especifica un cliente, filtrar por ese cliente
+        if cliente_filtrado:
+            remisiones_qs = remisiones_qs.filter(cliente=cliente_filtrado)
+        
+        # Si se especifica un lote-origen, filtrar por ese lote-origen
+        if lote_origen_filtrado:
+            remisiones_qs = remisiones_qs.filter(lote_origen=lote_origen_filtrado)
+        
+        # Datos para análisis de kgs enviados vs liquidados
+        kgs_enviados_data = defaultdict(lambda: {
+            'kgs_enviados': 0, 
+            'kgs_liquidados': 0,
+            'total_remisiones': 0,
+            'remisiones': []
+        })
+        
+        # Incluir todas las remisiones no canceladas (tanto preliquidadas como no preliquidadas)
+        remisiones_no_canceladas = list(remisiones_qs)
+        remision_ids = [r.pk for r in remisiones_no_canceladas]
+        detalles_qs = RemisionDetalle.objects.filter(
+            remision_id__in=remision_ids
+        ).select_related('remision', 'cultivo')
+        
+        # Si se especifica una calidad, filtrar por esa calidad
+        if calidad:
+            detalles_qs = detalles_qs.filter(calidad=calidad)
+        
+        for detalle in detalles_qs:
+            calidad = detalle.calidad
+            kgs_enviados_data[calidad]['kgs_enviados'] += float(detalle.kgs_enviados or 0)
+            kgs_enviados_data[calidad]['kgs_liquidados'] += float(detalle.kgs_liquidados or 0)
+            kgs_enviados_data[calidad]['total_remisiones'] += 1
+            
+            # Agregar información de la remisión para el detalle
+            kgs_enviados_data[calidad]['remisiones'].append({
+                'remision': detalle.remision,
+                'cliente': detalle.remision.cliente.razon_social,
+                'fecha': detalle.remision.fecha,
+                'kgs_enviados': float(detalle.kgs_enviados or 0),
+                'kgs_liquidados': float(detalle.kgs_liquidados or 0),
+                'diferencia': float(detalle.kgs_enviados or 0) - float(detalle.kgs_liquidados or 0)
+            })
+        
+        # Convertir a lista para el template
+        grafica_kgs_enviados_data = []
+        for calidad, datos in kgs_enviados_data.items():
+            diferencia = round(datos['kgs_enviados'] - datos['kgs_liquidados'], 2)
+            grafica_kgs_enviados_data.append({
+                'calidad': calidad,
+                'kgs_enviados': round(datos['kgs_enviados'], 2),
+                'kgs_liquidados': round(datos['kgs_liquidados'], 2),
+                'diferencia': diferencia,
+                'total_remisiones': datos['total_remisiones'],
+                'remisiones': datos['remisiones']
+            })
+        
+        # Ordenar por calidad
+        grafica_kgs_enviados_data.sort(key=lambda x: x['calidad'])
+        
+        # Calcular totales generales
+        total_kgs_enviados = sum(item['kgs_enviados'] for item in grafica_kgs_enviados_data)
+        total_kgs_liquidados = sum(item['kgs_liquidados'] for item in grafica_kgs_enviados_data)
+        total_diferencia = total_kgs_enviados - total_kgs_liquidados
+        total_remisiones = sum(item['total_remisiones'] for item in grafica_kgs_enviados_data)
+        
+        context['grafica_kgs_enviados_data'] = grafica_kgs_enviados_data
+        context['total_kgs_enviados'] = round(total_kgs_enviados, 2)
+        context['total_kgs_liquidados'] = round(total_kgs_liquidados, 2)
+        context['total_diferencia'] = round(total_diferencia, 2)
+        context['total_remisiones'] = total_remisiones
+        
+        return context
+
+
+class AnalisisCalidadImprimirView(LoginRequiredMixin, TemplateView):
+    """Vista para imprimir reporte de análisis por calidad de producto"""
+    template_name = 'core/analisis_calidad_imprimir.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Obtener datos de configuración de la empresa
+        configuracion = ConfiguracionSistema.objects.first()
+        context['configuracion'] = configuracion
+        
+        # Obtener ciclo actual
+        ciclo_actual = configuracion.ciclo_actual if configuracion else ''
+        context['ciclo_actual'] = ciclo_actual
+        
+        # Obtener parámetros de filtro si existen
+        cliente_codigo = self.request.GET.get('cliente_codigo')
+        lote_origen_codigo = self.request.GET.get('lote_origen_codigo')
+        calidad = self.request.GET.get('calidad')
+        fecha_desde = self.request.GET.get('fecha_desde')
+        fecha_hasta = self.request.GET.get('fecha_hasta')
+        cliente_filtrado = None
+        lote_origen_filtrado = None
+        
+        if cliente_codigo:
+            try:
+                cliente_filtrado = Cliente.objects.get(codigo=cliente_codigo)
+                context['cliente_filtrado'] = cliente_filtrado
+            except Cliente.DoesNotExist:
+                pass
+        
+        if lote_origen_codigo:
+            try:
+                lote_origen_filtrado = LoteOrigen.objects.get(codigo=lote_origen_codigo)
+                context['lote_origen_filtrado'] = lote_origen_filtrado
+            except LoteOrigen.DoesNotExist:
+                pass
+        
+        if calidad:
+            context['calidad_filtrada'] = calidad
+        
+        if fecha_desde:
+            context['fecha_desde'] = fecha_desde
+        
+        if fecha_hasta:
+            context['fecha_hasta'] = fecha_hasta
+        
+        # Obtener datos del mismo modo que en el dashboard
+        from collections import defaultdict
+        
+        # Filtrar detalles de remisiones no canceladas del ciclo actual
+        # Primero obtener las remisiones del ciclo actual que no estén canceladas
+        remisiones_qs = Remision.objects.filter(
+            cancelada=False,
+            ciclo=ciclo_actual
+        ).select_related('cliente').prefetch_related('detalles')
+        
+        # Aplicar filtro de fechas si se proporcionan
+        if fecha_desde:
+            remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+        
+        if fecha_hasta:
+            remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+        
+        # Si se especifica un cliente, filtrar por ese cliente
+        if cliente_filtrado:
+            remisiones_qs = remisiones_qs.filter(cliente=cliente_filtrado)
+        
+        # Si se especifica un lote-origen, filtrar por ese lote-origen
+        if lote_origen_filtrado:
+            remisiones_qs = remisiones_qs.filter(lote_origen=lote_origen_filtrado)
+        
+        # Incluir todas las remisiones no canceladas (tanto preliquidadas como no preliquidadas)
+        remisiones_no_canceladas = list(remisiones_qs)
+        
+        # Obtener los detalles de las remisiones no canceladas
+        remision_ids = [r.pk for r in remisiones_no_canceladas]
+        detalles_qs = RemisionDetalle.objects.filter(
+            remision_id__in=remision_ids
+        ).select_related('remision', 'cultivo')
+        
+        # Si se especifica una calidad, filtrar por esa calidad
+        if calidad:
+            detalles_qs = detalles_qs.filter(calidad=calidad)
+        
+        # Datos para análisis por calidad de producto
+        calidad_data = defaultdict(lambda: {
+            'kgs_netos_enviados': 0, 
+            'kgs_liquidados': 0,
+            'total_remisiones': 0,
+            'remisiones': []
+        })
+        
+        for detalle in detalles_qs:
+            calidad = detalle.calidad
+            calidad_data[calidad]['kgs_netos_enviados'] += float(detalle.kgs_neto_envio or 0)
+            calidad_data[calidad]['kgs_liquidados'] += float(detalle.kgs_liquidados or 0)
+            calidad_data[calidad]['total_remisiones'] += 1
+            
+            # Agregar información de la remisión para el detalle
+            calidad_data[calidad]['remisiones'].append({
+                'remision': detalle.remision,
+                'cliente': detalle.remision.cliente.razon_social,
+                'fecha': detalle.remision.fecha,
+                'cultivo': detalle.cultivo.nombre,
+                'kgs_netos_enviados': float(detalle.kgs_neto_envio or 0),
+                'kgs_liquidados': float(detalle.kgs_liquidados or 0),
+                'diferencia': float(detalle.kgs_neto_envio or 0) - float(detalle.kgs_liquidados or 0)
+            })
+        
+        # Convertir a lista para el template
+        grafica_calidad_data = []
+        for calidad, datos in calidad_data.items():
+            diferencia = round(datos['kgs_netos_enviados'] - datos['kgs_liquidados'], 2)
+            grafica_calidad_data.append({
+                'calidad': calidad,
+                'kgs_netos_enviados': round(datos['kgs_netos_enviados'], 2),
+                'kgs_liquidados': round(datos['kgs_liquidados'], 2),
+                'diferencia': diferencia,
+                'total_remisiones': datos['total_remisiones'],
+                'remisiones': datos['remisiones']
+            })
+        
+        # Ordenar por calidad
+        grafica_calidad_data.sort(key=lambda x: x['calidad'])
+        
+        # Calcular totales generales
+        total_kgs_netos_enviados = sum(item['kgs_netos_enviados'] for item in grafica_calidad_data)
+        total_kgs_liquidados = sum(item['kgs_liquidados'] for item in grafica_calidad_data)
+        total_diferencia = total_kgs_netos_enviados - total_kgs_liquidados
+        total_remisiones = sum(item['total_remisiones'] for item in grafica_calidad_data)
+        
+        context['grafica_calidad_data'] = grafica_calidad_data
+        context['total_kgs_netos_enviados'] = round(total_kgs_netos_enviados, 2)
+        context['total_kgs_liquidados'] = round(total_kgs_liquidados, 2)
+        context['total_diferencia'] = round(total_diferencia, 2)
+        context['total_remisiones'] = total_remisiones
+        
+        return context
+
+
+class AnalisisMermaImprimirView(LoginRequiredMixin, TemplateView):
+    """Vista para imprimir reporte de análisis de merma por calidad de producto"""
+    template_name = 'core/analisis_merma_imprimir.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        configuracion = ConfiguracionSistema.objects.first()
+        context['configuracion'] = configuracion
+        ciclo_actual = configuracion.ciclo_actual if configuracion else ''
+        context['ciclo_actual'] = ciclo_actual
+        
+        # Obtener parámetros de filtro si existen
+        cliente_codigo = self.request.GET.get('cliente_codigo')
+        lote_origen_codigo = self.request.GET.get('lote_origen_codigo')
+        calidad = self.request.GET.get('calidad')
+        fecha_desde = self.request.GET.get('fecha_desde')
+        fecha_hasta = self.request.GET.get('fecha_hasta')
+        cliente_filtrado = None
+        lote_origen_filtrado = None
+        
+        if cliente_codigo:
+            try:
+                cliente_filtrado = Cliente.objects.get(codigo=cliente_codigo)
+                context['cliente_filtrado'] = cliente_filtrado
+            except Cliente.DoesNotExist:
+                pass
+        
+        if lote_origen_codigo:
+            try:
+                lote_origen_filtrado = LoteOrigen.objects.get(codigo=lote_origen_codigo)
+                context['lote_origen_filtrado'] = lote_origen_filtrado
+            except LoteOrigen.DoesNotExist:
+                pass
+        
+        if calidad:
+            context['calidad_filtrada'] = calidad
+        
+        if fecha_desde:
+            context['fecha_desde'] = fecha_desde
+        
+        if fecha_hasta:
+            context['fecha_hasta'] = fecha_hasta
+        
+        from collections import defaultdict
+        
+        # Obtener remisiones del ciclo actual
+        remisiones_qs = Remision.objects.filter(
+            cancelada=False,
+            ciclo=ciclo_actual
+        ).select_related('cliente').prefetch_related('detalles')
+        
+        # Aplicar filtro de fechas si se proporcionan
+        if fecha_desde:
+            remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+        
+        if fecha_hasta:
+            remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+        
+        # Si se especifica un cliente, filtrar por ese cliente
+        if cliente_filtrado:
+            remisiones_qs = remisiones_qs.filter(cliente=cliente_filtrado)
+        
+        # Si se especifica un lote-origen, filtrar por ese lote-origen
+        if lote_origen_filtrado:
+            remisiones_qs = remisiones_qs.filter(lote_origen=lote_origen_filtrado)
+        
+        # Incluir todas las remisiones no canceladas (tanto preliquidadas como no preliquidadas)
+        remisiones_no_canceladas = list(remisiones_qs)
+        
+        # Obtener IDs de remisiones no canceladas
+        remision_ids = [r.pk for r in remisiones_no_canceladas]
+        
+        # Obtener detalles de remisiones no canceladas
+        detalles_qs = RemisionDetalle.objects.filter(
+            remision_id__in=remision_ids
+        ).select_related('remision', 'cultivo')
+        
+        # Si se especifica una calidad, filtrar por esa calidad
+        if calidad:
+            detalles_qs = detalles_qs.filter(calidad=calidad)
+        
+        # Agrupar datos por calidad
+        merma_data = defaultdict(lambda: {
+            'kgs_merma_enviada': 0, 
+            'kgs_merma_liquidada': 0,
+            'total_remisiones': 0,
+            'total_no_arps': 0,
+            'total_no_arps_liquidados': 0,
+            'sum_merma_arps': 0,
+            'count_detalles': 0,
+            'remisiones': []
+        })
+        
+        for detalle in detalles_qs:
+            calidad = detalle.calidad
+            merma_data[calidad]['kgs_merma_enviada'] += float(detalle.kgs_merma or 0)
+            merma_data[calidad]['kgs_merma_liquidada'] += float(detalle.kgs_merma_liquidados or 0)
+            merma_data[calidad]['total_remisiones'] += 1
+            merma_data[calidad]['total_no_arps'] += float(detalle.no_arps or 0)
+            merma_data[calidad]['total_no_arps_liquidados'] += float(detalle.no_arps_liquidados or 0)
+            merma_data[calidad]['sum_merma_arps'] += float(detalle.merma_arps or 0)
+            merma_data[calidad]['count_detalles'] += 1
+            
+            # Agregar información de la remisión para el detalle
+            merma_data[calidad]['remisiones'].append({
+                'remision': detalle.remision,
+                'cliente': detalle.remision.cliente.razon_social,
+                'fecha': detalle.remision.fecha,
+                'cultivo': detalle.cultivo.nombre,
+                'kgs_merma_enviada': float(detalle.kgs_merma or 0),
+                'kgs_merma_liquidada': float(detalle.kgs_merma_liquidados or 0),
+                'diferencia_merma': float(detalle.kgs_merma or 0) - float(detalle.kgs_merma_liquidados or 0)
+            })
+        
+        # Convertir a lista para el template
+        grafica_merma_data = []
+        for calidad, datos in merma_data.items():
+            diferencia_merma = round(datos['kgs_merma_enviada'] - datos['kgs_merma_liquidada'], 2)
+            # Calcular promedio de merma por arp enviado
+            promedio_merma_arp_enviado = round(datos['sum_merma_arps'] / datos['count_detalles'], 2) if datos['count_detalles'] > 0 else 0
+            # Calcular promedio de merma por arp liquidado
+            promedio_merma_arp_liquidado = round(datos['kgs_merma_liquidada'] / datos['total_no_arps_liquidados'], 2) if datos['total_no_arps_liquidados'] > 0 else 0
+            
+            grafica_merma_data.append({
+                'calidad': calidad,
+                'kgs_merma_enviada': round(datos['kgs_merma_enviada'], 2),
+                'kgs_merma_liquidada': round(datos['kgs_merma_liquidada'], 2),
+                'diferencia_merma': diferencia_merma,
+                'total_remisiones': datos['total_remisiones'],
+                'promedio_merma_arp_enviado': promedio_merma_arp_enviado,
+                'promedio_merma_arp_liquidado': promedio_merma_arp_liquidado,
+                'remisiones': datos['remisiones']
+            })
+        
+        # Ordenar por calidad
+        grafica_merma_data.sort(key=lambda x: x['calidad'])
+        
+        # Calcular totales generales
+        total_kgs_merma_enviada = sum(item['kgs_merma_enviada'] for item in grafica_merma_data)
+        total_kgs_merma_liquidada = sum(item['kgs_merma_liquidada'] for item in grafica_merma_data)
+        total_diferencia_merma = total_kgs_merma_enviada - total_kgs_merma_liquidada
+        total_remisiones = sum(item['total_remisiones'] for item in grafica_merma_data)
+        
+        # Calcular promedios totales
+        total_sum_merma_arps = sum(datos['sum_merma_arps'] for datos in merma_data.values())
+        total_count_detalles = sum(datos['count_detalles'] for datos in merma_data.values())
+        total_no_arps_liquidados = sum(datos['total_no_arps_liquidados'] for datos in merma_data.values())
+        
+        promedio_total_merma_arp_enviado = round(total_sum_merma_arps / total_count_detalles, 2) if total_count_detalles > 0 else 0
+        promedio_total_merma_arp_liquidado = round(total_kgs_merma_liquidada / total_no_arps_liquidados, 2) if total_no_arps_liquidados > 0 else 0
+        
+        context['grafica_merma_data'] = grafica_merma_data
+        context['total_kgs_merma_enviada'] = round(total_kgs_merma_enviada, 2)
+        context['total_kgs_merma_liquidada'] = round(total_kgs_merma_liquidada, 2)
+        context['total_diferencia_merma'] = round(total_diferencia_merma, 2)
+        context['total_remisiones'] = total_remisiones
+        context['promedio_total_merma_arp_enviado'] = promedio_total_merma_arp_enviado
+        context['promedio_total_merma_arp_liquidado'] = promedio_total_merma_arp_liquidado
+        
+        return context
+
+
+class RankingClientesImprimirView(LoginRequiredMixin, TemplateView):
+    """Vista para imprimir reporte de ranking de clientes por importe liquidado"""
+    template_name = 'core/ranking_clientes_imprimir.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        configuracion = ConfiguracionSistema.objects.first()
+        context['configuracion'] = configuracion
+        ciclo_actual = configuracion.ciclo_actual if configuracion else ''
+        context['ciclo_actual'] = ciclo_actual
+        
+        from collections import defaultdict
+        
+        # Obtener parámetros de filtro
+        cliente_codigo = self.request.GET.get('cliente_codigo', '').strip()
+        lote_origen_codigo = self.request.GET.get('lote_origen_codigo', '').strip()
+        calidad = self.request.GET.get('calidad', '').strip()
+        fecha_desde = self.request.GET.get('fecha_desde', '').strip()
+        fecha_hasta = self.request.GET.get('fecha_hasta', '').strip()
+        
+        # Obtener objetos de filtro si se proporcionan
+        cliente_filtrado = None
+        lote_origen_filtrado = None
+        
+        if cliente_codigo:
+            try:
+                cliente_filtrado = Cliente.objects.get(codigo=cliente_codigo)
+                context['cliente_filtrado'] = cliente_filtrado
+            except Cliente.DoesNotExist:
+                pass
+        
+        if lote_origen_codigo:
+            try:
+                lote_origen_filtrado = LoteOrigen.objects.get(codigo=lote_origen_codigo)
+                context['lote_origen_filtrado'] = lote_origen_filtrado
+            except LoteOrigen.DoesNotExist:
+                pass
+        
+        if calidad:
+            context['calidad_filtrada'] = calidad
+        
+        if fecha_desde:
+            context['fecha_desde'] = fecha_desde
+        
+        if fecha_hasta:
+            context['fecha_hasta'] = fecha_hasta
+        
+        # Obtener remisiones del ciclo actual
+        remisiones_qs = Remision.objects.filter(
+            cancelada=False,
+            ciclo=ciclo_actual
+        ).select_related('cliente', 'lote_origen').prefetch_related('detalles')
+        
+        # Aplicar filtros de fecha si se proporcionan
+        if fecha_desde:
+            remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+        
+        if fecha_hasta:
+            remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+        
+        # Filtrar solo remisiones preliquidadas
+        remisiones_preliquidadas = []
+        for remision in remisiones_qs:
+            if remision.esta_liquidada():
+                # Aplicar filtros de cliente y lote-origen
+                if cliente_filtrado and remision.cliente != cliente_filtrado:
+                    continue
+                if lote_origen_filtrado and remision.lote_origen != lote_origen_filtrado:
+                    continue
+                
+                remisiones_preliquidadas.append(remision)
+        
+        # Agrupar remisiones preliquidadas por cliente y calcular totales
+        clientes_data = defaultdict(lambda: {
+            'importe_preliquidado': 0,
+            'importe_liquidado': 0, 
+            'total_pagos': 0,
+            'total_remisiones': 0,
+            'remisiones': []
+        })
+        
+        # Obtener detalles filtrados por calidad si se especifica
+        detalles_filtrados = {}
+        if calidad:
+            detalles_qs = RemisionDetalle.objects.filter(remision__in=[r.pk for r in remisiones_preliquidadas])
+            detalles_qs = detalles_qs.filter(calidad=calidad)
+            detalles_filtrados = {detalle.remision_id: detalle for detalle in detalles_qs}
+        
+        for remision in remisiones_preliquidadas:
+            cliente_nombre = remision.cliente.razon_social
+            
+            # Si hay filtro de calidad, usar solo los detalles filtrados
+            if calidad:
+                if remision.pk in detalles_filtrados:
+                    detalle = detalles_filtrados[remision.pk]
+                    importe_preliquidado_remision = float(detalle.importe_envio or 0)
+                    importe_liquidado_remision = float(detalle.importe_liquidado or 0)
+                else:
+                    # Si la remisión no tiene detalles con la calidad seleccionada, saltarla
+                    continue
+            else:
+                # Sin filtro de calidad, usar todos los detalles de la remisión
+                importe_preliquidado_remision = sum(float(detalle.importe_envio or 0) for detalle in remision.detalles.all())
+                importe_liquidado_remision = sum(float(detalle.importe_liquidado or 0) for detalle in remision.detalles.all())
+            
+            # Sumar pagos realizados de la remisión
+            total_pagos_remision = sum(float(pago.monto or 0) for pago in remision.pagos.filter(activo=True))
+            
+            clientes_data[cliente_nombre]['importe_preliquidado'] += importe_preliquidado_remision
+            clientes_data[cliente_nombre]['importe_liquidado'] += importe_liquidado_remision
+            clientes_data[cliente_nombre]['total_pagos'] += total_pagos_remision
+            clientes_data[cliente_nombre]['total_remisiones'] += 1
+            
+            # Agregar información de la remisión para el detalle
+            clientes_data[cliente_nombre]['remisiones'].append({
+                'remision': remision,
+                'fecha': remision.fecha,
+                'importe_preliquidado': importe_preliquidado_remision,
+                'importe_liquidado': importe_liquidado_remision,
+                'total_pagos': total_pagos_remision,
+                'total_detalles': remision.detalles.count()
+            })
+        
+        # Convertir a lista y ordenar por importe liquidado (descendente)
+        ranking_clientes_data = []
+        for cliente_nombre, datos in clientes_data.items():
+            # Saldo pendiente = Importe liquidado - Pagos realizados
+            saldo_pendiente = datos['importe_liquidado'] - datos['total_pagos']
+            ranking_clientes_data.append({
+                'cliente_nombre': cliente_nombre,
+                'importe_preliquidado': round(datos['importe_preliquidado'], 2),
+                'importe_liquidado': round(datos['importe_liquidado'], 2),
+                'total_pagos': round(datos['total_pagos'], 2),
+                'saldo_pendiente': round(saldo_pendiente, 2),
+                'total_remisiones': datos['total_remisiones'],
+                'promedio_por_remision': round(datos['importe_liquidado'] / datos['total_remisiones'], 2) if datos['total_remisiones'] > 0 else 0,
+                'remisiones': datos['remisiones']
+            })
+        
+        # Ordenar por importe liquidado descendente (ranking)
+        ranking_clientes_data.sort(key=lambda x: x['importe_liquidado'], reverse=True)
+        
+        # Calcular totales generales
+        total_importe_preliquidado = sum(item['importe_preliquidado'] for item in ranking_clientes_data)
+        total_importe_liquidado = sum(item['importe_liquidado'] for item in ranking_clientes_data)
+        total_pagos = sum(item['total_pagos'] for item in ranking_clientes_data)
+        total_saldo_pendiente = sum(item['saldo_pendiente'] for item in ranking_clientes_data)
+        total_remisiones = sum(item['total_remisiones'] for item in ranking_clientes_data)
+        total_clientes = len(ranking_clientes_data)
+        promedio_por_cliente = round(total_importe_liquidado / total_clientes, 2) if total_clientes > 0 else 0
+        
+        context['ranking_clientes_data'] = ranking_clientes_data
+        context['total_importe_preliquidado'] = round(total_importe_preliquidado, 2)
+        context['total_importe_liquidado'] = round(total_importe_liquidado, 2)
+        context['total_pagos'] = round(total_pagos, 2)
+        context['total_saldo_pendiente'] = round(total_saldo_pendiente, 2)
+        context['total_remisiones'] = total_remisiones
+        context['total_clientes'] = total_clientes
+        context['promedio_por_cliente'] = promedio_por_cliente
+        
+        return context
+
+
+def actualizar_grafico_kgs_ajax(request):
+    """Vista AJAX para actualizar el gráfico de kgs enviados vs liquidados con filtro de cliente"""
+    from django.http import JsonResponse
+    from collections import defaultdict
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Vista AJAX llamada con método: {request.method}")
+    
+    cliente_id = request.GET.get('cliente_id')
+    lote_origen_id = request.GET.get('lote_origen_id')
+    calidad = request.GET.get('calidad')
+    fecha_desde = request.GET.get('fecha_desde')
+    fecha_hasta = request.GET.get('fecha_hasta')
+    logger.info(f"Cliente ID recibido: {cliente_id}")
+    logger.info(f"Lote-Origen ID recibido: {lote_origen_id}")
+    logger.info(f"Calidad recibida: {calidad}")
+    logger.info(f"Fecha desde: {fecha_desde}")
+    logger.info(f"Fecha hasta: {fecha_hasta}")
+    
+    # Obtener el ciclo actual
+    try:
+        config = ConfiguracionSistema.objects.first()
+        ciclo_actual = config.ciclo_actual if config else ''
+        logger.info(f"Ciclo actual: {ciclo_actual}")
+    except Exception as e:
+        logger.error(f"Error obteniendo configuración: {e}")
+        ciclo_actual = ''
+    
+    # Filtrar remisiones del ciclo actual
+    if ciclo_actual:
+        remisiones_qs = Remision.objects.filter(ciclo=ciclo_actual)
+    else:
+        remisiones_qs = Remision.objects.all()
+    
+    # Aplicar filtro de fechas si se proporcionan
+    if fecha_desde:
+        remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+        logger.info(f"Filtro fecha desde aplicado: {fecha_desde}")
+    
+    if fecha_hasta:
+        remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+        logger.info(f"Filtro fecha hasta aplicado: {fecha_hasta}")
+    
+    logger.info(f"Total remisiones encontradas: {remisiones_qs.count()}")
+    
+    # Filtrar solo las remisiones no canceladas
+    remisiones_no_canceladas = [r for r in remisiones_qs if not r.cancelada]
+    logger.info(f"Remisiones no canceladas: {len(remisiones_no_canceladas)}")
+    
+    # Si se especifica un cliente, filtrar por ese cliente
+    if cliente_id:
+        remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.cliente.codigo == int(cliente_id)]
+        logger.info(f"Remisiones filtradas por cliente {cliente_id}: {len(remisiones_no_canceladas)}")
+    
+    # Si se especifica un lote-origen, filtrar por ese lote-origen
+    if lote_origen_id:
+        remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.lote_origen.codigo == int(lote_origen_id)]
+        logger.info(f"Remisiones filtradas por lote-origen {lote_origen_id}: {len(remisiones_no_canceladas)}")
+    
+    remisiones_no_canceladas_ids = [r.pk for r in remisiones_no_canceladas]
+    
+    # Obtener detalles de remisiones filtradas
+    detalles_qs = RemisionDetalle.objects.filter(remision__in=remisiones_no_canceladas_ids)
+    
+    # Si se especifica una calidad, filtrar por esa calidad
+    if calidad:
+        detalles_qs = detalles_qs.filter(calidad=calidad)
+        logger.info(f"Detalles filtrados por calidad {calidad}: {detalles_qs.count()}")
+    
+    logger.info(f"Detalles encontrados: {detalles_qs.count()}")
+    
+    # Agrupar por calidad y calcular totales
+    kgs_enviados_data = defaultdict(lambda: {'kgs_enviados': 0, 'kgs_liquidados': 0})
+    
+    for detalle in detalles_qs:
+        calidad = detalle.calidad
+        kgs_enviados_data[calidad]['kgs_enviados'] += float(detalle.kgs_enviados or 0)
+        kgs_enviados_data[calidad]['kgs_liquidados'] += float(detalle.kgs_liquidados or 0)
+    
+    # Convertir a lista para el template
+    grafica_kgs_enviados_data = []
+    for calidad, datos in kgs_enviados_data.items():
+        diferencia = round(datos['kgs_enviados'] - datos['kgs_liquidados'], 2)
+        grafica_kgs_enviados_data.append({
+            'calidad': calidad,
+            'kgs_enviados': round(datos['kgs_enviados'], 2),
+            'kgs_liquidados': round(datos['kgs_liquidados'], 2),
+            'diferencia': diferencia
+        })
+    
+    # Ordenar por calidad
+    grafica_kgs_enviados_data.sort(key=lambda x: x['calidad'])
+    
+    logger.info(f"Datos finales: {grafica_kgs_enviados_data}")
+    
+    return JsonResponse({
+        'success': True,
+        'data': grafica_kgs_enviados_data
+    })
+
+# @login_required # Temporarily removed for debugging
+def actualizar_grafico_calidad_ajax(request):
+    """Vista AJAX para actualizar el gráfico de calidad de producto con filtros"""
+    from django.http import JsonResponse
+    from collections import defaultdict
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Vista AJAX calidad llamada con método: {request.method}")
+    
+    cliente_id = request.GET.get('cliente_id')
+    lote_origen_id = request.GET.get('lote_origen_id')
+    calidad = request.GET.get('calidad')
+    fecha_desde = request.GET.get('fecha_desde')
+    fecha_hasta = request.GET.get('fecha_hasta')
+    logger.info(f"Cliente ID recibido: {cliente_id}")
+    logger.info(f"Lote-Origen ID recibido: {lote_origen_id}")
+    logger.info(f"Calidad recibida: {calidad}")
+    logger.info(f"Fecha desde: {fecha_desde}")
+    logger.info(f"Fecha hasta: {fecha_hasta}")
+    
+    # Obtener el ciclo actual
+    try:
+        config = ConfiguracionSistema.objects.first()
+        ciclo_actual = config.ciclo_actual if config else ''
+        logger.info(f"Ciclo actual: {ciclo_actual}")
+    except Exception as e:
+        logger.error(f"Error obteniendo configuración: {e}")
+        ciclo_actual = ''
+    
+    # Filtrar remisiones del ciclo actual
+    if ciclo_actual:
+        remisiones_qs = Remision.objects.filter(ciclo=ciclo_actual)
+    else:
+        remisiones_qs = Remision.objects.all()
+    
+    # Aplicar filtro de fechas si se proporcionan
+    if fecha_desde:
+        remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+        logger.info(f"Filtro fecha desde aplicado: {fecha_desde}")
+    
+    if fecha_hasta:
+        remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+        logger.info(f"Filtro fecha hasta aplicado: {fecha_hasta}")
+    
+    logger.info(f"Total remisiones encontradas: {remisiones_qs.count()}")
+    
+    # Filtrar solo las remisiones no canceladas
+    remisiones_no_canceladas = [r for r in remisiones_qs if not r.cancelada]
+    logger.info(f"Remisiones no canceladas: {len(remisiones_no_canceladas)}")
+    
+    # Si se especifica un cliente, filtrar por ese cliente
+    if cliente_id:
+        remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.cliente.codigo == int(cliente_id)]
+        logger.info(f"Remisiones filtradas por cliente {cliente_id}: {len(remisiones_no_canceladas)}")
+    
+    # Si se especifica un lote-origen, filtrar por ese lote-origen
+    if lote_origen_id:
+        remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.lote_origen.codigo == int(lote_origen_id)]
+        logger.info(f"Remisiones filtradas por lote-origen {lote_origen_id}: {len(remisiones_no_canceladas)}")
+    
+    remisiones_no_canceladas_ids = [r.pk for r in remisiones_no_canceladas]
+    
+    # Obtener detalles de remisiones filtradas
+    detalles_qs = RemisionDetalle.objects.filter(remision__in=remisiones_no_canceladas_ids)
+    
+    # Si se especifica una calidad, filtrar por esa calidad
+    if calidad:
+        detalles_qs = detalles_qs.filter(calidad=calidad)
+        logger.info(f"Detalles filtrados por calidad {calidad}: {detalles_qs.count()}")
+    
+    logger.info(f"Detalles encontrados: {detalles_qs.count()}")
+    
+    # Agrupar por calidad y calcular totales
+    calidad_data = defaultdict(lambda: {'kgs_netos_enviados': 0, 'kgs_liquidados': 0})
+    
+    for detalle in detalles_qs:
+        calidad_nombre = detalle.calidad
+        calidad_data[calidad_nombre]['kgs_netos_enviados'] += float(detalle.kgs_neto_envio or 0)
+        calidad_data[calidad_nombre]['kgs_liquidados'] += float(detalle.kgs_liquidados or 0)
+    
+    # Convertir a lista para el template
+    grafica_calidad_data = []
+    for calidad_nombre, datos in calidad_data.items():
+        diferencia = round(datos['kgs_netos_enviados'] - datos['kgs_liquidados'], 2)
+        grafica_calidad_data.append({
+            'calidad': calidad_nombre,
+            'kgs_netos_enviados': round(datos['kgs_netos_enviados'], 2),
+            'kgs_liquidados': round(datos['kgs_liquidados'], 2),
+            'diferencia': diferencia
+        })
+    
+    # Ordenar por calidad
+    grafica_calidad_data.sort(key=lambda x: x['calidad'])
+    
+    logger.info(f"Datos finales calidad: {grafica_calidad_data}")
+    
+    return JsonResponse({
+        'success': True,
+        'data': grafica_calidad_data
+    })
+
+# @login_required # Temporarily removed for debugging
+def actualizar_grafico_merma_ajax(request):
+    """Vista AJAX para actualizar el gráfico de merma por calidad con filtros"""
+    from django.http import JsonResponse
+    from collections import defaultdict
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Vista AJAX merma llamada con método: {request.method}")
+    
+    cliente_id = request.GET.get('cliente_id')
+    lote_origen_id = request.GET.get('lote_origen_id')
+    calidad = request.GET.get('calidad')
+    fecha_desde = request.GET.get('fecha_desde')
+    fecha_hasta = request.GET.get('fecha_hasta')
+    logger.info(f"Cliente ID recibido: {cliente_id}")
+    logger.info(f"Lote-Origen ID recibido: {lote_origen_id}")
+    logger.info(f"Calidad recibida: {calidad}")
+    logger.info(f"Fecha desde: {fecha_desde}")
+    logger.info(f"Fecha hasta: {fecha_hasta}")
+    
+    # Obtener el ciclo actual
+    try:
+        config = ConfiguracionSistema.objects.first()
+        ciclo_actual = config.ciclo_actual if config else ''
+        logger.info(f"Ciclo actual: {ciclo_actual}")
+    except Exception as e:
+        logger.error(f"Error obteniendo configuración: {e}")
+        ciclo_actual = ''
+    
+    # Filtrar remisiones del ciclo actual
+    if ciclo_actual:
+        remisiones_qs = Remision.objects.filter(ciclo=ciclo_actual)
+    else:
+        remisiones_qs = Remision.objects.all()
+    
+    # Aplicar filtro de fechas si se proporcionan
+    if fecha_desde:
+        remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+        logger.info(f"Filtro fecha desde aplicado: {fecha_desde}")
+    
+    if fecha_hasta:
+        remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+        logger.info(f"Filtro fecha hasta aplicado: {fecha_hasta}")
+    
+    logger.info(f"Total remisiones encontradas: {remisiones_qs.count()}")
+    
+    # Filtrar solo las remisiones no canceladas
+    remisiones_no_canceladas = [r for r in remisiones_qs if not r.cancelada]
+    logger.info(f"Remisiones no canceladas: {len(remisiones_no_canceladas)}")
+    
+    # Si se especifica un cliente, filtrar por ese cliente
+    if cliente_id:
+        remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.cliente.codigo == int(cliente_id)]
+        logger.info(f"Remisiones filtradas por cliente {cliente_id}: {len(remisiones_no_canceladas)}")
+    
+    # Si se especifica un lote-origen, filtrar por ese lote-origen
+    if lote_origen_id:
+        remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.lote_origen.codigo == int(lote_origen_id)]
+        logger.info(f"Remisiones filtradas por lote-origen {lote_origen_id}: {len(remisiones_no_canceladas)}")
+    
+    remisiones_no_canceladas_ids = [r.pk for r in remisiones_no_canceladas]
+    
+    # Obtener detalles de remisiones filtradas
+    detalles_qs = RemisionDetalle.objects.filter(remision__in=remisiones_no_canceladas_ids)
+    
+    # Si se especifica una calidad, filtrar por esa calidad
+    if calidad:
+        detalles_qs = detalles_qs.filter(calidad=calidad)
+        logger.info(f"Detalles filtrados por calidad {calidad}: {detalles_qs.count()}")
+    
+    logger.info(f"Detalles encontrados: {detalles_qs.count()}")
+    
+    # Agrupar por calidad y calcular totales de merma
+    merma_data = defaultdict(lambda: {
+        'kgs_merma_enviada': 0, 
+        'kgs_merma_liquidada': 0,
+        'total_no_arps': 0,
+        'total_no_arps_liquidados': 0,
+        'sum_merma_arps': 0,
+        'count_detalles': 0
+    })
+    
+    for detalle in detalles_qs:
+        calidad_nombre = detalle.calidad
+        merma_data[calidad_nombre]['kgs_merma_enviada'] += float(detalle.kgs_merma or 0)
+        merma_data[calidad_nombre]['kgs_merma_liquidada'] += float(detalle.kgs_merma_liquidados or 0)
+        merma_data[calidad_nombre]['total_no_arps'] += float(detalle.no_arps or 0)
+        merma_data[calidad_nombre]['total_no_arps_liquidados'] += float(detalle.no_arps_liquidados or 0)
+        merma_data[calidad_nombre]['sum_merma_arps'] += float(detalle.merma_arps or 0)
+        merma_data[calidad_nombre]['count_detalles'] += 1
+    
+    # Convertir a lista para el template
+    grafica_merma_data = []
+    for calidad_nombre, datos in merma_data.items():
+        diferencia_merma = round(datos['kgs_merma_enviada'] - datos['kgs_merma_liquidada'], 2)
+        # Calcular promedio de merma por arp enviado
+        promedio_merma_arp_enviado = round(datos['sum_merma_arps'] / datos['count_detalles'], 2) if datos['count_detalles'] > 0 else 0
+        # Calcular promedio de merma por arp liquidado
+        promedio_merma_arp_liquidado = round(datos['kgs_merma_liquidada'] / datos['total_no_arps_liquidados'], 2) if datos['total_no_arps_liquidados'] > 0 else 0
+        
+        grafica_merma_data.append({
+            'calidad': calidad_nombre,
+            'kgs_merma_enviada': round(datos['kgs_merma_enviada'], 2),
+            'kgs_merma_liquidada': round(datos['kgs_merma_liquidada'], 2),
+            'diferencia_merma': diferencia_merma,
+            'promedio_merma_arp_enviado': promedio_merma_arp_enviado,
+            'promedio_merma_arp_liquidado': promedio_merma_arp_liquidado
+        })
+    
+    # Ordenar por calidad
+    grafica_merma_data.sort(key=lambda x: x['calidad'])
+    
+    logger.info(f"Datos finales merma: {grafica_merma_data}")
+    
+    return JsonResponse({
+        'success': True,
+        'data': grafica_merma_data
+    })
+
+
+def actualizar_grafico_ranking_ajax(request):
+    """Vista AJAX para actualizar el gráfico de ranking de clientes con filtros"""
+    from django.http import JsonResponse
+    from collections import defaultdict
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener parámetros de filtro
+        cliente_id = request.GET.get('cliente_id', '').strip()
+        lote_origen_id = request.GET.get('lote_origen_id', '').strip()
+        calidad = request.GET.get('calidad', '').strip()
+        fecha_desde = request.GET.get('fecha_desde', '').strip()
+        fecha_hasta = request.GET.get('fecha_hasta', '').strip()
+        
+        logger.info(f"Filtros ranking - Cliente: {cliente_id}, Lote-Origen: {lote_origen_id}, Calidad: {calidad}, Fecha desde: {fecha_desde}, Fecha hasta: {fecha_hasta}")
+        
+        # Obtener el ciclo actual
+        try:
+            configuracion = Configuracion.objects.first()
+            ciclo_actual = configuracion.ciclo_actual if configuracion else ''
+        except Exception as e:
+            logger.error(f"Error obteniendo configuración: {e}")
+            ciclo_actual = ''
+        
+        # Filtrar remisiones del ciclo actual
+        if ciclo_actual:
+            remisiones_qs = Remision.objects.filter(ciclo=ciclo_actual)
+        else:
+            remisiones_qs = Remision.objects.all()
+        
+        # Aplicar filtro de fechas si se proporcionan
+        if fecha_desde:
+            remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+            logger.info(f"Filtro fecha desde aplicado: {fecha_desde}")
+        
+        if fecha_hasta:
+            remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+            logger.info(f"Filtro fecha hasta aplicado: {fecha_hasta}")
+        
+        logger.info(f"Total remisiones encontradas: {remisiones_qs.count()}")
+        
+        # Filtrar solo las remisiones no canceladas
+        remisiones_no_canceladas = [r for r in remisiones_qs if not r.cancelada]
+        logger.info(f"Remisiones no canceladas: {len(remisiones_no_canceladas)}")
+        
+        # Si se especifica un cliente, filtrar por ese cliente
+        if cliente_id:
+            remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.cliente.codigo == int(cliente_id)]
+            logger.info(f"Remisiones filtradas por cliente {cliente_id}: {len(remisiones_no_canceladas)}")
+        
+        # Si se especifica un lote-origen, filtrar por ese lote-origen
+        if lote_origen_id:
+            remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.lote_origen.codigo == int(lote_origen_id)]
+            logger.info(f"Remisiones filtradas por lote-origen {lote_origen_id}: {len(remisiones_no_canceladas)}")
+        
+        remisiones_no_canceladas_ids = [r.pk for r in remisiones_no_canceladas]
+        
+        # Obtener detalles de remisiones filtradas
+        detalles_qs = RemisionDetalle.objects.filter(remision__in=remisiones_no_canceladas_ids)
+        
+        # Si se especifica una calidad, filtrar por esa calidad
+        if calidad:
+            detalles_qs = detalles_qs.filter(calidad=calidad)
+            logger.info(f"Detalles filtrados por calidad {calidad}: {detalles_qs.count()}")
+        
+        logger.info(f"Detalles encontrados: {detalles_qs.count()}")
+        
+        # Agrupar remisiones preliquidadas por cliente y calcular totales
+        clientes_data = defaultdict(lambda: {'importe_preliquidado': 0, 'importe_liquidado': 0, 'total_pagos': 0, 'total_remisiones': 0})
+        
+        # Obtener detalles filtrados por calidad si se especifica
+        detalles_filtrados = {}
+        if calidad:
+            detalles_filtrados = {detalle.remision_id: detalle for detalle in detalles_qs}
+            logger.info(f"Detalles filtrados por calidad: {len(detalles_filtrados)}")
+        
+        for remision in remisiones_no_canceladas:
+            if remision.esta_liquidada():  # Solo remisiones preliquidadas
+                cliente_nombre = remision.cliente.razon_social
+                
+                # Si hay filtro de calidad, usar solo los detalles filtrados
+                if calidad:
+                    if remision.pk in detalles_filtrados:
+                        detalle = detalles_filtrados[remision.pk]
+                        importe_preliquidado_remision = float(detalle.importe_envio or 0)
+                        importe_liquidado_remision = float(detalle.importe_liquidado or 0)
+                    else:
+                        # Si la remisión no tiene detalles con la calidad seleccionada, saltarla
+                        continue
+                else:
+                    # Sin filtro de calidad, usar todos los detalles de la remisión
+                    importe_preliquidado_remision = sum(float(detalle.importe_envio or 0) for detalle in remision.detalles.all())
+                    importe_liquidado_remision = sum(float(detalle.importe_liquidado or 0) for detalle in remision.detalles.all())
+                
+                # Sumar pagos realizados de la remisión
+                total_pagos_remision = sum(float(pago.monto or 0) for pago in remision.pagos.filter(activo=True))
+                
+                clientes_data[cliente_nombre]['importe_preliquidado'] += importe_preliquidado_remision
+                clientes_data[cliente_nombre]['importe_liquidado'] += importe_liquidado_remision
+                clientes_data[cliente_nombre]['total_pagos'] += total_pagos_remision
+                clientes_data[cliente_nombre]['total_remisiones'] += 1
+        
+        # Convertir a lista y ordenar por importe liquidado (descendente)
+        ranking_clientes_data = []
+        for cliente_nombre, datos in clientes_data.items():
+            # Saldo pendiente = Importe liquidado - Pagos realizados
+            saldo_pendiente = datos['importe_liquidado'] - datos['total_pagos']
+            ranking_clientes_data.append({
+                'cliente_nombre': cliente_nombre,
+                'importe_preliquidado': round(datos['importe_preliquidado'], 2),
+                'importe_liquidado': round(datos['importe_liquidado'], 2),
+                'total_pagos': round(datos['total_pagos'], 2),
+                'saldo_pendiente': round(saldo_pendiente, 2),
+                'total_remisiones': datos['total_remisiones']
+            })
+        
+        # Ordenar por importe liquidado descendente
+        ranking_clientes_data.sort(key=lambda x: x['importe_liquidado'], reverse=True)
+        
+        logger.info(f"Datos finales ranking: {len(ranking_clientes_data)} clientes")
+        
+        return JsonResponse({
+            'success': True,
+            'data': ranking_clientes_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en actualizar_grafico_ranking_ajax: {e}")
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+def actualizar_grafico_importes_ajax(request):
+    """Vista AJAX para actualizar el gráfico de análisis por importe neto enviado vs preliquidado"""
+    from django.http import JsonResponse
+    from collections import defaultdict
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener parámetros de filtro
+        cliente_id = request.GET.get('cliente_id', '').strip()
+        lote_origen_id = request.GET.get('lote_origen_id', '').strip()
+        calidad = request.GET.get('calidad', '').strip()
+        fecha_desde = request.GET.get('fecha_desde', '').strip()
+        fecha_hasta = request.GET.get('fecha_hasta', '').strip()
+        
+        logger.info(f"Filtros importes - Cliente: {cliente_id}, Lote-Origen: {lote_origen_id}, Calidad: {calidad}, Fecha desde: {fecha_desde}, Fecha hasta: {fecha_hasta}")
+        
+        # Obtener el ciclo actual
+        try:
+            configuracion = Configuracion.objects.first()
+            ciclo_actual = configuracion.ciclo_actual if configuracion else ''
+        except Exception as e:
+            logger.error(f"Error obteniendo configuración: {e}")
+            ciclo_actual = ''
+        
+        # Filtrar remisiones del ciclo actual
+        if ciclo_actual:
+            remisiones_qs = Remision.objects.filter(ciclo=ciclo_actual)
+        else:
+            remisiones_qs = Remision.objects.all()
+        
+        # Aplicar filtro de fechas si se proporcionan
+        if fecha_desde:
+            remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+            logger.info(f"Filtro fecha desde aplicado: {fecha_desde}")
+        
+        if fecha_hasta:
+            remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+            logger.info(f"Filtro fecha hasta aplicado: {fecha_hasta}")
+        
+        logger.info(f"Total remisiones encontradas: {remisiones_qs.count()}")
+        
+        # Filtrar solo las remisiones no canceladas
+        remisiones_no_canceladas = [r for r in remisiones_qs if not r.cancelada]
+        logger.info(f"Remisiones no canceladas: {len(remisiones_no_canceladas)}")
+        
+        # Si se especifica un cliente, filtrar por ese cliente
+        if cliente_id:
+            remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.cliente.codigo == int(cliente_id)]
+            logger.info(f"Remisiones filtradas por cliente {cliente_id}: {len(remisiones_no_canceladas)}")
+        
+        # Si se especifica un lote-origen, filtrar por ese lote-origen
+        if lote_origen_id:
+            remisiones_no_canceladas = [r for r in remisiones_no_canceladas if r.lote_origen.codigo == int(lote_origen_id)]
+            logger.info(f"Remisiones filtradas por lote-origen {lote_origen_id}: {len(remisiones_no_canceladas)}")
+        
+        remisiones_no_canceladas_ids = [r.pk for r in remisiones_no_canceladas]
+        
+        # Obtener detalles de remisiones filtradas
+        detalles_qs = RemisionDetalle.objects.filter(remision__in=remisiones_no_canceladas_ids)
+        
+        # Si se especifica una calidad, filtrar por esa calidad
+        if calidad:
+            detalles_qs = detalles_qs.filter(calidad=calidad)
+            logger.info(f"Detalles filtrados por calidad {calidad}: {detalles_qs.count()}")
+        
+        logger.info(f"Detalles encontrados: {detalles_qs.count()}")
+        
+        # Agrupar por calidad y calcular totales
+        calidad_data = defaultdict(lambda: {'importe_neto_enviado': 0, 'importe_preliquidado': 0})
+        
+        for detalle in detalles_qs:
+            calidad_nombre = detalle.calidad
+            importe_neto_enviado = float(detalle.importe_envio or 0)
+            importe_preliquidado = float(detalle.importe_liquidado or 0)
+            
+            calidad_data[calidad_nombre]['importe_neto_enviado'] += importe_neto_enviado
+            calidad_data[calidad_nombre]['importe_preliquidado'] += importe_preliquidado
+        
+        # Convertir a lista y ordenar por importe neto enviado (descendente)
+        grafica_importes_data = []
+        for calidad_nombre, datos in calidad_data.items():
+            grafica_importes_data.append({
+                'calidad': calidad_nombre,
+                'importe_neto_enviado': round(datos['importe_neto_enviado'], 2),
+                'importe_preliquidado': round(datos['importe_preliquidado'], 2)
+            })
+        
+        # Ordenar por calidad con "Mixtas" al final
+        def sort_key(item):
+            calidad = item['calidad']
+            if calidad == 'Mixtas':
+                return (1, calidad)  # 1 para que vaya al final
+            else:
+                return (0, calidad)  # 0 para que vaya al principio
+        
+        grafica_importes_data.sort(key=sort_key)
+        
+        logger.info(f"Datos finales importes: {len(grafica_importes_data)} calidades")
+        
+        return JsonResponse({
+            'success': True,
+            'data': grafica_importes_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en actualizar_grafico_importes_ajax: {e}")
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+def actualizar_grafico_gastos_ajax(request):
+    """Vista AJAX para actualizar el gráfico de gastos autorizados (compras de productos del inventario)"""
+    from django.http import JsonResponse
+    from collections import defaultdict
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Obtener parámetros de filtro
+        autorizo_id = request.GET.get('autorizo_id', '').strip()
+        fecha_desde = request.GET.get('fecha_desde', '').strip()
+        fecha_hasta = request.GET.get('fecha_hasta', '').strip()
+        
+        logger.info(f"Filtros gastos - Autorizó: {autorizo_id}, Fecha desde: {fecha_desde}, Fecha hasta: {fecha_hasta}")
+        
+        # Obtener todas las compras activas
+        compras_qs = Compra.objects.filter(estado='activa').select_related('autorizo')
+        
+        # Aplicar filtro de autorizador si se proporciona
+        if autorizo_id:
+            compras_qs = compras_qs.filter(autorizo__codigo=autorizo_id)
+            logger.info(f"Filtro autorizo aplicado: {autorizo_id}")
+        
+        # Aplicar filtro de fechas si se proporcionan
+        if fecha_desde:
+            compras_qs = compras_qs.filter(fecha__gte=fecha_desde)
+            logger.info(f"Filtro fecha desde aplicado: {fecha_desde}")
+        
+        if fecha_hasta:
+            compras_qs = compras_qs.filter(fecha__lte=fecha_hasta)
+            logger.info(f"Filtro fecha hasta aplicado: {fecha_hasta}")
+        
+        logger.info(f"Total compras encontradas: {compras_qs.count()}")
+        
+        # Agrupar por autorizo y calcular totales
+        gastos_data = defaultdict(lambda: {'total': 0, 'cantidad': 0})
+        
+        for compra in compras_qs:
+            if compra.autorizo:
+                autorizo_nombre = compra.autorizo.nombre
+                gastos_data[autorizo_nombre]['total'] += float(compra.total or 0)
+                gastos_data[autorizo_nombre]['cantidad'] += 1
+        
+        # Convertir a lista y ordenar por total (descendente)
+        grafica_gastos_data = []
+        for autorizo_nombre, datos in gastos_data.items():
+            grafica_gastos_data.append({
+                'autorizo_nombre': autorizo_nombre,
+                'total': round(datos['total'], 2),
+                'cantidad': datos['cantidad']
+            })
+        
+        # Ordenar por total descendente
+        grafica_gastos_data.sort(key=lambda x: x['total'], reverse=True)
+        
+        logger.info(f"Datos finales gastos: {len(grafica_gastos_data)} autorizadores")
+        
+        return JsonResponse({
+            'success': True,
+            'data': grafica_gastos_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en actualizar_grafico_gastos_ajax: {e}")
+        return JsonResponse({
+            'error': f'Error interno del servidor: {str(e)}'
+        }, status=500)
+
+
+class AnalisisImportesImprimirView(LoginRequiredMixin, TemplateView):
+    """Vista para imprimir reporte de análisis por importe neto enviado vs preliquidado"""
+    template_name = 'core/analisis_importes_imprimir.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        configuracion = ConfiguracionSistema.objects.first()
+        context['configuracion'] = configuracion
+        ciclo_actual = configuracion.ciclo_actual if configuracion else ''
+        context['ciclo_actual'] = ciclo_actual
+        
+        from collections import defaultdict
+        
+        # Obtener parámetros de filtro
+        cliente_codigo = self.request.GET.get('cliente_codigo', '').strip()
+        lote_origen_codigo = self.request.GET.get('lote_origen_codigo', '').strip()
+        calidad = self.request.GET.get('calidad', '').strip()
+        fecha_desde = self.request.GET.get('fecha_desde', '').strip()
+        fecha_hasta = self.request.GET.get('fecha_hasta', '').strip()
+        
+        # Obtener objetos de filtro si se proporcionan
+        cliente_filtrado = None
+        lote_origen_filtrado = None
+        
+        if cliente_codigo:
+            try:
+                cliente_filtrado = Cliente.objects.get(codigo=cliente_codigo)
+                context['cliente_filtrado'] = cliente_filtrado
+            except Cliente.DoesNotExist:
+                pass
+        
+        if lote_origen_codigo:
+            try:
+                lote_origen_filtrado = LoteOrigen.objects.get(codigo=lote_origen_codigo)
+                context['lote_origen_filtrado'] = lote_origen_filtrado
+            except LoteOrigen.DoesNotExist:
+                pass
+        
+        if calidad:
+            context['calidad_filtrada'] = calidad
+        
+        if fecha_desde:
+            context['fecha_desde'] = fecha_desde
+        
+        if fecha_hasta:
+            context['fecha_hasta'] = fecha_hasta
+        
+        # Obtener remisiones del ciclo actual
+        remisiones_qs = Remision.objects.filter(
+            cancelada=False,
+            ciclo=ciclo_actual
+        ).select_related('cliente', 'lote_origen').prefetch_related('detalles')
+        
+        # Aplicar filtros de fecha si se proporcionan
+        if fecha_desde:
+            remisiones_qs = remisiones_qs.filter(fecha__gte=fecha_desde)
+        
+        if fecha_hasta:
+            remisiones_qs = remisiones_qs.filter(fecha__lte=fecha_hasta)
+        
+        # Filtrar por cliente y lote-origen si se proporcionan
+        if cliente_filtrado:
+            remisiones_qs = remisiones_qs.filter(cliente=cliente_filtrado)
+        
+        if lote_origen_filtrado:
+            remisiones_qs = remisiones_qs.filter(lote_origen=lote_origen_filtrado)
+        
+        # Obtener detalles de remisiones filtradas
+        detalles_qs = RemisionDetalle.objects.filter(remision__in=remisiones_qs)
+        
+        # Si se especifica una calidad, filtrar por esa calidad
+        if calidad:
+            detalles_qs = detalles_qs.filter(calidad=calidad)
+        
+        # Agrupar por calidad y calcular totales
+        calidad_data = defaultdict(lambda: {'importe_neto_enviado': 0, 'importe_preliquidado': 0})
+        
+        for detalle in detalles_qs:
+            calidad_nombre = detalle.calidad
+            importe_neto_enviado = float(detalle.importe_envio or 0)
+            importe_preliquidado = float(detalle.importe_liquidado or 0)
+            
+            calidad_data[calidad_nombre]['importe_neto_enviado'] += importe_neto_enviado
+            calidad_data[calidad_nombre]['importe_preliquidado'] += importe_preliquidado
+        
+        # Convertir a lista y ordenar por importe neto enviado (descendente)
+        grafica_importes_data = []
+        for calidad_nombre, datos in calidad_data.items():
+            grafica_importes_data.append({
+                'calidad': calidad_nombre,
+                'importe_neto_enviado': round(datos['importe_neto_enviado'], 2),
+                'importe_preliquidado': round(datos['importe_preliquidado'], 2)
+            })
+        
+        # Ordenar por calidad con "Mixtas" al final
+        def sort_key(item):
+            calidad = item['calidad']
+            if calidad == 'Mixtas':
+                return (1, calidad)  # 1 para que vaya al final
+            else:
+                return (0, calidad)  # 0 para que vaya al principio
+        
+        grafica_importes_data.sort(key=sort_key)
+        
+        # Calcular totales generales
+        total_importe_neto_enviado = sum(item['importe_neto_enviado'] for item in grafica_importes_data)
+        total_importe_preliquidado = sum(item['importe_preliquidado'] for item in grafica_importes_data)
+        total_calidades = len(grafica_importes_data)
+        
+        context['grafica_importes_data'] = grafica_importes_data
+        context['total_importe_neto_enviado'] = round(total_importe_neto_enviado, 2)
+        context['total_importe_preliquidado'] = round(total_importe_preliquidado, 2)
+        context['total_calidades'] = total_calidades
+        
+        return context

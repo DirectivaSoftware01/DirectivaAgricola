@@ -3,6 +3,23 @@
 
 {% block title %}Gestión de Remisiones{% endblock %}
 
+{% block extra_css %}
+<style>
+    .lote-checkbox:checked + span {
+        font-weight: bold;
+    }
+    .lote-check-icon {
+        font-size: 1rem;
+    }
+    #lote-origen-menu .dropdown-item:hover {
+        background-color: #f8f9fa;
+    }
+    #lote-origen-menu .dropdown-item input[type="checkbox"] {
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
@@ -60,8 +77,26 @@
                     {{ search_form.cliente }}
                 </div>
                 <div class="col-md-2">
-                    {{ search_form.lote_origen.label_tag }}
+                    <label class="form-label">{{ search_form.lote_origen.label }}</label>
                     {{ search_form.lote_origen }}
+                    <div class="dropdown" id="lote-origen-dropdown">
+                        <button class="btn btn-outline-secondary form-select text-start w-100" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="lote-origen-selected-text">Todos los lotes</span>
+                        </button>
+                        <ul class="dropdown-menu w-100" id="lote-origen-menu" style="max-height: 300px; overflow-y: auto;">
+                            {% for lote in search_form.lote_origen.queryset %}
+                            <li>
+                                <label class="dropdown-item d-flex align-items-center" style="cursor: pointer; margin: 0;">
+                                    <input type="checkbox" class="form-check-input me-2 lote-checkbox" value="{{ lote.pk }}" id="lote_{{ lote.pk }}" 
+                                           data-lote-name="{{ lote.nombre }}">
+                                    <span class="flex-grow-1">{{ lote.nombre }}</span>
+                                    <i class="bi bi-check-circle-fill text-success ms-2 lote-check-icon" style="display: none;"></i>
+                                </label>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <small class="text-muted" id="lote-selected-count"></small>
                 </div>
                 <div class="col-md-2">
                     {{ search_form.transportista.label_tag }}
@@ -449,7 +484,78 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         btnConfirmar.disabled = false;
         btnConfirmar.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar Cancelación';
     });
-});
+    });
+    
+    // Manejo de selección múltiple de lotes
+    document.addEventListener('DOMContentLoaded', function() {
+        const loteCheckboxes = document.querySelectorAll('.lote-checkbox');
+        const loteSelect = document.getElementById('id_lote_origen_multiple');
+        const loteBtn = document.getElementById('lote-origen-btn');
+        const loteSelectedText = document.getElementById('lote-origen-selected-text');
+        const loteSelectedCount = document.getElementById('lote-selected-count');
+        const loteCheckIcons = document.querySelectorAll('.lote-check-icon');
+        
+        // Función para actualizar el campo select múltiple y la UI
+        function updateLoteSelection() {
+            const selected = Array.from(loteCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            // Actualizar el campo select múltiple
+            Array.from(loteSelect.options).forEach(option => {
+                option.selected = selected.includes(option.value);
+            });
+            
+            // Actualizar el texto del botón
+            if (selected.length === 0) {
+                loteSelectedText.textContent = 'Todos los lotes';
+                loteSelectedCount.textContent = '';
+            } else if (selected.length === 1) {
+                const selectedLote = Array.from(loteCheckboxes).find(cb => cb.checked);
+                const loteName = selectedLote.closest('label').querySelector('span').textContent.trim();
+                loteSelectedText.textContent = loteName;
+                loteSelectedCount.textContent = `1 lote seleccionado`;
+            } else {
+                loteSelectedText.textContent = `${selected.length} lotes seleccionados`;
+                loteSelectedCount.textContent = `${selected.length} lotes seleccionados`;
+            }
+            
+            // Mostrar/ocultar iconos de check
+            loteCheckboxes.forEach((checkbox, index) => {
+                const icon = checkbox.closest('label').querySelector('.lote-check-icon');
+                if (checkbox.checked) {
+                    icon.style.display = 'inline-block';
+                } else {
+                    icon.style.display = 'none';
+                }
+            });
+        }
+        
+        // Inicializar estado basado en los valores del formulario
+        const initialValues = Array.from(loteSelect.selectedOptions).map(opt => opt.value);
+        initialValues.forEach(value => {
+            const checkbox = document.getElementById(`lote_${value}`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+        updateLoteSelection();
+        
+        // Agregar event listeners a los checkboxes
+        loteCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function(e) {
+                e.stopPropagation();
+                updateLoteSelection();
+            });
+        });
+        
+        // Prevenir que el dropdown se cierre al hacer click en los checkboxes
+        document.getElementById('lote-origen-menu').addEventListener('click', function(e) {
+            if (e.target.type === 'checkbox' || e.target.closest('label')) {
+                e.stopPropagation();
+            }
+        });
+    });
 </script>
 {% endblock %}
 
