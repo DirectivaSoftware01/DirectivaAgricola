@@ -103,17 +103,19 @@
                             <i class="bi bi-chevron-down"></i>
                         </button>
                         <ul class="dropdown-menu w-100" id="lote-origen-menu" aria-labelledby="lote-origen-btn" data-bs-auto-close="false">
-                            {% for lote in lotes_disponibles %}
-                            <li>
-                                <label class="dropdown-item d-flex align-items-center" style="cursor: pointer; margin: 0;">
-                                    <input type="checkbox" class="form-check-input me-2 lote-checkbox" value="{{ lote.pk }}" id="lote_{{ lote.pk }}" 
-                                           data-lote-name="{{ lote.nombre }}">
-                                    <span>{{ lote.nombre }}</span>
-                                </label>
-                            </li>
-                            {% empty %}
-                            <li><span class="dropdown-item text-muted">No hay lotes disponibles</span></li>
-                            {% endfor %}
+                            {% if lotes_disponibles %}
+                                {% for lote in lotes_disponibles %}
+                                <li>
+                                    <label class="dropdown-item d-flex align-items-center" style="cursor: pointer; margin: 0;">
+                                        <input type="checkbox" class="form-check-input me-2 lote-checkbox" value="{{ lote.pk }}" id="lote_{{ lote.pk }}" 
+                                               data-lote-name="{{ lote.nombre }}">
+                                        <span>{{ lote.nombre }}</span>
+                                    </label>
+                                </li>
+                                {% endfor %}
+                            {% else %}
+                                <li><span class="dropdown-item text-muted">No hay lotes disponibles</span></li>
+                            {% endif %}
                         </ul>
                     </div>
                 </div>
