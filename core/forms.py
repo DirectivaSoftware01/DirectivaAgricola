@@ -1646,12 +1646,12 @@ class RemisionSearchForm(forms.Form):
         label='Cliente'
     )
     
-    lote_origen = forms.ModelMultipleChoiceField(
+    lote_origen = forms.ModelChoiceField(
         queryset=LoteOrigen.objects.filter(activo=True),
         required=False,
-        widget=forms.SelectMultiple(attrs={
-            'class': 'form-select d-none',
-            'id': 'id_lote_origen_multiple'
+        empty_label="Todos los lotes",
+        widget=forms.Select(attrs={
+            'class': 'form-select'
         }),
         label='Lote - Origen'
     )

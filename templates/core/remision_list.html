@@ -4,71 +4,6 @@
 {% block title %}Gestión de Remisiones{% endblock %}
 
 {% block extra_css %}
-<style>
-    .lote-checkbox:checked + span {
-        font-weight: bold;
-    }
-    .lote-check-icon {
-        font-size: 1rem;
-    }
-    #lote-origen-menu .dropdown-item:hover {
-        background-color: #f8f9fa;
-    }
-    #lote-origen-menu .dropdown-item input[type="checkbox"] {
-        cursor: pointer;
-    }
-    /* Asegurar que el dropdown se muestre por encima de otros elementos */
-    #lote-origen-dropdown {
-        position: static !important;
-    }
-    #lote-origen-btn {
-        height: 38px; /* Misma altura que los otros selects */
-        display: flex;
-        align-items: center;
-        padding: 0.375rem 0.75rem;
-    }
-    #lote-origen-menu {
-        z-index: 999999 !important;
-        max-height: 400px;
-        overflow-y: auto;
-        overflow-x: hidden;
-        position: fixed !important;
-        transform: none !important;
-        will-change: auto !important;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-        background-color: white !important;
-        display: none !important; /* Oculto por defecto */
-    }
-    /* Mostrar solo cuando Bootstrap lo active */
-    #lote-origen-menu.show {
-        display: block !important;
-    }
-    /* Asegurar que la tarjeta de listado no tenga z-index alto */
-    .card:not(#lote-origen-dropdown) {
-        position: relative;
-        z-index: auto;
-    }
-    /* Asegurar que el dropdown container no limite el z-index */
-    #lote-origen-dropdown {
-        position: static !important;
-        z-index: auto !important;
-    }
-    /* Permitir que el dropdown se muestre fuera de la card */
-    .card-body {
-        overflow: visible !important;
-    }
-    .card {
-        overflow: visible !important;
-    }
-    /* Asegurar que el contenedor del formulario permita overflow */
-    form.row.g-3 {
-        overflow: visible;
-    }
-    /* Asegurar que las columnas permitan overflow */
-    .col-md-2 {
-        overflow: visible;
-    }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -128,31 +63,8 @@
                     {{ search_form.cliente }}
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">{{ search_form.lote_origen.label }}</label>
-                    <div style="display: none;">
-                        {{ search_form.lote_origen }}
-                    </div>
-                    <div class="dropdown" id="lote-origen-dropdown">
-                        <button class="btn btn-outline-secondary form-select text-start w-100 d-flex align-items-center" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true">
-                            <span id="lote-origen-selected-text" class="flex-grow-1 text-start">Todos los lotes</span>
-                            <i class="bi bi-chevron-down ms-auto"></i>
-                        </button>
-                        <ul class="dropdown-menu" id="lote-origen-menu" data-bs-auto-close="false" style="min-width: 100%;">
-                            {% for lote in lotes_disponibles %}
-                            <li>
-                                <label class="dropdown-item d-flex align-items-center" style="cursor: pointer; margin: 0;">
-                                    <input type="checkbox" class="form-check-input me-2 lote-checkbox" value="{{ lote.pk }}" id="lote_{{ lote.pk }}" 
-                                           data-lote-name="{{ lote.nombre }}">
-                                    <span class="flex-grow-1">{{ lote.nombre }}</span>
-                                    <i class="bi bi-check-circle-fill text-success ms-2 lote-check-icon" style="display: none;"></i>
-                                </label>
-                            </li>
-                            {% empty %}
-                            <li><span class="dropdown-item text-muted">No hay lotes disponibles</span></li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    <small class="text-muted" id="lote-selected-count"></small>
+                    {{ search_form.lote_origen.label_tag }}
+                    {{ search_form.lote_origen }}
                 </div>
                 <div class="col-md-2">
                     {{ search_form.transportista.label_tag }}
