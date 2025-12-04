@@ -148,7 +148,7 @@
                             <span id="lote-origen-text">Todos los lotes</span>
                             <i class="bi bi-chevron-down"></i>
                         </button>
-                        <ul class="dropdown-menu w-100" id="lote-origen-menu" aria-labelledby="lote-origen-btn" data-bs-auto-close="outside">
+                        <ul class="dropdown-menu w-100" id="lote-origen-menu" aria-labelledby="lote-origen-btn">
                             {% if lotes_disponibles %}
                                 {% for lote in lotes_disponibles %}
                                 <li>
@@ -652,12 +652,29 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             });
         }
         
-        // Cerrar el dropdown cuando se hace click fuera de él (Bootstrap ya maneja esto con data-bs-auto-close="outside")
-        // Pero asegurémonos de que las selecciones se mantengan
+        // Cerrar el dropdown cuando se hace click fuera de él
+        document.addEventListener('click', function(e) {
+            if (loteBtn && loteMenu) {
+                // Verificar si el click fue fuera del botón y del menú
+                const isClickInsideBtn = loteBtn.contains(e.target);
+                const isClickInsideMenu = loteMenu.contains(e.target);
+                
+                if (!isClickInsideBtn && !isClickInsideMenu) {
+                    // Cerrar el dropdown si está abierto
+                    const dropdown = bootstrap.Dropdown.getInstance(loteBtn);
+                    if (dropdown && dropdown._isShown()) {
+                        dropdown.hide();
+                    }
+                }
+            }
+        });
+        
+        // Asegurar que las selecciones se mantengan cuando se cierra el dropdown
         if (loteBtn) {
             loteBtn.addEventListener('hidden.bs.dropdown', function() {
-                // Cuando se cierra el dropdown, las selecciones ya están guardadas en los checkboxes
-                // y en el campo select oculto, así que no necesitamos hacer nada adicional
+                // Las selecciones ya están guardadas en los checkboxes y en el campo select oculto
+                // Solo asegurémonos de que el texto del botón esté actualizado
+                updateLoteSelection();
             });
         }
         
