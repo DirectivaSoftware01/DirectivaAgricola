@@ -129,7 +129,7 @@
                         {{ search_form.lote_origen }}
                     </div>
                     <div class="dropdown" id="lote-origen-dropdown">
-                        <button class="btn btn-outline-secondary form-select text-start w-100 d-flex align-items-center" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                        <button class="btn btn-outline-secondary form-select text-start w-100 d-flex align-items-center" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true">
                             <span id="lote-origen-selected-text" class="flex-grow-1 text-start">Todos los lotes</span>
                             <i class="bi bi-chevron-down ms-auto"></i>
                         </button>
@@ -640,6 +640,14 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         
         // Actualizar la UI después de inicializar
         updateLoteSelection();
+        
+        // Asegurar que el dropdown esté cerrado al cargar
+        const loteDropdown = bootstrap.Dropdown.getInstance(loteBtn);
+        if (loteDropdown && loteDropdown._isShown()) {
+            loteDropdown.hide();
+        }
+        // También asegurar que el atributo aria-expanded esté en false
+        loteBtn.setAttribute('aria-expanded', 'false');
         
         // Actualizar el campo oculto antes de enviar el formulario
         const searchForm = document.getElementById('remision-search-form');
