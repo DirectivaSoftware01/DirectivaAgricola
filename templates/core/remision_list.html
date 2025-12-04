@@ -97,6 +97,16 @@
                     <label class="form-label">{{ search_form.lote_origen.label }}</label>
                     <div style="display: none;">
                         {{ search_form.lote_origen }}
+                        <script>
+                            // Asegurar que el campo select tenga el atributo multiple
+                            document.addEventListener('DOMContentLoaded', function() {
+                                const selectField = document.querySelector('select[name="lote_origen"]');
+                                if (selectField && !selectField.hasAttribute('multiple')) {
+                                    selectField.setAttribute('multiple', 'multiple');
+                                    console.log('Atributo multiple agregado al campo select');
+                                }
+                            });
+                        </script>
                     </div>
                     <div class="dropdown" id="lote-origen-dropdown">
                         <button class="btn btn-outline-secondary form-select text-start w-100" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
