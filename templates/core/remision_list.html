@@ -41,9 +41,6 @@
     #lote-origen-menu {
         max-height: 300px;
         overflow-y: auto;
-        z-index: 99999 !important;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-        background-color: #fff !important;
     }
     
     /* Asegurar que los contenedores padres no corten el dropdown */
@@ -54,15 +51,9 @@
         overflow: visible !important;
     }
     
-    /* Asegurar que el dropdown se posicione correctamente */
+    /* Asegurar que el dropdown se posicione correctamente - igual que el de Cliente */
     .dropdown {
-        position: static !important;
-    }
-    
-    /* Posicionar el menú de forma fija cuando está abierto */
-    #lote-origen-menu.show {
-        position: fixed !important;
-        z-index: 99999 !important;
+        position: relative !important;
     }
     
     #lote-origen-menu .dropdown-item {
@@ -146,8 +137,8 @@
                     <div style="display: none;">
                         {{ search_form.lote_origen }}
                     </div>
-                    <div class="dropdown" style="position: relative;">
-                        <button class="form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="cursor: pointer; position: relative;">
+                    <div class="dropdown">
+                        <button class="form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="cursor: pointer;">
                             <span id="lote-origen-text">Todos los lotes</span>
                             <i class="bi bi-chevron-down"></i>
                         </button>
@@ -668,35 +659,11 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             }
         });
         
-        // Asegurar que el dropdown se muestre cuando se abre y posicionarlo correctamente
+        // Asegurar que el dropdown se muestre cuando se abre (Bootstrap maneja el posicionamiento)
         if (loteBtn) {
             loteBtn.addEventListener('shown.bs.dropdown', function() {
                 if (loteMenu) {
                     loteMenu.style.display = 'block';
-                    
-                    // Obtener la posición del botón
-                    const btnRect = loteBtn.getBoundingClientRect();
-                    const menuRect = loteMenu.getBoundingClientRect();
-                    
-                    // Posicionar el menú de forma fija para que no sea cortado
-                    loteMenu.style.position = 'fixed';
-                    loteMenu.style.top = (btnRect.bottom + window.scrollY) + 'px';
-                    loteMenu.style.left = btnRect.left + 'px';
-                    loteMenu.style.width = btnRect.width + 'px';
-                    loteMenu.style.maxWidth = '300px';
-                    loteMenu.style.zIndex = '99999';
-                }
-            });
-            
-            // Restaurar posición cuando se cierra
-            loteBtn.addEventListener('hidden.bs.dropdown', function() {
-                if (loteMenu) {
-                    loteMenu.style.position = '';
-                    loteMenu.style.top = '';
-                    loteMenu.style.left = '';
-                    loteMenu.style.width = '';
-                    loteMenu.style.maxWidth = '';
-                    loteMenu.style.zIndex = '';
                 }
             });
         }
