@@ -9982,7 +9982,12 @@ class RemisionListView(LoginRequiredMixin, ListView):
             
             # Filtrar por lote origen (múltiple)
             if lote_origen:
-                queryset = queryset.filter(lote_origen__in=lote_origen)
+                # Asegurar que lote_origen sea una lista/queryset
+                if isinstance(lote_origen, (list, tuple, set)):
+                    queryset = queryset.filter(lote_origen__in=lote_origen)
+                else:
+                    # Si es un solo objeto, convertirlo a lista
+                    queryset = queryset.filter(lote_origen__in=[lote_origen])
             
             # Filtrar por transportista
             if transportista:
