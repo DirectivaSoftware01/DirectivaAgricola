@@ -17,6 +17,23 @@
     #lote-origen-menu .dropdown-item input[type="checkbox"] {
         cursor: pointer;
     }
+    /* Asegurar que el dropdown se muestre por encima de otros elementos */
+    #lote-origen-dropdown {
+        position: relative;
+    }
+    #lote-origen-menu {
+        z-index: 1050 !important;
+        position: absolute !important;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    /* Permitir que el dropdown se muestre fuera de la card */
+    .card-body {
+        overflow: visible !important;
+    }
+    .card {
+        overflow: visible !important;
+    }
 </style>
 {% endblock %}
 
@@ -544,6 +561,15 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             }
         });
         updateLoteSelection();
+        
+        // Actualizar el campo oculto antes de enviar el formulario
+        const searchForm = document.getElementById('remision-search-form');
+        if (searchForm) {
+            searchForm.addEventListener('submit', function(e) {
+                // Asegurar que los valores seleccionados estén en el campo oculto
+                updateLoteSelection();
+            });
+        }
         
         // Agregar event listeners a los checkboxes
         loteCheckboxes.forEach(checkbox => {
