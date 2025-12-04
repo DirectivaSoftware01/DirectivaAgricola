@@ -14,6 +14,11 @@
     #lote-origen-menu {
         max-height: 300px;
         overflow-y: auto;
+        display: block !important;
+    }
+    
+    #lote-origen-menu.show {
+        display: block !important;
     }
     
     #lote-origen-menu .dropdown-item {
@@ -96,11 +101,11 @@
                         {{ search_form.lote_origen }}
                     </div>
                     <div class="dropdown">
-                        <button class="btn btn-outline-secondary form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-outline-secondary form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                             <span id="lote-origen-text">Todos los lotes</span>
                             <i class="bi bi-chevron-down"></i>
                         </button>
-                        <ul class="dropdown-menu w-100" id="lote-origen-menu" aria-labelledby="lote-origen-btn">
+                        <ul class="dropdown-menu w-100" id="lote-origen-menu" aria-labelledby="lote-origen-btn" data-bs-auto-close="false">
                             {% for lote in lotes_disponibles %}
                             <li>
                                 <label class="dropdown-item d-flex align-items-center" style="cursor: pointer; margin: 0;">
@@ -566,7 +571,19 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         // Prevenir que el dropdown se cierre al hacer click en los elementos
         if (loteMenu) {
             loteMenu.addEventListener('click', function(e) {
-                e.stopPropagation();
+                // Solo prevenir si el click es en un checkbox o label
+                if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.tagName === 'SPAN') {
+                    e.stopPropagation();
+                }
+            });
+        }
+        
+        // Asegurar que el dropdown se muestre cuando se abre
+        if (loteBtn) {
+            loteBtn.addEventListener('shown.bs.dropdown', function() {
+                if (loteMenu) {
+                    loteMenu.style.display = 'block';
+                }
             });
         }
         
