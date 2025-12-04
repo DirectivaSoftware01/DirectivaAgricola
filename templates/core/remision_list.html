@@ -28,11 +28,11 @@
         padding: 0.375rem 0.75rem;
     }
     #lote-origen-menu {
-        z-index: 9999 !important;
+        z-index: 99999 !important;
         max-height: 400px;
         overflow-y: auto;
         overflow-x: hidden;
-        position: absolute !important;
+        position: fixed !important;
         transform: none !important;
         will-change: auto !important;
     }
@@ -671,6 +671,20 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                 e.stopPropagation();
                 updateLoteSelection();
             });
+        });
+        
+        // Ajustar posición del dropdown cuando se abre
+        loteBtn.addEventListener('shown.bs.dropdown', function() {
+            const menu = document.getElementById('lote-origen-menu');
+            if (menu) {
+                // Calcular posición basada en el botón
+                const rect = loteBtn.getBoundingClientRect();
+                menu.style.position = 'fixed';
+                menu.style.top = (rect.bottom + window.scrollY) + 'px';
+                menu.style.left = rect.left + 'px';
+                menu.style.width = rect.width + 'px';
+                menu.style.zIndex = '99999';
+            }
         });
         
         // Prevenir que el dropdown se cierre al hacer click en los elementos del menú
