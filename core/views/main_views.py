@@ -9982,14 +9982,25 @@ class RemisionListView(LoginRequiredMixin, ListView):
             
             # Filtrar por lote origen (múltiple)
             if lote_origen:
-                # Asegurar que lote_origen sea una lista/queryset
-                # ModelMultipleChoiceField puede devolver un queryset o una lista
-                if hasattr(lote_origen, '__iter__') and not isinstance(lote_origen, str):
-                    # Es una lista, queryset o tupla
-                    queryset = queryset.filter(lote_origen__in=lote_origen)
+                # Obtener valores directamente del request.GET para manejar múltiples valores
+                lote_ids = self.request.GET.getlist('lote_origen')
+                if lote_ids:
+                    # Convertir IDs a enteros y filtrar
+                    try:
+                        lote_ids_int = [int(id) for id in lote_ids if id]
+                        queryset = queryset.filter(lote_origen_id__in=lote_ids_int)
+                    except (ValueError, TypeError):
+                        # Si hay error, usar el método anterior como fallback
+                        if hasattr(lote_origen, '__iter__') and not isinstance(lote_origen, str):
+                            queryset = queryset.filter(lote_origen__in=lote_origen)
+                        else:
+                            queryset = queryset.filter(lote_origen=lote_origen)
                 else:
-                    # Si es un solo objeto, convertirlo a lista
-                    queryset = queryset.filter(lote_origen=lote_origen)
+                    # Fallback al método anterior si no hay valores en GET
+                    if hasattr(lote_origen, '__iter__') and not isinstance(lote_origen, str):
+                        queryset = queryset.filter(lote_origen__in=lote_origen)
+                    else:
+                        queryset = queryset.filter(lote_origen=lote_origen)
             
             # Filtrar por transportista
             if transportista:
