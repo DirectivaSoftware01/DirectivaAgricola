@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load phone_utils %}
 
 {% block title %}Gestión de Remisiones{% endblock %}
 
@@ -132,7 +133,7 @@
                                 </td>
                                 <td>
                                     <strong>{{ remision.transportista.nombre_completo }}</strong>
-                                    <br><small class="text-muted">{{ remision.transportista.telefono|default:"No especificado" }}</small>
+                                    <br><small class="text-muted">{{ remision.transportista.telefono|phone_format }}</small>
                                 </td>
                                 <td>
                                     <span class="text-success fw-bold">${{ remision.costo_flete|floatformat:2 }}</span>
