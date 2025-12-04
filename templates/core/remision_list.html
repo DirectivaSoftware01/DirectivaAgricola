@@ -80,10 +80,10 @@
                     <label class="form-label">{{ search_form.lote_origen.label }}</label>
                     {{ search_form.lote_origen }}
                     <div class="dropdown" id="lote-origen-dropdown">
-                        <button class="btn btn-outline-secondary form-select text-start w-100" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-outline-secondary form-select text-start w-100" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                             <span id="lote-origen-selected-text">Todos los lotes</span>
                         </button>
-                        <ul class="dropdown-menu w-100" id="lote-origen-menu" style="max-height: 300px; overflow-y: auto;">
+                        <ul class="dropdown-menu w-100" id="lote-origen-menu" style="max-height: 300px; overflow-y: auto;" data-bs-auto-close="false">
                             {% for lote in search_form.lote_origen.queryset %}
                             <li>
                                 <label class="dropdown-item d-flex align-items-center" style="cursor: pointer; margin: 0;">
@@ -549,10 +549,33 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             });
         });
         
-        // Prevenir que el dropdown se cierre al hacer click en los checkboxes
-        document.getElementById('lote-origen-menu').addEventListener('click', function(e) {
-            if (e.target.type === 'checkbox' || e.target.closest('label')) {
+        // Prevenir que el dropdown se cierre al hacer click en los elementos del menú
+        const loteMenu = document.getElementById('lote-origen-menu');
+        
+        // Prevenir el cierre del dropdown cuando se hace click dentro del menú
+        loteMenu.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        
+        // También prevenir el cierre en los elementos individuales
+        loteMenu.querySelectorAll('li, label, .dropdown-item').forEach(element => {
+            element.addEventListener('click', function(e) {
                 e.stopPropagation();
+                // Si es un checkbox, dejar que el evento change se maneje normalmente
+                if (e.target.type === 'checkbox') {
+                    return;
+                }
+            });
+        });
+        
+        // Cerrar el dropdown solo cuando se hace click fuera de él
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('lote-origen-dropdown');
+            if (!dropdown.contains(e.target)) {
+                const bsDropdown = bootstrap.Dropdown.getInstance(loteBtn);
+                if (bsDropdown && bsDropdown._isShown()) {
+                    bsDropdown.hide();
+                }
             }
         });
     });
