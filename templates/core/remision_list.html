@@ -28,13 +28,14 @@
         padding: 0.375rem 0.75rem;
     }
     #lote-origen-menu {
-        z-index: 99999 !important;
+        z-index: 999999 !important;
         max-height: 400px;
         overflow-y: auto;
         overflow-x: hidden;
         position: fixed !important;
         transform: none !important;
         will-change: auto !important;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
     }
     /* Permitir que el dropdown se muestre fuera de la card */
     .card-body {
@@ -685,7 +686,7 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                 menu.style.width = rect.width + 'px';
                 menu.style.minWidth = rect.width + 'px';
                 menu.style.maxWidth = rect.width + 'px';
-                menu.style.zIndex = '99999';
+                menu.style.zIndex = '999999';
                 menu.style.maxHeight = '400px';
                 menu.style.overflowY = 'auto';
                 menu.style.overflowX = 'hidden';
