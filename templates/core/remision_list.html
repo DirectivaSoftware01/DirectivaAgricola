@@ -14,15 +14,11 @@
     #lote-origen-menu {
         max-height: 300px;
         overflow-y: auto;
-        display: block !important;
-    }
-    
-    #lote-origen-menu.show {
-        display: block !important;
     }
     
     #lote-origen-menu .dropdown-item {
         padding: 0.5rem 1rem;
+        white-space: nowrap;
     }
     
     #lote-origen-menu .dropdown-item:hover {
@@ -31,10 +27,20 @@
     
     #lote-origen-menu .dropdown-item input[type="checkbox"] {
         cursor: pointer;
+        margin-right: 0.5rem;
     }
     
     #lote-origen-menu .dropdown-item input[type="checkbox"]:checked + span {
         font-weight: bold;
+    }
+    
+    /* Asegurar que el dropdown se muestre */
+    .dropdown-menu {
+        display: none;
+    }
+    
+    .dropdown-menu.show {
+        display: block;
     }
 </style>
 {% endblock %}
