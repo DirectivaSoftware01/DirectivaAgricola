@@ -562,12 +562,35 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             // Si no hay checkboxes, puede ser que no haya lotes disponibles
             if (!loteCheckboxes.length) {
                 console.warn('No se encontraron checkboxes de lotes. Puede que no haya lotes disponibles o que el contexto no esté pasando lotes_disponibles.');
+                
+                // Verificar si el menú tiene elementos
+                const menuItems = loteMenu.querySelectorAll('li');
+                console.log('Elementos li en el menú:', menuItems.length);
+                
+                // Verificar si hay elementos con la clase dropdown-item
+                const dropdownItems = loteMenu.querySelectorAll('.dropdown-item');
+                console.log('Elementos .dropdown-item en el menú:', dropdownItems.length);
+                
+                // Verificar si hay inputs en el menú
+                const inputs = loteMenu.querySelectorAll('input');
+                console.log('Inputs en el menú:', inputs.length);
+                
+                // Intentar buscar checkboxes de otra forma
+                const allCheckboxes = document.querySelectorAll('input[type="checkbox"]');
+                console.log('Total de checkboxes en la página:', allCheckboxes.length);
+                
                 // Continuar de todas formas para que el dropdown funcione aunque esté vacío
+            } else {
+                console.log('Checkboxes encontrados correctamente:', loteCheckboxes.length);
             }
         
         // Función para actualizar el texto del botón y el campo select oculto
         function updateLoteSelection() {
-            const selected = Array.from(loteCheckboxes)
+            // Re-buscar checkboxes por si se agregaron dinámicamente
+            const currentCheckboxes = document.querySelectorAll('.lote-checkbox');
+            console.log('Checkboxes encontrados en updateLoteSelection:', currentCheckboxes.length);
+            
+            const selected = Array.from(currentCheckboxes)
                 .filter(cb => cb.checked)
                 .map(cb => cb.value);
             
