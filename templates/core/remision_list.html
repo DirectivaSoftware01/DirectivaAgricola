@@ -516,5 +516,81 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         btnConfirmar.innerHTML = '<i class="bi bi-check-circle"></i> Confirmar Cancelación';
     });
     });
+    
+    // Script para el dropdown múltiple de Lote-Origen
+    document.addEventListener('DOMContentLoaded', function() {
+        const loteSelect = document.querySelector('select[name="lote_origen"]');
+        const loteBtn = document.getElementById('lote-origen-btn');
+        const loteText = document.getElementById('lote-origen-text');
+        const loteCheckboxes = document.querySelectorAll('.lote-checkbox');
+        const loteMenu = document.getElementById('lote-origen-menu');
+        
+        if (!loteSelect || !loteBtn || !loteText || !loteCheckboxes.length) {
+            console.warn('Elementos del dropdown de lotes no encontrados');
+            return;
+        }
+        
+        // Función para actualizar el texto del botón y el campo select oculto
+        function updateLoteSelection() {
+            const selected = Array.from(loteCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            // Actualizar el campo select oculto
+            Array.from(loteSelect.options).forEach(option => {
+                option.selected = selected.includes(option.value);
+            });
+            
+            // Actualizar el texto del botón
+            if (selected.length === 0) {
+                loteText.textContent = 'Todos los lotes';
+            } else if (selected.length === 1) {
+                const selectedLote = Array.from(loteCheckboxes).find(cb => cb.checked);
+                const loteName = selectedLote.getAttribute('data-lote-name');
+                loteText.textContent = loteName;
+            } else {
+                loteText.textContent = `${selected.length} lotes seleccionados`;
+            }
+        }
+        
+        // Inicializar checkboxes basados en valores seleccionados
+        const urlParams = new URLSearchParams(window.location.search);
+        const loteParams = urlParams.getAll('lote_origen');
+        
+        if (loteParams.length > 0) {
+            loteParams.forEach(value => {
+                const checkbox = document.getElementById(`lote_${value}`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+        }
+        
+        // Actualizar la UI después de inicializar
+        updateLoteSelection();
+        
+        // Agregar event listeners a los checkboxes
+        loteCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function(e) {
+                e.stopPropagation();
+                updateLoteSelection();
+            });
+        });
+        
+        // Prevenir que el dropdown se cierre al hacer click en los elementos
+        if (loteMenu) {
+            loteMenu.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+        
+        // Actualizar antes de enviar el formulario
+        const searchForm = document.getElementById('remision-search-form');
+        if (searchForm) {
+            searchForm.addEventListener('submit', function(e) {
+                updateLoteSelection();
+            });
+        }
+    });
 {% endblock %}
 
