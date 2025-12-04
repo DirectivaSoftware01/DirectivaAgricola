@@ -110,22 +110,13 @@
                     <label class="form-label">{{ search_form.lote_origen.label }}</label>
                     <div style="display: none;">
                         {{ search_form.lote_origen }}
-                        <script>
-                            // Asegurar que el campo select tenga el atributo multiple
-                            document.addEventListener('DOMContentLoaded', function() {
-                                const selectField = document.querySelector('select[name="lote_origen"]');
-                                if (selectField && !selectField.hasAttribute('multiple')) {
-                                    selectField.setAttribute('multiple', 'multiple');
-                                    console.log('Atributo multiple agregado al campo select');
-                                }
-                            });
-                        </script>
                     </div>
                     <div class="dropdown" id="lote-origen-dropdown">
-                        <button class="btn btn-outline-secondary form-select text-start w-100" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                            <span id="lote-origen-selected-text">Todos los lotes</span>
+                        <button class="btn btn-outline-secondary form-select text-start w-100 d-flex align-items-center" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <span id="lote-origen-selected-text" class="flex-grow-1 text-start">Todos los lotes</span>
+                            <i class="bi bi-chevron-down ms-auto"></i>
                         </button>
-                        <ul class="dropdown-menu w-100" id="lote-origen-menu" style="max-height: 300px; overflow-y: auto;" data-bs-auto-close="false">
+                        <ul class="dropdown-menu w-100" id="lote-origen-menu" data-bs-auto-close="false">
                             {% for lote in lotes_disponibles %}
                             <li>
                                 <label class="dropdown-item d-flex align-items-center" style="cursor: pointer; margin: 0;">
