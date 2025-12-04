@@ -41,9 +41,10 @@
     #lote-origen-menu {
         max-height: 300px;
         overflow-y: auto;
-        z-index: 99999 !important;
+        z-index: 999999 !important;
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
         background-color: #fff !important;
+        position: fixed !important;
     }
     
     /* Asegurar que los contenedores padres no corten el dropdown */
@@ -62,7 +63,7 @@
     /* Posicionar el menú de forma fija cuando está abierto */
     #lote-origen-menu.show {
         position: fixed !important;
-        z-index: 99999 !important;
+        z-index: 999999 !important;
     }
     
     #lote-origen-menu .dropdown-item {
@@ -684,9 +685,11 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                     loteMenu.style.width = btnRect.width + 'px';
                     loteMenu.style.maxWidth = '300px';
                     loteMenu.style.maxHeight = '300px';
-                    loteMenu.style.zIndex = '99999';
+                    loteMenu.style.zIndex = '999999';
                     loteMenu.style.backgroundColor = '#fff';
                     loteMenu.style.boxShadow = '0 0.5rem 1rem rgba(0, 0, 0, 0.15)';
+                    loteMenu.style.border = '1px solid rgba(0, 0, 0, 0.15)';
+                    loteMenu.style.borderRadius = '0.375rem';
                 }
             });
             
