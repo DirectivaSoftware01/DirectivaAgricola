@@ -510,7 +510,8 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
     // Manejo de selección múltiple de lotes
     document.addEventListener('DOMContentLoaded', function() {
         const loteCheckboxes = document.querySelectorAll('.lote-checkbox');
-        const loteSelect = document.getElementById('id_lote_origen_multiple');
+        // Buscar el campo select por su atributo name (Django genera el ID automáticamente)
+        const loteSelect = document.querySelector('select[name="lote_origen"]');
         const loteBtn = document.getElementById('lote-origen-btn');
         const loteSelectedText = document.getElementById('lote-origen-selected-text');
         const loteSelectedCount = document.getElementById('lote-selected-count');
