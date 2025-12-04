@@ -105,8 +105,29 @@
                     {{ search_form.cliente }}
                 </div>
                 <div class="col-md-2">
-                    {{ search_form.lote_origen.label_tag }}
-                    {{ search_form.lote_origen }}
+                    <label class="form-label">{{ search_form.lote_origen.label }}</label>
+                    <div style="display: none;">
+                        {{ search_form.lote_origen }}
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="lote-origen-text">Todos los lotes</span>
+                            <i class="bi bi-chevron-down"></i>
+                        </button>
+                        <ul class="dropdown-menu w-100" id="lote-origen-menu" aria-labelledby="lote-origen-btn">
+                            {% for lote in lotes_disponibles %}
+                            <li>
+                                <label class="dropdown-item d-flex align-items-center" style="cursor: pointer; margin: 0;">
+                                    <input type="checkbox" class="form-check-input me-2 lote-checkbox" value="{{ lote.pk }}" id="lote_{{ lote.pk }}" 
+                                           data-lote-name="{{ lote.nombre }}">
+                                    <span>{{ lote.nombre }}</span>
+                                </label>
+                            </li>
+                            {% empty %}
+                            <li><span class="dropdown-item text-muted">No hay lotes disponibles</span></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
                 </div>
                 <div class="col-md-2">
                     {{ search_form.transportista.label_tag }}
