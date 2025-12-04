@@ -587,14 +587,21 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         const loteParams = urlParams.getAll('lote_origen');
         if (loteParams.length > 0) {
             console.log('Valores de URL params:', loteParams);
+            // Marcar los checkboxes desde los parámetros GET
             loteParams.forEach(value => {
                 const checkbox = document.getElementById(`lote_${value}`);
                 if (checkbox) {
                     checkbox.checked = true;
                 }
+                // También asegurar que el campo select tenga estos valores seleccionados
+                const option = Array.from(loteSelect.options).find(opt => opt.value === value);
+                if (option) {
+                    option.selected = true;
+                }
             });
         }
         
+        // Actualizar la UI después de inicializar
         updateLoteSelection();
         
         // Actualizar el campo oculto antes de enviar el formulario
