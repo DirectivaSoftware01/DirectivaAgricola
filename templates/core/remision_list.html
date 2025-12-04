@@ -680,10 +680,23 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                 // Calcular posición basada en el botón
                 const rect = loteBtn.getBoundingClientRect();
                 menu.style.position = 'fixed';
-                menu.style.top = (rect.bottom + window.scrollY) + 'px';
+                menu.style.top = (rect.bottom + window.scrollY + 2) + 'px';
                 menu.style.left = rect.left + 'px';
                 menu.style.width = rect.width + 'px';
                 menu.style.zIndex = '99999';
+                menu.style.maxHeight = '400px';
+                menu.style.overflowY = 'auto';
+            }
+        });
+        
+        // Ajustar posición cuando se hace scroll
+        window.addEventListener('scroll', function() {
+            const menu = document.getElementById('lote-origen-menu');
+            const bsDropdown = bootstrap.Dropdown.getInstance(loteBtn);
+            if (menu && bsDropdown && bsDropdown._isShown()) {
+                const rect = loteBtn.getBoundingClientRect();
+                menu.style.top = (rect.bottom + window.scrollY + 2) + 'px';
+                menu.style.left = rect.left + 'px';
             }
         });
         
