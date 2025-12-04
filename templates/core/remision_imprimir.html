@@ -180,6 +180,13 @@
             text-align: right;
         }
         
+        .product-table .precio-col {
+            text-align: center;
+            white-space: nowrap;
+            width: auto;
+            min-width: fit-content;
+        }
+        
         .transport-section {
             margin-top: 5px;
         }
@@ -452,7 +459,7 @@
                     <th>Peso Promedio</th>
                     <th>Kgs Liquidados</th>
                     <th>Kgs - Merma Recibido</th>
-                    <th>Precio kg enviado/Precio kg preliquidado</th>
+                    <th class="precio-col">Precio kg enviado/Precio kg preliquidado</th>
                     <th>Importe Liquidado</th>
                 </tr>
             </thead>
@@ -468,7 +475,7 @@
                     <td>{{ detalle.peso_promedio|floatformat:2 }}</td>
                     <td>{{ detalle.kgs_liquidados|floatformat:2 }}</td>
                     <td>{{ detalle.kgs_merma|floatformat:2 }} kgs - {{ detalle.merma_por_arp_recibido|floatformat:2 }}</td>
-                    <td class="text-right">
+                    <td class="precio-col">
                         {% if detalle.precio_envio and detalle.precio_envio > 0 %}
                             ${{ detalle.precio_envio|floatformat:2 }}
                         {% else %}
@@ -496,7 +503,7 @@
                     <td>-</td>
                     <td>-</td>
                     <td>-</td>
-                    <td class="text-right">-</td>
+                    <td class="precio-col">-</td>
                     <td class="text-right">-</td>
                 </tr>
             </tfoot>
