@@ -611,6 +611,12 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             });
         }
         
+        // Asegurar que el campo select tenga el atributo multiple
+        if (loteSelect && !loteSelect.hasAttribute('multiple')) {
+            loteSelect.setAttribute('multiple', 'multiple');
+            console.log('Atributo multiple agregado al campo select');
+        }
+        
         // Actualizar la UI después de inicializar
         updateLoteSelection();
         
@@ -618,6 +624,11 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         const searchForm = document.getElementById('remision-search-form');
         if (searchForm) {
             searchForm.addEventListener('submit', function(e) {
+                // Asegurar que el campo tenga el atributo multiple
+                if (loteSelect && !loteSelect.hasAttribute('multiple')) {
+                    loteSelect.setAttribute('multiple', 'multiple');
+                }
+                
                 // Asegurar que los valores seleccionados estén en el campo oculto
                 updateLoteSelection();
                 
@@ -626,10 +637,16 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                     .filter(cb => cb.checked)
                     .map(cb => cb.value);
                 
+                console.log('Valores a enviar:', selectedValues);
+                
                 // Forzar la actualización del campo select múltiple
                 Array.from(loteSelect.options).forEach(option => {
                     option.selected = selectedValues.includes(option.value);
                 });
+                
+                // Verificar que las opciones estén seleccionadas
+                const selectedOptions = Array.from(loteSelect.selectedOptions).map(opt => opt.value);
+                console.log('Opciones seleccionadas en el select:', selectedOptions);
                 
                 // Si no hay valores seleccionados, asegurar que el campo esté vacío
                 if (selectedValues.length === 0) {
