@@ -132,7 +132,7 @@
                                 </td>
                                 <td>
                                     <strong>{{ remision.transportista.nombre_completo }}</strong>
-                                    <br><small class="text-muted">{{ remision.transportista.placas_unidad }}</small>
+                                    <br><small class="text-muted">{{ remision.transportista.telefono|default:"No especificado" }}</small>
                                 </td>
                                 <td>
                                     <span class="text-success fw-bold">${{ remision.costo_flete|floatformat:2 }}</span>
