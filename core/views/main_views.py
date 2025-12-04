@@ -10020,6 +10020,9 @@ class RemisionListView(LoginRequiredMixin, ListView):
         context['search_form'] = RemisionSearchForm(self.request.GET)
         context['title'] = 'Gestión de Remisiones'
         
+        # Agregar lotes activos al contexto para el dropdown personalizado
+        context['lotes_disponibles'] = LoteOrigen.objects.filter(activo=True).order_by('nombre')
+        
         # Agregar ciclo actual al contexto
         try:
             config = ConfiguracionSistema.objects.first()
