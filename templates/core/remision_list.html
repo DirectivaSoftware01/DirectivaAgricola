@@ -641,29 +641,25 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             });
         }
         
-        // Prevenir que el dropdown se cierre al hacer click en los elementos del menú
+        // Prevenir que el dropdown se cierre al hacer click en los elementos del menú (checkboxes, labels, spans)
         if (loteMenu) {
             loteMenu.addEventListener('click', function(e) {
                 // Solo prevenir si el click es en un checkbox, label o span dentro del menú
                 if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || (e.target.tagName === 'SPAN' && e.target.closest('.dropdown-item'))) {
                     e.stopPropagation();
+                    // NO cerrar el dropdown, solo actualizar la selección
                 }
             });
         }
         
-        // Cerrar el dropdown cuando se hace click fuera de él
-        document.addEventListener('click', function(e) {
-            if (loteBtn && loteMenu) {
-                const isClickInside = loteBtn.contains(e.target) || loteMenu.contains(e.target);
-                if (!isClickInside) {
-                    // Cerrar el dropdown si está abierto
-                    const dropdown = bootstrap.Dropdown.getInstance(loteBtn);
-                    if (dropdown && dropdown._isShown()) {
-                        dropdown.hide();
-                    }
-                }
-            }
-        });
+        // Cerrar el dropdown cuando se hace click fuera de él (Bootstrap ya maneja esto con data-bs-auto-close="outside")
+        // Pero asegurémonos de que las selecciones se mantengan
+        if (loteBtn) {
+            loteBtn.addEventListener('hidden.bs.dropdown', function() {
+                // Cuando se cierra el dropdown, las selecciones ya están guardadas en los checkboxes
+                // y en el campo select oculto, así que no necesitamos hacer nada adicional
+            });
+        }
         
         // Asegurar que el dropdown se muestre cuando se abre (Bootstrap maneja el posicionamiento)
         if (loteBtn) {
