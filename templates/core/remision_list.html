@@ -41,7 +41,9 @@
     #lote-origen-menu {
         max-height: 300px;
         overflow-y: auto;
-        z-index: 9999 !important;
+        z-index: 99999 !important;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        background-color: #fff !important;
     }
     
     /* Asegurar que los contenedores padres no corten el dropdown */
@@ -60,7 +62,7 @@
     /* Posicionar el menú de forma fija cuando está abierto */
     #lote-origen-menu.show {
         position: fixed !important;
-        z-index: 9999 !important;
+        z-index: 99999 !important;
     }
     
     #lote-origen-menu .dropdown-item {
@@ -674,7 +676,6 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                     
                     // Obtener la posición del botón
                     const btnRect = loteBtn.getBoundingClientRect();
-                    const menuRect = loteMenu.getBoundingClientRect();
                     
                     // Posicionar el menú de forma fija para que no sea cortado
                     loteMenu.style.position = 'fixed';
@@ -682,7 +683,10 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                     loteMenu.style.left = btnRect.left + 'px';
                     loteMenu.style.width = btnRect.width + 'px';
                     loteMenu.style.maxWidth = '300px';
-                    loteMenu.style.zIndex = '9999';
+                    loteMenu.style.maxHeight = '300px';
+                    loteMenu.style.zIndex = '99999';
+                    loteMenu.style.backgroundColor = '#fff';
+                    loteMenu.style.boxShadow = '0 0.5rem 1rem rgba(0, 0, 0, 0.15)';
                 }
             });
             
@@ -694,6 +698,10 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                     loteMenu.style.left = '';
                     loteMenu.style.width = '';
                     loteMenu.style.maxWidth = '';
+                    loteMenu.style.maxHeight = '';
+                    loteMenu.style.zIndex = '';
+                    loteMenu.style.backgroundColor = '';
+                    loteMenu.style.boxShadow = '';
                 }
             });
         }
