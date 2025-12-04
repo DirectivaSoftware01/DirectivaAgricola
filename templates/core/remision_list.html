@@ -78,7 +78,9 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">{{ search_form.lote_origen.label }}</label>
-                    {{ search_form.lote_origen }}
+                    <div style="display: none;">
+                        {{ search_form.lote_origen }}
+                    </div>
                     <div class="dropdown" id="lote-origen-dropdown">
                         <button class="btn btn-outline-secondary form-select text-start w-100" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
                             <span id="lote-origen-selected-text">Todos los lotes</span>
