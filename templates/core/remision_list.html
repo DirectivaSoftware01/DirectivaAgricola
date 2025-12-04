@@ -114,17 +114,9 @@
                                 </li>
                                 {% endfor %}
                             {% else %}
-                                <li><span class="dropdown-item text-muted">No hay lotes disponibles (lotes_disponibles está vacío o no está en el contexto)</span></li>
+                                <li><span class="dropdown-item text-muted">No hay lotes disponibles</span></li>
                             {% endif %}
                         </ul>
-                        <script>
-                            console.log('DEBUG Template: lotes_disponibles existe:', typeof lotes_disponibles !== 'undefined');
-                            {% if lotes_disponibles %}
-                            console.log('DEBUG Template: lotes_disponibles tiene elementos:', {{ lotes_disponibles|length }});
-                            {% else %}
-                            console.log('DEBUG Template: lotes_disponibles NO está en el contexto o está vacío');
-                            {% endif %}
-                        </script>
                     </div>
                 </div>
                 <div class="col-md-2">
@@ -527,30 +519,6 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             const loteCheckboxes = document.querySelectorAll('.lote-checkbox');
             const loteMenu = document.getElementById('lote-origen-menu');
             
-            console.log('Buscando elementos del dropdown:', {
-                loteSelect: !!loteSelect,
-                loteBtn: !!loteBtn,
-                loteText: !!loteText,
-                loteCheckboxes: loteCheckboxes.length,
-                loteMenu: !!loteMenu
-            });
-            
-            if (!loteSelect) {
-                console.warn('Campo select oculto no encontrado');
-            }
-            if (!loteBtn) {
-                console.warn('Botón del dropdown no encontrado');
-            }
-            if (!loteText) {
-                console.warn('Texto del botón no encontrado');
-            }
-            if (!loteCheckboxes.length) {
-                console.warn('Checkboxes de lotes no encontrados. Verificar que lotes_disponibles esté en el contexto.');
-            }
-            if (!loteMenu) {
-                console.warn('Menú del dropdown no encontrado');
-            }
-            
             // Verificar elementos críticos
             if (!loteSelect) {
                 console.error('Campo select oculto no encontrado. El dropdown no funcionará correctamente.');
@@ -571,34 +539,14 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             
             // Si no hay checkboxes, puede ser que no haya lotes disponibles
             if (!loteCheckboxes.length) {
-                console.warn('No se encontraron checkboxes de lotes. Puede que no haya lotes disponibles o que el contexto no esté pasando lotes_disponibles.');
-                
-                // Verificar si el menú tiene elementos
-                const menuItems = loteMenu.querySelectorAll('li');
-                console.log('Elementos li en el menú:', menuItems.length);
-                
-                // Verificar si hay elementos con la clase dropdown-item
-                const dropdownItems = loteMenu.querySelectorAll('.dropdown-item');
-                console.log('Elementos .dropdown-item en el menú:', dropdownItems.length);
-                
-                // Verificar si hay inputs en el menú
-                const inputs = loteMenu.querySelectorAll('input');
-                console.log('Inputs en el menú:', inputs.length);
-                
-                // Intentar buscar checkboxes de otra forma
-                const allCheckboxes = document.querySelectorAll('input[type="checkbox"]');
-                console.log('Total de checkboxes en la página:', allCheckboxes.length);
-                
-                // Continuar de todas formas para que el dropdown funcione aunque esté vacío
-            } else {
-                console.log('Checkboxes encontrados correctamente:', loteCheckboxes.length);
+                console.warn('No se encontraron checkboxes de lotes. Puede que no haya lotes disponibles.');
+                return;
             }
         
         // Función para actualizar el texto del botón y el campo select oculto
         function updateLoteSelection() {
             // Re-buscar checkboxes por si se agregaron dinámicamente
             const currentCheckboxes = document.querySelectorAll('.lote-checkbox');
-            console.log('Checkboxes encontrados en updateLoteSelection:', currentCheckboxes.length);
             
             const selected = Array.from(currentCheckboxes)
                 .filter(cb => cb.checked)
@@ -657,18 +605,13 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             });
         }
         
-        // Debug: verificar que los elementos existan
-        console.log('Elementos del dropdown:', {
-            loteSelect: !!loteSelect,
-            loteBtn: !!loteBtn,
-            loteText: !!loteText,
-            loteCheckboxes: loteCheckboxes.length,
-            loteMenu: !!loteMenu
-        });
-        
-        // Verificar que hay lotes disponibles
-        if (loteCheckboxes.length === 0) {
-            console.warn('No se encontraron checkboxes de lotes. Verificar que lotes_disponibles esté en el contexto.');
+        // Asegurar que el dropdown se muestre cuando se abre
+        if (loteBtn) {
+            loteBtn.addEventListener('shown.bs.dropdown', function() {
+                if (loteMenu) {
+                    loteMenu.style.display = 'block';
+                }
+            });
         }
         
         // Actualizar antes de enviar el formulario
