@@ -665,37 +665,6 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             loteBtn.addEventListener('shown.bs.dropdown', function() {
                 if (loteMenu) {
                     loteMenu.style.display = 'block';
-                    
-                    // Obtener la posición del botón
-                    const btnRect = loteBtn.getBoundingClientRect();
-                    
-                    // Posicionar el menú de forma fija para que no sea cortado
-                    loteMenu.style.position = 'fixed';
-                    loteMenu.style.top = (btnRect.bottom + window.scrollY) + 'px';
-                    loteMenu.style.left = btnRect.left + 'px';
-                    loteMenu.style.width = btnRect.width + 'px';
-                    loteMenu.style.maxWidth = '300px';
-                    loteMenu.style.maxHeight = '300px';
-                    loteMenu.style.zIndex = '999999';
-                    loteMenu.style.backgroundColor = '#fff';
-                    loteMenu.style.boxShadow = '0 0.5rem 1rem rgba(0, 0, 0, 0.15)';
-                    loteMenu.style.border = '1px solid rgba(0, 0, 0, 0.15)';
-                    loteMenu.style.borderRadius = '0.375rem';
-                }
-            });
-            
-            // Restaurar posición cuando se cierra
-            loteBtn.addEventListener('hidden.bs.dropdown', function() {
-                if (loteMenu) {
-                    loteMenu.style.position = '';
-                    loteMenu.style.top = '';
-                    loteMenu.style.left = '';
-                    loteMenu.style.width = '';
-                    loteMenu.style.maxWidth = '';
-                    loteMenu.style.maxHeight = '';
-                    loteMenu.style.zIndex = '';
-                    loteMenu.style.backgroundColor = '';
-                    loteMenu.style.boxShadow = '';
                 }
             });
         }
