@@ -541,9 +541,28 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                 console.warn('Menú del dropdown no encontrado');
             }
             
-            if (!loteSelect || !loteBtn || !loteText || !loteCheckboxes.length || !loteMenu) {
-                console.warn('Algunos elementos del dropdown de lotes no encontrados. Verificar el template.');
+            // Verificar elementos críticos
+            if (!loteSelect) {
+                console.error('Campo select oculto no encontrado. El dropdown no funcionará correctamente.');
                 return;
+            }
+            if (!loteBtn) {
+                console.error('Botón del dropdown no encontrado. El dropdown no funcionará correctamente.');
+                return;
+            }
+            if (!loteText) {
+                console.error('Texto del botón no encontrado. El dropdown no funcionará correctamente.');
+                return;
+            }
+            if (!loteMenu) {
+                console.error('Menú del dropdown no encontrado. El dropdown no funcionará correctamente.');
+                return;
+            }
+            
+            // Si no hay checkboxes, puede ser que no haya lotes disponibles
+            if (!loteCheckboxes.length) {
+                console.warn('No se encontraron checkboxes de lotes. Puede que no haya lotes disponibles o que el contexto no esté pasando lotes_disponibles.');
+                // Continuar de todas formas para que el dropdown funcione aunque esté vacío
             }
         
         // Función para actualizar el texto del botón y el campo select oculto
@@ -585,13 +604,15 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         // Actualizar la UI después de inicializar
         updateLoteSelection();
         
-        // Agregar event listeners a los checkboxes
-        loteCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', function(e) {
-                e.stopPropagation();
-                updateLoteSelection();
+        // Agregar event listeners a los checkboxes (solo si existen)
+        if (loteCheckboxes.length > 0) {
+            loteCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function(e) {
+                    e.stopPropagation();
+                    updateLoteSelection();
+                });
             });
-        });
+        }
         
         // Prevenir que el dropdown se cierre al hacer click en los elementos
         if (loteMenu) {
