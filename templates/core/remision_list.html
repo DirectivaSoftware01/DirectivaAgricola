@@ -557,8 +557,10 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
     <script>
     // Script para el dropdown múltiple de Lote-Origen
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('Inicializando dropdown Lote-Origen');
         // Esperar un poco más para asegurar que el DOM esté completamente cargado
         setTimeout(function() {
+            console.log('Ejecutando código del dropdown Lote-Origen');
             const loteSelect = document.querySelector('select[name="lote_origen"]');
             const loteBtn = document.getElementById('lote-origen-btn');
             const loteText = document.getElementById('lote-origen-text');
@@ -653,6 +655,7 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         }
         
         // Cerrar el dropdown cuando se hace click fuera de él
+        // Usar capture phase para asegurar que se ejecute antes que otros listeners
         document.addEventListener('click', function(e) {
             if (loteBtn && loteMenu) {
                 // Verificar si el click fue fuera del botón y del menú
@@ -663,11 +666,12 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                     // Cerrar el dropdown si está abierto
                     const dropdown = bootstrap.Dropdown.getInstance(loteBtn);
                     if (dropdown && dropdown._isShown()) {
+                        console.log('Cerrando dropdown por click fuera');
                         dropdown.hide();
                     }
                 }
             }
-        });
+        }, true); // Usar capture phase
         
         // Asegurar que las selecciones se mantengan cuando se cierra el dropdown
         if (loteBtn) {
