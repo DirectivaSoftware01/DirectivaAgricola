@@ -9980,9 +9980,27 @@ class RemisionListView(LoginRequiredMixin, ListView):
             if cliente:
                 queryset = queryset.filter(cliente=cliente)
             
-            # Filtrar por lote origen
+            # Filtrar por lote origen (múltiple)
             if lote_origen:
-                queryset = queryset.filter(lote_origen=lote_origen)
+                # Obtener valores directamente del request.GET para manejar múltiples valores
+                lote_ids = self.request.GET.getlist('lote_origen')
+                if lote_ids:
+                    # Convertir IDs a enteros y filtrar
+                    try:
+                        lote_ids_int = [int(id) for id in lote_ids if id]
+                        queryset = queryset.filter(lote_origen_id__in=lote_ids_int)
+                    except (ValueError, TypeError):
+                        # Si hay error, usar el método anterior como fallback
+                        if hasattr(lote_origen, '__iter__') and not isinstance(lote_origen, str):
+                            queryset = queryset.filter(lote_origen__in=lote_origen)
+                        else:
+                            queryset = queryset.filter(lote_origen=lote_origen)
+                else:
+                    # Fallback al método anterior si no hay valores en GET
+                    if hasattr(lote_origen, '__iter__') and not isinstance(lote_origen, str):
+                        queryset = queryset.filter(lote_origen__in=lote_origen)
+                    else:
+                        queryset = queryset.filter(lote_origen=lote_origen)
             
             # Filtrar por transportista
             if transportista:
