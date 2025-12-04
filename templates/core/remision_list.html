@@ -37,6 +37,10 @@
         will-change: auto !important;
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
         background-color: white !important;
+        display: none !important; /* Oculto por defecto */
+    }
+    /* Mostrar solo cuando Bootstrap lo active */
+    #lote-origen-menu.show {
         display: block !important;
     }
     /* Asegurar que la tarjeta de listado no tenga z-index alto */
@@ -644,6 +648,11 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         updateLoteSelection();
         
         // Asegurar que el dropdown esté cerrado al cargar
+        const menu = document.getElementById('lote-origen-menu');
+        if (menu) {
+            menu.classList.remove('show');
+            menu.style.display = 'none';
+        }
         const loteDropdown = bootstrap.Dropdown.getInstance(loteBtn);
         if (loteDropdown && loteDropdown._isShown()) {
             loteDropdown.hide();
@@ -720,7 +729,11 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                     background-color: white !important;
                     display: block !important;
                     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+                    pointer-events: auto !important;
                 `;
+                
+                // Asegurar que la clase show esté presente
+                menu.classList.add('show');
                 
                 console.log('Posición del menú:', {
                     top: menu.style.top,
@@ -736,16 +749,38 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             }
         });
         
+        // Asegurar que el dropdown se oculte cuando se cierre
+        loteBtn.addEventListener('hidden.bs.dropdown', function(e) {
+            const menu = document.getElementById('lote-origen-menu');
+            if (menu) {
+                menu.classList.remove('show');
+                menu.style.display = 'none';
+            }
+        });
+        
         // Ajustar posición cuando se hace scroll
         window.addEventListener('scroll', function() {
             const menu = document.getElementById('lote-origen-menu');
             const bsDropdown = bootstrap.Dropdown.getInstance(loteBtn);
             if (menu && bsDropdown && bsDropdown._isShown()) {
                 const rect = loteBtn.getBoundingClientRect();
-                menu.style.top = (rect.bottom + window.scrollY + 2) + 'px';
+                const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+                menu.style.top = (rect.bottom + scrollY + 2) + 'px';
                 menu.style.left = rect.left + 'px';
+                menu.style.zIndex = '999999';
             }
         });
+        
+        // Mantener z-index alto cuando el mouse está sobre el menú
+        const menu = document.getElementById('lote-origen-menu');
+        if (menu) {
+            menu.addEventListener('mouseenter', function() {
+                this.style.zIndex = '999999';
+            });
+            menu.addEventListener('mouseleave', function() {
+                this.style.zIndex = '999999';
+            });
+        }
         
         // Prevenir que el dropdown se cierre al hacer click en los elementos del menú
         const loteMenu = document.getElementById('lote-origen-menu');
