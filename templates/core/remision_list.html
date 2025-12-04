@@ -568,6 +568,23 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             searchForm.addEventListener('submit', function(e) {
                 // Asegurar que los valores seleccionados estén en el campo oculto
                 updateLoteSelection();
+                
+                // Verificar que el campo select tenga los valores correctos
+                const selectedValues = Array.from(loteCheckboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => cb.value);
+                
+                // Forzar la actualización del campo select múltiple
+                Array.from(loteSelect.options).forEach(option => {
+                    option.selected = selectedValues.includes(option.value);
+                });
+                
+                // Si no hay valores seleccionados, asegurar que el campo esté vacío
+                if (selectedValues.length === 0) {
+                    Array.from(loteSelect.options).forEach(option => {
+                        option.selected = false;
+                    });
+                }
             });
         }
         
