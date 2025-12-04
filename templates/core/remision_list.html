@@ -37,11 +37,17 @@
         will-change: auto !important;
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
         background-color: white !important;
+        display: block !important;
     }
     /* Asegurar que la tarjeta de listado no tenga z-index alto */
     .card:not(#lote-origen-dropdown) {
         position: relative;
         z-index: auto;
+    }
+    /* Asegurar que el dropdown container no limite el z-index */
+    #lote-origen-dropdown {
+        position: static !important;
+        z-index: auto !important;
     }
     /* Permitir que el dropdown se muestre fuera de la card */
     .card-body {
@@ -681,27 +687,42 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         });
         
         // Ajustar posición del dropdown cuando se abre
-        loteBtn.addEventListener('shown.bs.dropdown', function() {
+        loteBtn.addEventListener('shown.bs.dropdown', function(e) {
+            console.log('Dropdown abierto, ajustando posición...');
             const menu = document.getElementById('lote-origen-menu');
             if (menu) {
                 // Calcular posición basada en el botón
                 const rect = loteBtn.getBoundingClientRect();
                 const scrollY = window.pageYOffset || document.documentElement.scrollTop;
                 
-                menu.style.position = 'fixed';
-                menu.style.top = (rect.bottom + scrollY + 2) + 'px';
-                menu.style.left = rect.left + 'px';
-                menu.style.width = rect.width + 'px';
-                menu.style.minWidth = rect.width + 'px';
-                menu.style.maxWidth = rect.width + 'px';
-                menu.style.zIndex = '999999';
-                menu.style.maxHeight = '400px';
-                menu.style.overflowY = 'auto';
-                menu.style.overflowX = 'hidden';
-                menu.style.backgroundColor = 'white';
+                // Aplicar estilos directamente
+                menu.style.cssText = `
+                    position: fixed !important;
+                    top: ${rect.bottom + scrollY + 2}px !important;
+                    left: ${rect.left}px !important;
+                    width: ${rect.width}px !important;
+                    min-width: ${rect.width}px !important;
+                    max-width: ${rect.width}px !important;
+                    z-index: 999999 !important;
+                    max-height: 400px !important;
+                    overflow-y: auto !important;
+                    overflow-x: hidden !important;
+                    background-color: white !important;
+                    display: block !important;
+                    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+                `;
+                
+                console.log('Posición del menú:', {
+                    top: menu.style.top,
+                    left: menu.style.left,
+                    width: menu.style.width,
+                    zIndex: menu.style.zIndex
+                });
                 
                 // Forzar que el menú esté en el contexto correcto
                 menu.setAttribute('data-bs-popper', 'static');
+            } else {
+                console.error('Menú no encontrado');
             }
         });
         
