@@ -683,9 +683,12 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                 menu.style.top = (rect.bottom + window.scrollY + 2) + 'px';
                 menu.style.left = rect.left + 'px';
                 menu.style.width = rect.width + 'px';
+                menu.style.minWidth = rect.width + 'px';
+                menu.style.maxWidth = rect.width + 'px';
                 menu.style.zIndex = '99999';
                 menu.style.maxHeight = '400px';
                 menu.style.overflowY = 'auto';
+                menu.style.overflowX = 'hidden';
             }
         });
         
