@@ -1651,7 +1651,7 @@ class RemisionSearchForm(forms.Form):
         required=False,
         widget=forms.SelectMultiple(attrs={
             'class': 'form-select',
-            'size': '5'
+            'multiple': 'multiple'
         }),
         label='Lote - Origen'
     )
