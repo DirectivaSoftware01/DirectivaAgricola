@@ -19,18 +19,22 @@
     }
     /* Asegurar que el dropdown se muestre por encima de otros elementos */
     #lote-origen-dropdown {
-        position: relative;
+        position: static !important;
     }
     #lote-origen-btn {
         height: 38px; /* Misma altura que los otros selects */
         display: flex;
         align-items: center;
+        padding: 0.375rem 0.75rem;
     }
     #lote-origen-menu {
         z-index: 9999 !important;
         max-height: 400px;
         overflow-y: auto;
         overflow-x: hidden;
+        position: absolute !important;
+        transform: none !important;
+        will-change: auto !important;
     }
     /* Permitir que el dropdown se muestre fuera de la card */
     .card-body {
