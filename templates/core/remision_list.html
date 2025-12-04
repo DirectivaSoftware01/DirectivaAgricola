@@ -144,7 +144,7 @@
                         {{ search_form.lote_origen }}
                     </div>
                     <div class="dropdown">
-                        <button class="form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="cursor: pointer;">
+                        <button class="form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;">
                             <span id="lote-origen-text">Todos los lotes</span>
                             <i class="bi bi-chevron-down"></i>
                         </button>
@@ -663,11 +663,20 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                 const isClickInsideMenu = loteMenu.contains(e.target);
                 
                 if (!isClickInsideBtn && !isClickInsideMenu) {
-                    // Cerrar el dropdown si está abierto
-                    const dropdown = bootstrap.Dropdown.getInstance(loteBtn);
-                    if (dropdown && dropdown._isShown()) {
+                    // Verificar si el dropdown está abierto
+                    const isOpen = loteBtn.classList.contains('show') || loteMenu.classList.contains('show');
+                    
+                    if (isOpen) {
                         console.log('Cerrando dropdown por click fuera');
-                        dropdown.hide();
+                        // Cerrar el dropdown usando Bootstrap
+                        const dropdown = bootstrap.Dropdown.getInstance(loteBtn);
+                        if (dropdown) {
+                            dropdown.hide();
+                        } else {
+                            // Si no hay instancia, crear una y cerrarla
+                            const newDropdown = new bootstrap.Dropdown(loteBtn);
+                            newDropdown.hide();
+                        }
                     }
                 }
             }
