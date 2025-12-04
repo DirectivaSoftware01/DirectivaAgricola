@@ -599,7 +599,9 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
         
         // Inicializar estado basado en los valores del formulario
         // Obtener valores del campo select múltiple (puede tener múltiples opciones seleccionadas)
-        const initialValues = Array.from(loteSelect.selectedOptions).map(opt => opt.value);
+        const initialValues = Array.from(loteSelect.selectedOptions)
+            .map(opt => opt.value)
+            .filter(value => value && value.trim() !== ''); // Filtrar valores vacíos
         console.log('Valores iniciales del select:', initialValues);
         
         // Marcar los checkboxes correspondientes
