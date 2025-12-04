@@ -17,6 +17,15 @@
         line-height: 1.5;
         color: #212529;
         appearance: none;
+        background-image: none; /* Eliminar el icono por defecto de form-select */
+    }
+    
+    #lote-origen-btn .bi-chevron-down {
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
     }
     
     #lote-origen-btn:hover {
@@ -115,12 +124,12 @@
                     <div style="display: none;">
                         {{ search_form.lote_origen }}
                     </div>
-                    <div class="dropdown">
-                        <button class="form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="cursor: pointer;">
+                    <div class="dropdown" style="position: relative;">
+                        <button class="form-select text-start w-100 d-flex align-items-center justify-content-between" type="button" id="lote-origen-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="cursor: pointer; position: relative;">
                             <span id="lote-origen-text">Todos los lotes</span>
                             <i class="bi bi-chevron-down"></i>
                         </button>
-                        <ul class="dropdown-menu w-100" id="lote-origen-menu" aria-labelledby="lote-origen-btn" data-bs-auto-close="false">
+                        <ul class="dropdown-menu w-100" id="lote-origen-menu" aria-labelledby="lote-origen-btn" data-bs-auto-close="outside">
                             {% if lotes_disponibles %}
                                 {% for lote in lotes_disponibles %}
                                 <li>
@@ -613,15 +622,29 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             });
         }
         
-        // Prevenir que el dropdown se cierre al hacer click en los elementos
+        // Prevenir que el dropdown se cierre al hacer click en los elementos del menú
         if (loteMenu) {
             loteMenu.addEventListener('click', function(e) {
-                // Solo prevenir si el click es en un checkbox o label
-                if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.tagName === 'SPAN') {
+                // Solo prevenir si el click es en un checkbox, label o span dentro del menú
+                if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || (e.target.tagName === 'SPAN' && e.target.closest('.dropdown-item'))) {
                     e.stopPropagation();
                 }
             });
         }
+        
+        // Cerrar el dropdown cuando se hace click fuera de él
+        document.addEventListener('click', function(e) {
+            if (loteBtn && loteMenu) {
+                const isClickInside = loteBtn.contains(e.target) || loteMenu.contains(e.target);
+                if (!isClickInside) {
+                    // Cerrar el dropdown si está abierto
+                    const dropdown = bootstrap.Dropdown.getInstance(loteBtn);
+                    if (dropdown && dropdown._isShown()) {
+                        dropdown.hide();
+                    }
+                }
+            }
+        });
         
         // Asegurar que el dropdown se muestre cuando se abre
         if (loteBtn) {
