@@ -36,6 +36,12 @@
         transform: none !important;
         will-change: auto !important;
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        background-color: white !important;
+    }
+    /* Asegurar que la tarjeta de listado no tenga z-index alto */
+    .card:not(#lote-origen-dropdown) {
+        position: relative;
+        z-index: auto;
     }
     /* Permitir que el dropdown se muestre fuera de la card */
     .card-body {
@@ -680,8 +686,10 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
             if (menu) {
                 // Calcular posición basada en el botón
                 const rect = loteBtn.getBoundingClientRect();
+                const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+                
                 menu.style.position = 'fixed';
-                menu.style.top = (rect.bottom + window.scrollY + 2) + 'px';
+                menu.style.top = (rect.bottom + scrollY + 2) + 'px';
                 menu.style.left = rect.left + 'px';
                 menu.style.width = rect.width + 'px';
                 menu.style.minWidth = rect.width + 'px';
@@ -690,6 +698,10 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                 menu.style.maxHeight = '400px';
                 menu.style.overflowY = 'auto';
                 menu.style.overflowX = 'hidden';
+                menu.style.backgroundColor = 'white';
+                
+                // Forzar que el menú esté en el contexto correcto
+                menu.setAttribute('data-bs-popper', 'static');
             }
         });
         
