@@ -668,14 +668,19 @@ document.getElementById('formCancelacion').addEventListener('submit', function(e
                     
                     if (isOpen) {
                         console.log('Cerrando dropdown por click fuera');
-                        // Cerrar el dropdown usando Bootstrap
+                        // Cerrar el dropdown directamente manipulando las clases y atributos
+                        loteBtn.classList.remove('show');
+                        loteMenu.classList.remove('show');
+                        loteBtn.setAttribute('aria-expanded', 'false');
+                        
+                        // También intentar usar Bootstrap si está disponible
                         const dropdown = bootstrap.Dropdown.getInstance(loteBtn);
                         if (dropdown) {
-                            dropdown.hide();
-                        } else {
-                            // Si no hay instancia, crear una y cerrarla
-                            const newDropdown = new bootstrap.Dropdown(loteBtn);
-                            newDropdown.hide();
+                            try {
+                                dropdown.hide();
+                            } catch (err) {
+                                console.log('Error al cerrar con Bootstrap, usando método directo:', err);
+                            }
                         }
                     }
                 }
